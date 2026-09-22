@@ -33,6 +33,7 @@ Updated in the same commit that introduces the assumption (CLAUDE.md invariant).
 | A-019 | Follow-up after a degraded outcome | STOP_AND_START lifts to CAUTION_ORDER 65% / FIT 35%; CAUTION_ORDER lifts to FIT | A restriction is usually relaxed in stages rather than cleared at once | Speed restriction registers |
 | A-020 | Department allotments differ per department | PWI 16 sections, OWD 15, S&T 14 | Identical full-corridor allotments would make rule R0 unenforceable — the constraint has to be able to bite for the rule to mean anything. The control office allots specific segments per week | The divisional control office roster |
 | A-021 | Department-pair base matrix (R4) | all three pairs geometry-decided | We have no evidence for a blanket prohibition between any two departments, and inventing one would be fiction. The hook exists so a real rule can be added when we learn one | Divisional working rules |
+| A-023 | A section is SICK only where a defect was found | priority 1-2, or a fault-named task type | SICK means a defect needs attention. Routine preventive work - tamping on a cycle, a scheduled lamp change - happens on healthy track, so marking those sections sick both overstates corridor degradation and washes the map amber, hiding the sections that genuinely are degraded | Defect registers from TMS / SMMS / TDMS |
 | A-022 | Same department, same zone, same time | INCOMPATIBLE — must be sequenced | One gang cannot be in two places; two gangs in one zone under one block is not how the work is organised | Gang rosters |
 
 ---

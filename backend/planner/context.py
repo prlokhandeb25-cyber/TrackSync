@@ -41,6 +41,51 @@ class World:
         return [w for w in self.windows if w.zone_ref == zone_ref]
 
 
+_BASE_CACHE: dict[tuple, "World"] = {}
+
+
+def build_base_world(seed: int | None = None, horizon_days: int = 7,
+                     corridor: str | None = None) -> World:
+    """Network, timetable, occupancy and candidate windows - everything but the tasks.
+
+    This is cached per process because it is identical across sampled instances and costs
+    seconds to rebuild: the real schedules file is ~79 MB and parsing it once per instance
+    dominated expert-data generation entirely. What varies between instances is the
+    maintenance workload, which is exactly the variation we want, so the timetable side is
+    built once and shared.
+    """
+    key = (seed, horizon_days, corridor)
+    if key in _BASE_CACHE:
+        return _BASE_CACHE[key]
+
+    s = seed_everything(seed)
+    net = build_network(corridor or all_corridors()[0])
+    day = build_timetable(net, s)
+    Validator(net, day).run()
+    derive_tiers(net, day, build_occupancy(net, day))
+    week = build_week(net, day, s)
+    occ = build_occupancy(net, week)
+    report = find_gaps(net, occ, horizon_days=horizon_days)
+    windows = report.windows + station_node_windows(net, report)
+
+    world = World(net=net, week=week, occupancy=occ, gaps=report, windows=windows,
+                  registry=StatusRegistry(), tasks=[], seed=s)
+    _BASE_CACHE[key] = world
+    return world
+
+
+def sample_instance(n_tasks: int, task_seed: int, base_seed: int | None = None,
+                    horizon_days: int = 7, corridor: str | None = None) -> World:
+    """A fresh instance: the shared corridor, a freshly sampled maintenance workload."""
+    base = build_base_world(base_seed, horizon_days, corridor)
+    rng = random.Random(task_seed)
+    registry = StatusRegistry()
+    tasks = generate_tasks(base.net, n_tasks, rng, registry=registry)
+    seed_sick_sections(base.net, registry, tasks)
+    return World(net=base.net, week=base.week, occupancy=base.occupancy, gaps=base.gaps,
+                 windows=base.windows, registry=registry, tasks=tasks, seed=task_seed)
+
+
 def build_world(n_tasks: int = 40, seed: int | None = None, horizon_days: int = 7,
                 corridor: str | None = None, quiet: bool = True) -> World:
     s = seed_everything(seed)

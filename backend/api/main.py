@@ -15,6 +15,7 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
+from backend.api.routes import router
 from backend.config import REPO_ROOT, load_config, seed_everything
 
 app = FastAPI(title="RailBlock AI", version="0.1.0")
@@ -24,6 +25,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(router)
 
 VALIDATION_REPORT = REPO_ROOT / "data" / "validation_report.json"
 

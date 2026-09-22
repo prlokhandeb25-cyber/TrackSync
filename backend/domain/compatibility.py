@@ -80,6 +80,11 @@ def base_verdict(a: Department, b: Department) -> Verdict:
     return BASE_MATRIX.get((a, b)) or BASE_MATRIX.get((b, a)) or Verdict.COMPATIBLE
 
 
+def _sentence_case(text: str) -> str:
+    """Upper-case the first letter only. str.capitalize() would lower-case station codes."""
+    return text[:1].upper() + text[1:] if text else text
+
+
 def zone_relation(z1: WorkZone, z2: WorkZone) -> ZoneRelation:
     """How two work zones sit relative to each other.
 
@@ -183,7 +188,7 @@ def compatibility(net: Network, t1: Task, t2: Task) -> CompatibilityResult:
     # Disjoint zones, overlapping time.
     return CompatibilityResult(
         Verdict.COMPATIBLE,
-        (f"{t1.zone.describe().capitalize()} and {t2.zone.describe()} are separate parts of the "
+        (f"{_sentence_case(t1.zone.describe())} and {t2.zone.describe()} are separate parts of the "
          f"corridor, so the two jobs do not interact (R2)."),
         "R2", rel,
     )

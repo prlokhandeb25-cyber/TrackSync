@@ -134,14 +134,29 @@ def generate_demand_task(net: Network, rng: random.Random, at_s: int,
 
 def seed_sick_sections(net: Network, registry: StatusRegistry, tasks: list[Task],
                        at_s: int = 0) -> None:
-    """Mark every zone that has outstanding work as SICK.
+    """Mark zones SICK where a DEFECT was found - not merely where work is planned.
 
-    A task exists because a defect was found, so the two must not drift apart: a pending task
-    on a zone the registry still calls FIT would be a lie the whole simulation inherits.
+    SICK means a defect has been identified and the section needs attention. Routine
+    preventive work - tamping on a cycle, a lamp change, scheduled ballast screening - is
+    maintenance on a healthy section, and calling that "sick" would both overstate how much of
+    the corridor is degraded and wash the map amber, hiding the sections that genuinely are.
+
+    Defect-driven work is taken to be the urgent end of the pool (priority 1-2) plus the
+    fault-named task types. ASSUMPTIONS A-023.
     """
     from backend.domain.fsm import Event
 
-    for zone_ref in {t.zone.ref for t in tasks}:
+    fault_types = {"SNT_TRACK_CIRCUIT", "SNT_AXLE_COUNTER", "PWI_JOINT",
+                   "PWI_GAUGE", "OWD_DROPPER", "OWD_INSULATOR"}
+
+    # Calibrated against the corridor: this puts roughly a quarter of sections in a defect
+    # state at any time. A looser rule ("priority<=2 OR fault type") marked 62% of the
+    # corridor sick, which is neither realistic nor readable on a map.
+    defect_zones = {
+        t.zone.ref for t in tasks
+        if t.priority == 1 or (t.task_type in fault_types and t.priority <= 2)
+    }
+    for zone_ref in defect_zones:
         if registry.get(zone_ref) is TrackStatus.FIT:
             registry.apply(zone_ref, Event.DEFECT_REPORTED, at_s, TrackStatus.SICK,
                            note="defect identified by department inspection")
