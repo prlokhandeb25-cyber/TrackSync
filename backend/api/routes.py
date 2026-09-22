@@ -15,9 +15,15 @@ from backend.config import load_config
 from backend.domain.compatibility import coordination_conflicts, matrix
 from backend.domain.models import TrackStatus, s_to_hhmm
 from backend.gaps.engine import GapType
+from backend.adapters import all_adapters, registry
+from backend.chat.engine import answer as chat_answer
+from backend.metrics.impact import compute as compute_impact
 from backend.planner.cpsat import solve_with_relaxation
 
 router = APIRouter()
+from backend.config import REPO_ROOT as _RR
+REPO_ROOT_MODELS = _RR / 'artifacts' / 'models'
+REPO_ROOT_ART = _RR / 'artifacts'
 DAY_S = 86400
 DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 
@@ -246,3 +252,64 @@ def do_reset() -> dict:
     reset()
     ensure_world()
     return {"ok": True}
+
+
+# ------------------------------------------------------------------ chat, impact, adapters
+
+
+@router.post("/api/chat")
+def chat(payload: dict) -> dict:
+    """Grounded question answering over live state. No language model is involved."""
+    w = ensure_world()
+    a = chat_answer(str(payload.get("q", "")), w, STATE.plan)
+    return a.to_dict()
+
+
+@router.get("/api/metrics/impact")
+def impact() -> dict:
+    w = ensure_world()
+    plan = ensure_plan()
+    from backend.rl.agents import GreedyPolicy
+    policy = GreedyPolicy()
+    try:
+        import torch
+
+        from backend.rl.agents import TorchPolicy
+        from backend.rl.nets import QNet
+        blob = torch.load(REPO_ROOT_MODELS / "cql_dqn.pt", map_location="cpu", weights_only=True)
+        net = QNet(blob["state_dim"], blob["action_dim"], blob["hidden"])
+        net.load_state_dict(blob["state_dict"]); net.eval()
+        policy = TorchPolicy(net, "CQL-DQN")
+    except Exception:  # noqa: BLE001 - fall back to greedy if the model is unavailable
+        pass
+    rep = compute_impact(w.net, w.tasks, w.windows, plan, policy)
+    return rep.to_dict()
+
+
+@router.get("/api/rl/comparison")
+def rl_comparison() -> dict:
+    import json
+    path = REPO_ROOT_ART / "rl_comparison.json"
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Run scripts/06_evaluate_rl.py first.")
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+@router.get("/api/adapters")
+def adapters() -> dict:
+    w = ensure_world()
+    plan = STATE.plan
+    reg = registry()
+    tasks_by_id = {t.id: t for t in w.tasks}
+    sample_demands = (reg["BDMS"].submit_block_plan(plan.assignments[:3], tasks_by_id)
+                      if plan else [])
+    return {
+        "mode": load_config().get_path("adapters.mode"),
+        "adapters": all_adapters(),
+        "sample_block_demands": sample_demands,
+        "sample_task_records": {
+            "TMS": reg["TMS"].fetch_tasks(w.tasks)[:2],
+            "SMMS": reg["SMMS"].fetch_tasks(w.tasks)[:2],
+            "TDMS": reg["TDMS"].fetch_tasks(w.tasks)[:2],
+        },
+    }
