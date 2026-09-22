@@ -1,0 +1,15 @@
+.venv/
+__pycache__/
+*.pyc
+node_modules/
+frontend/dist/
+data/raw/*
+!data/raw/.gitkeep
+data/processed/*
+!data/processed/.gitkeep
+data/expert/*
+!data/expert/.gitkeep
+artifacts/charts/*
+artifacts/screenshots/*
+*.log
+.DS_Store

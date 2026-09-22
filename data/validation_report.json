@@ -1,0 +1,1151 @@
+{
+  "overall_status": "FAIL",
+  "generated_at": "2026-09-22T19:13:46+00:00",
+  "corridor": "central_line",
+  "checks_total": 10,
+  "checks_passed": 8,
+  "checks_failed": 1,
+  "repairs_applied": 2125,
+  "services_total": 620,
+  "services_real": 197,
+  "services_synthetic": 423,
+  "services_by_class": {
+    "SUBURBAN_LOCAL": 374,
+    "INTERCITY": 197,
+    "FREIGHT_MAIL": 49
+  },
+  "sections": 14,
+  "checks": [
+    {
+      "id": "V1",
+      "name": "Monotonic stop times",
+      "status": "PASS",
+      "detail": "0 service(s) dropped as irreconcilable; 620 retained",
+      "count": 0,
+      "offenders_sample": []
+    },
+    {
+      "id": "V2",
+      "name": "Midnight wrap day-indexing",
+      "status": "PASS",
+      "detail": "17 service(s) cross midnight, all correctly day-indexed",
+      "count": 17,
+      "offenders_sample": []
+    },
+    {
+      "id": "V3",
+      "name": "Dwell time sanity",
+      "status": "PASS",
+      "detail": "939 dwell(s) clipped into [20s, 1200s]",
+      "count": 939,
+      "offenders_sample": [
+        "R-12071@BY:0s",
+        "R-12071@CLA:0s",
+        "R-12071@GC:0s",
+        "R-12071@DI:0s",
+        "R-16381@BY:0s",
+        "R-16381@CLA:0s",
+        "R-16381@GC:0s",
+        "R-16381@TNA:0s",
+        "R-16381@DI:0s",
+        "R-16381@ABH:0s"
+      ]
+    },
+    {
+      "id": "V4",
+      "name": "Implied run-time sanity",
+      "status": "WARN",
+      "detail": "8 section hop(s) imply an impossible speed",
+      "count": 8,
+      "offenders_sample": [
+        "R-16505 DI-KYN: 13km/h (limit 175)",
+        "R-11095 DI-KYN: 14km/h (limit 175)",
+        "R-16531 DI-KYN: 13km/h (limit 175)",
+        "R-16209 DI-KYN: 13km/h (limit 175)",
+        "R-11091 DI-KYN: 14km/h (limit 175)",
+        "R-11087 DI-KYN: 14km/h (limit 175)",
+        "R-11089 DI-KYN: 14km/h (limit 175)",
+        "R-16507 DI-KYN: 14km/h (limit 175)"
+      ]
+    },
+    {
+      "id": "V5",
+      "name": "No impossible train overlaps",
+      "status": "FAIL",
+      "detail": "337 sub-headway conflict(s) at 120s minimum (7.16% of 4,705 traversals; WARN threshold 0.5%)",
+      "count": 337,
+      "offenders_sample": [
+        "KYN-ABH/DN S-DN-00010->F-036 enter_gap=66s exit_gap=281s",
+        "KYN-ABH/DN F-048->S-DN-00015 enter_gap=294s exit_gap=79s",
+        "KYN-ABH/DN R-17203->S-DN-00133 enter_gap=85s exit_gap=30s",
+        "KYN-ABH/DN S-DN-00133->R-19568 enter_gap=65s exit_gap=120s",
+        "ABH-BUD/DN S-DN-00009->F-034 enter_gap=28s exit_gap=281s",
+        "ABH-BUD/DN F-036->R-12525 enter_gap=160s exit_gap=-254s",
+        "ABH-BUD/DN F-044->F-046 enter_gap=58s exit_gap=58s",
+        "ABH-BUD/DN R-16613->S-DN-00137 enter_gap=112s exit_gap=213s",
+        "ABH-BUD/DN S-DN-00137->R-19568 enter_gap=38s exit_gap=117s",
+        "ABH-BUD/DN R-19568->S-DN-00133 enter_gap=79s exit_gap=0s"
+      ]
+    },
+    {
+      "id": "V6",
+      "name": "Referential integrity",
+      "status": "PASS",
+      "detail": "0 stop(s) reference an unknown station",
+      "count": 0,
+      "offenders_sample": []
+    },
+    {
+      "id": "V7",
+      "name": "Corridor coverage",
+      "status": "PASS",
+      "detail": "620 services/day across 14 sections",
+      "count": 620,
+      "offenders_sample": []
+    },
+    {
+      "id": "V8",
+      "name": "Section geometry present",
+      "status": "PASS",
+      "detail": "0 section(s) lack endpoint coordinates",
+      "count": 0,
+      "offenders_sample": []
+    },
+    {
+      "id": "V9",
+      "name": "Train origin/destination integrity",
+      "status": "PASS",
+      "detail": "0 train(s) lack a valid origin, destination or >=2 stops",
+      "count": 0,
+      "offenders_sample": []
+    },
+    {
+      "id": "V10",
+      "name": "Occupancy/gap conservation",
+      "status": "PASS",
+      "detail": "0 track-day(s) fail busy+idle==24h",
+      "count": 0,
+      "offenders_sample": []
+    }
+  ],
+  "repairs": [
+    {
+      "check": "V3",
+      "target": "R-12071@BY",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-12071@CLA",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-12071@GC",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-12071@DI",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-16381@BY",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-16381@CLA",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-16381@GC",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-16381@TNA",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-16381@DI",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-16381@ABH",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-16381@BUD",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-16381@VGI",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-16381@SHLU",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-16381@NRL",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-16381@BVS",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-15102@BY",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-15102@DR",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-15102@CLA",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-15102@GC",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-15102@TNA",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-15102@DI",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-11093@BY",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-11093@CLA",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-11093@GC",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-11093@DI",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-12137@BY",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-12137@CLA",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-12137@GC",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-12137@TNA",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-12137@DI",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-12115@BY",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-12115@CLA",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-12115@GC",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-12115@DI",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-12115@ABH",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-12115@BUD",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-12115@VGI",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-12115@SHLU",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-12115@NRL",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-12115@BVS",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-11007@BY",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-11007@CLA",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-11007@GC",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-11007@DI",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-11007@ABH",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-11007@BUD",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-11007@VGI",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-11007@SHLU",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-11007@BVS",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-11057-Slip@CLA",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-11057-Slip@GC",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-11057-Slip@DI",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-12289@BY",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-12289@DR",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-12289@CLA",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-12289@GC",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-12289@TNA",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-12289@DI",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-11057@CLA",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-11057@GC",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-11057@DI",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-11023@BY",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-11023@CLA",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-11023@GC",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-11023@TNA",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-11023@DI",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-11023@ABH",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-11023@BUD",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-11023@VGI",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-11023@SHLU",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-11023@NRL",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-11023@BVS",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-17057@BY",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-17057@CLA",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-17057@GC",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-17057@DI",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-11041@BY",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-11041@CLA",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-11041@GC",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-11041@DI",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-11041@ABH",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-11041@BUD",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-11041@VGI",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-11041@SHLU",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-11041@NRL",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-11041@BVS",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-17031@BY",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-17031@CLA",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-17031@GC",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-17031@TNA",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-17031@DI",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-17031@ABH",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-17031@BUD",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-17031@VGI",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-17031@SHLU",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-17031@NRL",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-17031@BVS",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-12111@BY",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-12111@CLA",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-12111@GC",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-12111@TNA",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-12111@DI",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-12109@BY",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-12109@CLA",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-12109@GC",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-12109@TNA",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-12109@DI",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-12105@BY",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-12105@CLA",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-12105@GC",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-12105@TNA",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-12105@DI",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-12527@BY",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-12527@CLA",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-12527@GC",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-12527@TNA",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-12527@DI",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-12527@ABH",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-12527@BUD",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-12527@VGI",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-12527@SHLU",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-12527@NRL",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-12527@BVS",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-12525@BY",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-12525@CLA",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-12525@GC",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-12525@DI",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-12525@ABH",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-12525@BUD",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-12525@VGI",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-12525@SHLU",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-12525@NRL",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-12525@BVS",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-10111@BY",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-10111@CLA",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-10111@GC",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-11035@CLA",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-11035@GC",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-11035@TNA",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-11035@DI",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-11035@ABH",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-11035@BUD",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-11035@VGI",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-11035@SHLU",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-11035@NRL",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-11035@BVS",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-11029@BY",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-11029@CLA",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-11029@GC",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-11029@DI",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-11029@ABH",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-11029@BUD",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-11029@VGI",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-11029@SHLU",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-11029@BVS",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-11027@BY",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-11027@CLA",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-11027@GC",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-11027@TNA",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-11027@DI",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-11027@ABH",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-11027@BUD",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-11027@VGI",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-11027@SHLU",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-11027@NRL",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-11027@BVS",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-11009@BY",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-11009@CLA",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-11009@GC",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-11009@DI",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-11009@ABH",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-11009@BUD",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-11009@VGI",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-11009@SHLU",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-11009@NRL",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-11009@BVS",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-17057-Slip@BY",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-17057-Slip@CLA",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-17057-Slip@GC",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-17057-Slip@DI",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-12869@BY",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-12869@CLA",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-12869@GC",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-12869@TNA",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-12869@DI",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-12534@BY",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-12534@DR",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-12534@CLA",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-12534@GC",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-12534@TNA",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-12534@DI",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-12139@BY",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-12139@CLA",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-12139@GC",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-12139@DI",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-12188@BY",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-12188@CLA",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-12188@GC",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-12188@TNA",
+      "action": "dwell 0s clipped up to 20s"
+    },
+    {
+      "check": "V3",
+      "target": "R-12188@DI",
+      "action": "dwell 0s clipped up to 20s"
+    }
+  ],
+  "fidelity": {
+    "status": "FAIL",
+    "trains_total": 620,
+    "trains_completed": 620,
+    "conflicts": 337,
+    "mean_abs_deviation_s": 0.0,
+    "max_abs_deviation_s": 0,
+    "detail": "0 train(s) did not complete; 337 conflict(s)"
+  },
+  "tier_warnings": [
+    "CSTM (Mumbai CSMT): derived TIER_2 but config expected TIER_1 \u2014 500 services/day, thresholds q1=512 q3=171",
+    "DR (Dadar): derived TIER_2 but config expected TIER_1 \u2014 511 services/day, thresholds q1=512 q3=171",
+    "CLA (Kurla Jn): derived TIER_2 but config expected TIER_1 \u2014 511 services/day, thresholds q1=512 q3=171",
+    "GC (Ghatkopar): derived TIER_1 but config expected TIER_2 \u2014 580 services/day, thresholds q1=512 q3=171",
+    "DI (Dombivli): derived TIER_1 but config expected TIER_2 \u2014 516 services/day, thresholds q1=512 q3=171",
+    "KYN (Kalyan Jn): derived TIER_2 but config expected TIER_1 \u2014 484 services/day, thresholds q1=512 q3=171",
+    "KJT (Karjat Jn): derived TIER_3 but config expected TIER_2 \u2014 155 services/day, thresholds q1=512 q3=171"
+  ]
+}
