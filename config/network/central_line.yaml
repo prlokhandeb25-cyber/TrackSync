@@ -8,6 +8,7 @@
 
 corridor_id: central_line
 name: Central Line (CSMT – Kalyan – Karjat)
+line_code: CR
 zone: CR
 division: Mumbai
 route_factor: 1.15          # great-circle -> route distance (A-010)

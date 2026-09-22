@@ -152,8 +152,15 @@ def _in_night_band(t_of_day: int) -> bool:
     return t_of_day >= lo or t_of_day < hi
 
 
-def _megablock_window(net: Network, day: int) -> tuple[int, int] | None:
+def _megablock_window(net: Network, day: int, section_id: str | None = None
+                      ) -> tuple[int, int] | None:
     mb = net.megablock or {}
+    if section_id and net.per_corridor:
+        sec = net.sections.get(section_id)
+        for cid, cfg in net.per_corridor.items():
+            if sec is not None and sec.line_code == cfg.get("line_code"):
+                mb = cfg.get("megablock") or mb
+                break
     if not mb or day != SUNDAY:
         return None
     start = hhmmss_to_s(mb.get("start", "10:30")) or 0
@@ -213,7 +220,7 @@ def find_gaps(net: Network, occ: list[SectionOccupancy], horizon_days: int = 7) 
                 if _in_night_band(time_of_day((s + e) // 2)) and (e - s) > best:
                     best, night_idx = e - s, i
 
-            mb = _megablock_window(net, day)
+            mb = _megablock_window(net, day, section_id)
 
             for i, (s, e, prev_id, next_id) in enumerate(raw):
                 dur_min = (e - s) // 60

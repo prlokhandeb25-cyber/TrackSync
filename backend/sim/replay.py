@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from backend.config import load_config
 from backend.domain.models import Train, TrackStatus
 from backend.domain.network import Network
-from backend.domain.occupancy import build_occupancy, group_by_track
+from backend.domain.occupancy import _path_between, build_occupancy, group_by_track
 
 
 @dataclass
@@ -54,8 +54,9 @@ def replay_no_maintenance(net: Network, trains: list[Train]) -> FidelityResult:
         clock: int | None = None
         ok = True
         for prev, nxt in zip(tr.stops, tr.stops[1:]):
-            sec = net.section_between(prev.station_code, nxt.station_code)
-            if sec is None:
+            # A train "completes" if every leg between its stops is traceable through the
+            # network, including legs where it runs past stations without calling.
+            if not _path_between(net, prev.station_code, nxt.station_code):
                 ok = False
                 break
             dep = prev.departure_s or 0

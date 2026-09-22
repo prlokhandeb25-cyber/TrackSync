@@ -46,11 +46,14 @@ def seed_everything(seed: int | None = None) -> int:
         seed = int(load_config()["seed"])
     random.seed(seed)
     np.random.seed(seed % (2**32 - 1))
-    try:  # torch is not installed until P7; absence is expected, not an error
+    # Torch seeding is best-effort. It is absent before P7, and on Windows it can also fail
+    # to initialise its DLLs under memory pressure. Neither should be able to take down the
+    # data pipeline, which does not need torch at all.
+    try:
         import torch
 
         torch.manual_seed(seed)
-    except ModuleNotFoundError:
+    except Exception:  # noqa: BLE001 - deliberately broad; torch is optional here
         pass
     return seed
 

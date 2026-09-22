@@ -20,7 +20,7 @@ from backend.data.validate import Validator
 from backend.data.week import build_week
 from backend.domain.fsm import StatusRegistry
 from backend.domain.models import SectionOccupancy, Train
-from backend.domain.network import Network, build_network
+from backend.domain.network import Network, build_network, merge_networks
 from backend.domain.occupancy import build_occupancy
 from backend.domain.task import Task
 from backend.gaps.engine import CandidateWindow, GapReport, find_gaps, station_node_windows
@@ -59,8 +59,15 @@ def build_base_world(seed: int | None = None, horizon_days: int = 7,
         return _BASE_CACHE[key]
 
     s = seed_everything(seed)
-    net = build_network(corridor or all_corridors()[0])
-    day = build_timetable(net, s)
+    # Each corridor is ingested on its own network - suburban patterns, megablock and track
+    # policy are all per-line - and the networks are merged afterwards so shared stations
+    # become real interchanges instead of duplicates.
+    names = [corridor] if corridor else all_corridors()
+    nets = [build_network(c) for c in names]
+    day: list = []
+    for n in nets:
+        day.extend(build_timetable(n, s))
+    net = merge_networks(nets)
     Validator(net, day).run()
     derive_tiers(net, day, build_occupancy(net, day))
     week = build_week(net, day, s)

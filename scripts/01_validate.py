@@ -18,7 +18,7 @@ from backend.config import REPO_ROOT, all_corridors, load_config, seed_everythin
 from backend.data.ingest import build_timetable  # noqa: E402
 from backend.data.tiers import derive_tiers  # noqa: E402
 from backend.data.validate import Validator  # noqa: E402
-from backend.domain.network import build_network  # noqa: E402
+from backend.domain.network import build_network, merge_networks  # noqa: E402
 from backend.domain.occupancy import build_occupancy  # noqa: E402
 from backend.sim.replay import replay_no_maintenance  # noqa: E402
 
@@ -144,16 +144,28 @@ def main() -> int:
     cfg = load_config()
     PROC.mkdir(parents=True, exist_ok=True)
 
-    corridor = all_corridors()[0]
-    print(f"seed={seed}  corridor={corridor}\n")
+    names = all_corridors()
+    print(f"seed={seed}  corridors: {', '.join(names)}\n")
 
-    net = build_network(corridor)
-    print(f"network: {len(net.stations)} stations, {len(net.sections)} sections, "
-          f"{sum(s.length_km for s in net.sections.values()):.1f} route-km")
+    nets = [build_network(c) for c in names]
+    trains: list = []
+    for n in nets:
+        t = build_timetable(n, seed)
+        trains.extend(t)
+        print(f"  {n.line_code:3s} {n.name[:36]:38s} {len(n.stations):3d} stations  "
+              f"{len(t):5,d} services/day")
 
-    trains = build_timetable(net, seed)
+    net = merge_networks(nets)
+    inter = [c for c, st in net.stations.items() if len(st.lines) > 1]
+    d = sum(1 for st in net.stations.values() if st.coord_src == "d")
+    print(f"\nmerged: {len(net.stations)} stations, {len(net.sections)} sections, "
+          f"{sum(s.length_km for s in net.sections.values()):.0f} route-km")
+    print(f"interchanges found by shared station code: {', '.join(inter)}")
+    print(f"coordinates: {d} from the public dataset, {len(net.stations) - d} supplied by us")
+
     real = sum(1 for t in trains if t.is_real)
-    print(f"timetable: {len(trains):,} services ({real:,} real, {len(trains) - real:,} synthesised)")
+    print(f"timetable: {len(trains):,} services/day "
+          f"({real:,} real, {len(trains) - real:,} synthesised)")
 
     print("\nrunning validation gate ...")
     validator = Validator(net, trains)

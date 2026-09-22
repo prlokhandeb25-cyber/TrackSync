@@ -24,6 +24,9 @@ class Network:
     order: list[str]  # station codes in corridor sequence
     graph: nx.MultiGraph = field(default_factory=nx.MultiGraph)
     megablock: dict = field(default_factory=dict)
+    line_code: str = ""
+    corridors: list[str] = field(default_factory=list)
+    per_corridor: dict = field(default_factory=dict)   # corridor_id -> its own config blob
     suburban: dict = field(default_factory=dict)
     track_policy: dict[str, list[str]] = field(default_factory=dict)
     long_distance: dict = field(default_factory=dict)
@@ -78,6 +81,9 @@ def build_network(corridor: str) -> Network:
             platforms=int(s.get("platforms", 2)),
             is_junction=bool(s.get("junction", False)),
             expect_tier=StationTier(s["expect_tier"]) if s.get("expect_tier") else None,
+            line_code=cfg.get("line_code", ""),
+            lines=[cfg.get("line_code", "")],
+            coord_src=str(s.get("coord_src", "s")),
         )
         stations[st.code] = st
         order.append(st.code)
@@ -97,6 +103,7 @@ def build_network(corridor: str) -> Network:
             line_speed_kmph=float(ov.get("line_speed_kmph", default_speed)),
             tracks=list(ov.get("tracks", default_tracks)),
             geometry=[(sa.lat, sa.lon), (sb.lat, sb.lon)],
+            line_code=cfg.get("line_code", ""),
         )
 
     g = nx.MultiGraph()
@@ -113,8 +120,82 @@ def build_network(corridor: str) -> Network:
         order=order,
         graph=g,
         megablock=cfg.get("megablock", {}) or {},
+        line_code=cfg.get("line_code", ""),
+        corridors=[cfg["corridor_id"]],
+        per_corridor={cfg["corridor_id"]: cfg},
         track_policy=(defaults.get("track_policy") or {}),
         suburban=cfg.get("suburban", {}) or {},
         long_distance=cfg.get("long_distance", {}) or {},
         allotments=cfg.get("allotments", {}) or {},
     )
+
+
+def merge_networks(nets: list[Network], name: str = "Mumbai Suburban Network") -> Network:
+    """Knit several corridors into one network.
+
+    Stations are merged by code, which is exactly what creates the interchanges: CSMT belongs
+    to both Central and Harbour, Thane to Central and Trans-Harbour, Vashi to Harbour and
+    Trans-Harbour. Merging on the code means maintenance at an interchange is automatically
+    visible to every line that touches it, instead of each corridor holding a private copy
+    that can drift.
+
+    Nothing here is corridor-specific. Adding a line is adding a YAML file to config/network
+    and a name to config.yaml - which is the scalability claim, made literal.
+    """
+    if len(nets) == 1:
+        return nets[0]
+
+    stations: dict[str, Station] = {}
+    sections: dict[str, Section] = {}
+    order: list[str] = []
+    allotments: dict[str, list[str]] = {}
+    per_corridor: dict = {}
+    corridors: list[str] = []
+
+    for n in nets:
+        corridors.append(n.corridor_id)
+        per_corridor.update(n.per_corridor)
+        for code, st in n.stations.items():
+            if code in stations:
+                existing = stations[code]
+                for ln in st.lines:
+                    if ln and ln not in existing.lines:
+                        existing.lines.append(ln)
+                existing.is_junction = True      # shared by two corridors: an interchange
+                existing.platforms = max(existing.platforms, st.platforms)
+            else:
+                stations[code] = st
+                order.append(code)
+        for sid, sec in n.sections.items():
+            sections.setdefault(sid, sec)
+        for dept, secs in n.allotments.items():
+            allotments.setdefault(dept, [])
+            allotments[dept].extend(s for s in secs if s not in allotments[dept])
+
+    g = nx.MultiGraph()
+    for code, st in stations.items():
+        g.add_node(code, name=st.name, lat=st.lat, lon=st.lon)
+    for sec in sections.values():
+        g.add_edge(sec.from_station, sec.to_station, key=sec.id, length_km=sec.length_km)
+
+    merged = Network(
+        corridor_id="mumbai",
+        name=name,
+        stations=stations,
+        sections=sections,
+        order=order,
+        graph=g,
+        megablock=nets[0].megablock,
+        line_code="ALL",
+        corridors=corridors,
+        per_corridor=per_corridor,
+        track_policy=nets[0].track_policy,
+        suburban={},
+        long_distance={},
+        allotments=allotments,
+    )
+    return merged
+
+
+def build_networks(corridors: list[str]) -> Network:
+    return merge_networks([build_network(c) for c in corridors])

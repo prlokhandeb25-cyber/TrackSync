@@ -108,7 +108,7 @@ def load_real_long_distance(net: Network) -> list[Train]:
         direction = "UP" if idx.get(stops[-1].station_code, 0) < idx.get(stops[0].station_code, 0) else "DN"
         trains.append(
             Train(
-                id=f"R-{number}",
+                id=f"R-{net.line_code}-{number}",
                 number=str(number),
                 name=on_corridor[0]["train_name"],
                 train_class=TrainClass.INTERCITY,
@@ -200,7 +200,7 @@ def synth_suburban(net: Network, rng: random.Random) -> list[Train]:
             if stops[0].departure_s is not None and stops[0].departure_s >= 0:
                 trains.append(
                     Train(
-                        id=f"S-{direction}-{seq:05d}",
+                        id=f"S-{net.line_code}-{direction}-{seq:05d}",
                         number=f"9{seq:04d}",
                         name=f"{net.stations[a].name} – {net.stations[b].name} Local",
                         train_class=TrainClass.SUBURBAN_LOCAL,
@@ -245,8 +245,8 @@ def synth_freight(net: Network, n: int, rng: random.Random) -> list[Train]:
             stops.append(Stop(station_code=nxt, arrival_s=arr, departure_s=None if is_last else clock))
         trains.append(
             Train(
-                id=f"F-{i:03d}",
-                number=f"F{i:03d}",
+                id=f"F-{net.line_code}-{i:03d}",
+                number=f"F{net.line_code}{i:03d}",
                 name=f"Freight {a}–{b} #{i:03d}",
                 train_class=TrainClass.FREIGHT_MAIL,
                 corridor_id=net.corridor_id,

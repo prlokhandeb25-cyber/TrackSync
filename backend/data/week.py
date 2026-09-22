@@ -43,7 +43,10 @@ def _shift(train: Train, days: int, suffix: str) -> Train:
 
 
 def _in_megablock(train: Train, net: Network, day: int) -> bool:
-    mb = net.megablock or {}
+    # Each line runs its own megablock window, so look up the train's own corridor rather
+    # than applying one line's window to the whole network.
+    cfg = (net.per_corridor or {}).get(train.corridor_id, {})
+    mb = cfg.get("megablock") or net.megablock or {}
     start = hhmmss_to_s(mb.get("start", "10:30")) or 0
     end = hhmmss_to_s(mb.get("end", "15:30")) or 0
     lo, hi = day * DAY_S + start, day * DAY_S + end

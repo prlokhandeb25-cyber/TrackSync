@@ -157,9 +157,17 @@ class Validator:
                 speed = sec.length_km / (dt / 3600.0)
                 if speed > sec.line_speed_kmph * 1.15 or speed < min_speed:
                     offenders.append(f"{tr.id} {sec.id}: {speed:.0f}km/h (limit {sec.line_speed_kmph:.0f})")
-        status = "PASS" if not offenders else ("WARN" if len(offenders) <= len(self.trains) * 0.02 else "FAIL")
+        # Judged as a share of the hops examined, not of the train count: the check measures
+        # hops, so scaling it by trains makes the verdict depend on timetable shape rather
+        # than on data quality.
+        total_hops = sum(max(0, len(t.stops) - 1) for t in self.trains)
+        share = len(offenders) / max(1, total_hops)
+        thresh = float(self.v.get("runtime_warn_pct", 0.5)) / 100.0
+        status = "PASS" if not offenders else ("WARN" if share <= thresh else "FAIL")
         return CheckResult("V4", "Implied run-time sanity", status,
-                           f"{len(offenders)} section hop(s) imply an impossible speed",
+                           f"{len(offenders)} of {total_hops:,} section hops imply an "
+                           f"impossible speed ({share * 100:.2f}%; WARN threshold "
+                           f"{thresh * 100:.1f}%)",
                            offenders, len(offenders))
 
     @staticmethod
@@ -303,7 +311,7 @@ class Validator:
         is evidence. Where the evidence contradicts the assumption the evidence wins, and the
         change is logged as a repair rather than silently applied.
         """
-        observed: dict[str, float] = {}
+        observed: dict[str, list[float]] = {}
         for tr in self.trains:
             if not tr.is_real:
                 continue
@@ -314,12 +322,18 @@ class Validator:
                 dt = nxt.arrival_s - prev.departure_s
                 if dt <= 0:
                     continue
-                observed[sec.id] = max(observed.get(sec.id, 0.0), sec.length_km / (dt / 3600.0))
+                observed.setdefault(sec.id, []).append(sec.length_km / (dt / 3600.0))
         changed = 0
-        for sid, top in observed.items():
+        ceiling = float(self.v.get("max_calibrated_speed_kmph", 130))
+        for sid, speeds in observed.items():
             sec = self.net.sections[sid]
+            # The 95th percentile, not the maximum. One mis-published run time would otherwise
+            # drag a suburban section's declared limit to 175 km/h, and every check downstream
+            # would then be measured against a speed no train on that line can reach.
+            speeds.sort()
+            top = speeds[min(len(speeds) - 1, int(len(speeds) * 0.95))]
             if top > sec.line_speed_kmph:
-                new = float(round(top * 1.05 / 5) * 5)
+                new = min(ceiling, float(round(top * 1.05 / 5) * 5))
                 self.repairs.append(
                     Repair("V4", sid,
                            f"line speed {sec.line_speed_kmph:.0f} -> {new:.0f} km/h "

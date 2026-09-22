@@ -1,0 +1,90 @@
+# Central Railway (Harbour) — Mumbai CSMT → Panvel
+# coord_src: d = public stations dataset, s = supplied by us (A-024).
+
+corridor_id: harbour_line
+name: Harbour Line (CSMT – Panvel)
+line_code: HR
+zone: CR
+division: Mumbai
+route_factor: 1.14
+
+megablock:
+  day_of_week: SUN
+  start: "10:00"
+  end: "15:00"
+
+defaults:
+  tracks: [UP, DN]                 # the Harbour line is a two-track railway throughout
+  line_speed_kmph: 80
+  track_policy:
+    SUBURBAN_LOCAL: [UP, DN]
+    INTERCITY:      [UP, DN]
+    FREIGHT_MAIL:   [UP, DN]
+
+stations:
+  - {code: CSTM, name: Mumbai CSMT,      lat: 18.944481, lon: 72.836903, platforms: 18, junction: true,  coord_src: d, expect_tier: TIER_1}
+  - {code: MSD,  name: Masjid,           lat: 18.952385, lon: 72.838561, platforms: 4, junction: false, coord_src: d, expect_tier: TIER_2}
+  - {code: SNRD, name: Sandhurst Road,   lat: 18.962311, lon: 72.839733, platforms: 4, junction: true,  coord_src: d, expect_tier: TIER_2}
+  - {code: DKRD, name: Dockyard Road,    lat: 18.968900, lon: 72.843700, platforms: 2, junction: false, coord_src: s, expect_tier: TIER_3}
+  - {code: RRD,  name: Reay Road,        lat: 18.979300, lon: 72.844500, platforms: 2, junction: false, coord_src: s, expect_tier: TIER_3}
+  - {code: CTGN, name: Cotton Green,     lat: 18.987800, lon: 72.843800, platforms: 2, junction: false, coord_src: s, expect_tier: TIER_3}
+  - {code: SVE,  name: Sewri,            lat: 18.999300, lon: 72.860200, platforms: 2, junction: false, coord_src: s, expect_tier: TIER_3}
+  - {code: VDLR, name: Vadala Road,      lat: 19.017600, lon: 72.862900, platforms: 6, junction: true,  coord_src: s, expect_tier: TIER_2}
+  - {code: GTBN, name: GTB Nagar,        lat: 19.027000, lon: 72.869000, platforms: 2, junction: false, coord_src: s, expect_tier: TIER_3}
+  - {code: CHF,  name: Chunabhatti,      lat: 19.045300, lon: 72.883000, platforms: 2, junction: false, coord_src: s, expect_tier: TIER_3}
+  - {code: CLA,  name: Kurla Jn,         lat: 19.065221, lon: 72.879375, platforms: 8, junction: true,  coord_src: d, expect_tier: TIER_1}
+  - {code: TNR,  name: Tilak Nagar,      lat: 19.070000, lon: 72.889500, platforms: 2, junction: false, coord_src: s, expect_tier: TIER_3}
+  - {code: CMBR, name: Chembur,          lat: 19.062500, lon: 72.897700, platforms: 2, junction: false, coord_src: s, expect_tier: TIER_2}
+  - {code: GV,   name: Govandi,          lat: 19.055400, lon: 72.914700, platforms: 2, junction: false, coord_src: s, expect_tier: TIER_2}
+  - {code: MNKD, name: Mankhurd,         lat: 19.048900, lon: 72.929800, platforms: 3, junction: false, coord_src: s, expect_tier: TIER_2}
+  - {code: VSH,  name: Vashi,            lat: 19.077000, lon: 72.998600, platforms: 4, junction: true,  coord_src: s, expect_tier: TIER_1}
+  - {code: SNPD, name: Sanpada,          lat: 19.064000, lon: 73.011700, platforms: 4, junction: true,  coord_src: s, expect_tier: TIER_2}
+  - {code: JNJ,  name: Juinagar,         lat: 19.054000, lon: 73.017000, platforms: 2, junction: false, coord_src: s, expect_tier: TIER_3}
+  - {code: NEU,  name: Nerul,            lat: 19.033000, lon: 73.018000, platforms: 4, junction: true,  coord_src: s, expect_tier: TIER_2}
+  - {code: SWDW, name: Seawoods-Darave,  lat: 19.019000, lon: 73.019000, platforms: 2, junction: false, coord_src: s, expect_tier: TIER_3}
+  - {code: BEPR, name: Belapur CBD,      lat: 19.015500, lon: 73.035700, platforms: 4, junction: false, coord_src: s, expect_tier: TIER_2}
+  - {code: KHAG, name: Kharghar,         lat: 19.047000, lon: 73.070000, platforms: 2, junction: false, coord_src: s, expect_tier: TIER_3}
+  - {code: MSRV, name: Mansarovar,       lat: 19.035500, lon: 73.093000, platforms: 2, junction: false, coord_src: s, expect_tier: TIER_3}
+  - {code: KNDS, name: Khandeshwar,      lat: 19.010000, lon: 73.110000, platforms: 2, junction: false, coord_src: s, expect_tier: TIER_3}
+  - {code: PNVL, name: Panvel,           lat: 18.990919, lon: 73.121756, platforms: 7, junction: true,  coord_src: d, expect_tier: TIER_1}
+
+section_overrides:
+  CSTM-MSD: {line_speed_kmph: 50}
+  MSD-SNRD: {line_speed_kmph: 50}
+  MNKD-VSH: {line_speed_kmph: 90}   # the Vashi creek bridge section
+
+suburban:
+  enabled: true
+  services_per_day: 620
+  first_up: "04:05"
+  last_down: "00:30"
+  peak_windows: [["07:30", "11:00"], ["17:00", "21:00"]]
+  peak_headway_min: [5, 9]
+  offpeak_headway_min: [12, 20]
+  dwell_s: 22
+  patterns:
+    - {from: CSTM, to: PNVL, share: 0.38}
+    - {from: CSTM, to: VSH,  share: 0.24}
+    - {from: CSTM, to: BEPR, share: 0.20}
+    - {from: CSTM, to: MNKD, share: 0.18}
+
+long_distance:
+  enabled: true
+  source: data/raw/schedules.json
+  min_corridor_stations: 3
+  freight_share: 0.30
+  freight_band: ["00:45", "04:15"]
+
+allotments:
+  PWI:
+    [CSTM-MSD, MSD-SNRD, SNRD-DKRD, DKRD-RRD, RRD-CTGN, CTGN-SVE, SVE-VDLR, VDLR-GTBN,
+     GTBN-CHF, CHF-CLA, CLA-TNR, TNR-CMBR, CMBR-GV, GV-MNKD, MNKD-VSH, VSH-SNPD, SNPD-JNJ,
+     JNJ-NEU, NEU-SWDW, SWDW-BEPR, BEPR-KHAG, KHAG-MSRV, MSRV-KNDS, KNDS-PNVL]
+  OWD:
+    [CSTM-MSD, MSD-SNRD, SNRD-DKRD, DKRD-RRD, RRD-CTGN, CTGN-SVE, SVE-VDLR, VDLR-GTBN,
+     GTBN-CHF, CHF-CLA, CLA-TNR, TNR-CMBR, CMBR-GV, GV-MNKD, MNKD-VSH, VSH-SNPD, SNPD-JNJ,
+     JNJ-NEU, NEU-SWDW, SWDW-BEPR]
+  S_AND_T:
+    [CSTM-MSD, MSD-SNRD, SNRD-DKRD, DKRD-RRD, RRD-CTGN, CTGN-SVE, SVE-VDLR, VDLR-GTBN,
+     GTBN-CHF, CHF-CLA, CLA-TNR, TNR-CMBR, CMBR-GV, GV-MNKD, MNKD-VSH, VSH-SNPD, SNPD-JNJ,
+     JNJ-NEU, NEU-SWDW, SWDW-BEPR, BEPR-KHAG, KHAG-MSRV, MSRV-KNDS, KNDS-PNVL]

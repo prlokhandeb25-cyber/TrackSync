@@ -1,0 +1,64 @@
+# Central Railway (Trans-Harbour) — Thane → Vashi / Panvel
+# coord_src: d = public stations dataset, s = supplied by us (A-024).
+#
+# This corridor shares Thane with the Central line and Vashi / Sanpada / Panvel with the
+# Harbour line. Those shared codes are what knit the four corridors into one network when
+# they are merged, so maintenance at an interchange is visible to every line that touches it.
+
+corridor_id: trans_harbour
+name: Trans-Harbour Line (Thane – Panvel)
+line_code: TH
+zone: CR
+division: Mumbai
+route_factor: 1.12
+
+megablock:
+  day_of_week: SUN
+  start: "10:30"
+  end: "15:00"
+
+defaults:
+  tracks: [UP, DN]
+  line_speed_kmph: 90
+  track_policy:
+    SUBURBAN_LOCAL: [UP, DN]
+    INTERCITY:      [UP, DN]
+    FREIGHT_MAIL:   [UP, DN]
+
+stations:
+  - {code: TNA,  name: Thane,            lat: 19.185757, lon: 72.975417, platforms: 10, junction: true,  coord_src: d, expect_tier: TIER_1}
+  - {code: AROL, name: Airoli,           lat: 19.155000, lon: 72.999000, platforms: 2, junction: false, coord_src: s, expect_tier: TIER_2}
+  - {code: RABL, name: Rabale,           lat: 19.140000, lon: 73.003000, platforms: 2, junction: false, coord_src: s, expect_tier: TIER_3}
+  - {code: GNSL, name: Ghansoli,         lat: 19.123000, lon: 73.008000, platforms: 2, junction: false, coord_src: s, expect_tier: TIER_3}
+  - {code: KPKN, name: Koparkhairane,    lat: 19.105000, lon: 73.006000, platforms: 2, junction: false, coord_src: s, expect_tier: TIER_3}
+  - {code: TBE,  name: Turbhe,           lat: 19.089000, lon: 73.021000, platforms: 4, junction: true,  coord_src: s, expect_tier: TIER_2}
+  - {code: SNPD, name: Sanpada,          lat: 19.064000, lon: 73.011700, platforms: 4, junction: true,  coord_src: s, expect_tier: TIER_2}
+  - {code: VSH,  name: Vashi,            lat: 19.077000, lon: 72.998600, platforms: 4, junction: true,  coord_src: s, expect_tier: TIER_1}
+
+section_overrides:
+  TNA-AROL: {line_speed_kmph: 80}
+
+suburban:
+  enabled: true
+  services_per_day: 240
+  first_up: "05:00"
+  last_down: "23:30"
+  peak_windows: [["08:00", "11:00"], ["17:30", "20:30"]]
+  peak_headway_min: [9, 14]
+  offpeak_headway_min: [18, 30]
+  dwell_s: 20
+  patterns:
+    - {from: TNA, to: VSH,  share: 0.70}
+    - {from: TNA, to: TBE,  share: 0.30}
+
+long_distance:
+  enabled: true
+  source: data/raw/schedules.json
+  min_corridor_stations: 2
+  freight_share: 0.45          # the Trans-Harbour carries substantial JNPT freight
+  freight_band: ["23:00", "05:00"]
+
+allotments:
+  PWI:     [TNA-AROL, AROL-RABL, RABL-GNSL, GNSL-KPKN, KPKN-TBE, TBE-SNPD, SNPD-VSH]
+  OWD:     [TNA-AROL, AROL-RABL, RABL-GNSL, GNSL-KPKN, KPKN-TBE, TBE-SNPD, SNPD-VSH]
+  S_AND_T: [TNA-AROL, AROL-RABL, RABL-GNSL, GNSL-KPKN, KPKN-TBE, TBE-SNPD]

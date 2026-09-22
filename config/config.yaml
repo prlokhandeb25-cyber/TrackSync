@@ -3,8 +3,11 @@
 
 seed: 20260923
 
-corridors:
-  - central_line          # config/network/<name>.yaml ; add a file = add a corridor (SPEC §4)
+corridors:                # config/network/<name>.yaml ; add a file = add a corridor (SPEC §4)
+  - central_line
+  - western_line
+  - harbour_line
+  - trans_harbour
 
 data:
   sourcing_time_cap_min: 90        # SPEC §3.2 hard cap, then synthetic fallback
@@ -19,6 +22,8 @@ validation:
   min_dwell_s: 20                  # V3
   max_dwell_s: 1200                # V3
   min_implied_speed_kmph: 15       # V4
+  runtime_warn_pct: 0.5            # V4 verdict threshold, as a share of hops
+  max_calibrated_speed_kmph: 130   # ceiling when raising a limit from evidence
   max_services_per_day_warn: 2000
   min_services_per_day: 200        # V7
   occupancy_tolerance_min: 1       # V10

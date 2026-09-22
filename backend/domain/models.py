@@ -55,6 +55,9 @@ class Station(BaseModel):
     platforms: int = 2
     is_junction: bool = False
     expect_tier: StationTier | None = None
+    line_code: str = ""
+    lines: list[str] = Field(default_factory=list)   # a junction belongs to several
+    coord_src: str = "s"                              # d = dataset, s = supplied by us
     # derived at ingest
     tier: StationTier | None = None
     trains_per_day: int = 0
@@ -72,6 +75,7 @@ class Section(BaseModel):
     tracks: list[str] = Field(default_factory=lambda: ["UP", "DN"])
     geometry: list[tuple[float, float]] = Field(default_factory=list)  # [(lat, lon), ...]
     alternate_section_ids: list[str] = Field(default_factory=list)
+    line_code: str = ""
     status: TrackStatus = TrackStatus.FIT
     # derived
     trains_per_day: int = 0

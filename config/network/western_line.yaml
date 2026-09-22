@@ -1,0 +1,100 @@
+# Western Railway — Churchgate → Virar
+#
+# coord_src: d = taken from the public stations dataset, s = supplied by us.
+# The national dataset only carries stations that long-distance trains call at, so pure
+# suburban halts are absent from it and their coordinates are ours. Tracked per station so
+# the provenance claim stays honest (ASSUMPTIONS A-024).
+
+corridor_id: western_line
+name: Western Line (Churchgate – Virar)
+line_code: WR
+zone: WR
+division: Mumbai
+route_factor: 1.12
+
+megablock:
+  day_of_week: SUN
+  start: "11:00"
+  end: "16:00"
+
+defaults:
+  tracks: [UP_SLOW, DN_SLOW, UP_FAST, DN_FAST]
+  line_speed_kmph: 100
+  track_policy:
+    SUBURBAN_LOCAL: [UP_SLOW, DN_SLOW]
+    INTERCITY:      [UP_FAST, DN_FAST]
+    FREIGHT_MAIL:   [UP_SLOW, DN_SLOW]
+
+stations:
+  - {code: CCG,  name: Churchgate,       lat: 18.932200, lon: 72.826400, platforms: 9, junction: true,  coord_src: s, expect_tier: TIER_1}
+  - {code: MEL,  name: Marine Lines,     lat: 18.945500, lon: 72.823700, platforms: 4, junction: false, coord_src: s, expect_tier: TIER_2}
+  - {code: CYR,  name: Charni Road,      lat: 18.951400, lon: 72.819500, platforms: 4, junction: false, coord_src: s, expect_tier: TIER_2}
+  - {code: GTR,  name: Grant Road,       lat: 18.962700, lon: 72.815300, platforms: 4, junction: false, coord_src: s, expect_tier: TIER_2}
+  - {code: BCT,  name: Mumbai Central,   lat: 18.970667, lon: 72.819383, platforms: 9, junction: true,  coord_src: d, expect_tier: TIER_1}
+  - {code: MX,   name: Mahalaxmi,        lat: 18.982500, lon: 72.823200, platforms: 4, junction: false, coord_src: s, expect_tier: TIER_2}
+  - {code: PL,   name: Lower Parel,      lat: 18.994919, lon: 72.829620, platforms: 4, junction: false, coord_src: d, expect_tier: TIER_2}
+  - {code: EPR,  name: Prabhadevi,       lat: 19.006940, lon: 72.835426, platforms: 4, junction: false, coord_src: d, expect_tier: TIER_2}
+  - {code: DDR,  name: Dadar (W),        lat: 19.018700, lon: 72.843400, platforms: 6, junction: true,  coord_src: s, expect_tier: TIER_1}
+  - {code: MRU,  name: Matunga Road,     lat: 19.028606, lon: 72.847143, platforms: 4, junction: false, coord_src: d, expect_tier: TIER_2}
+  - {code: MM,   name: Mahim Jn,         lat: 19.041000, lon: 72.841000, platforms: 4, junction: true,  coord_src: s, expect_tier: TIER_2}
+  - {code: BA,   name: Bandra,           lat: 19.054454, lon: 72.840454, platforms: 6, junction: true,  coord_src: d, expect_tier: TIER_1}
+  - {code: KHAR, name: Khar Road,        lat: 19.070500, lon: 72.839800, platforms: 4, junction: false, coord_src: s, expect_tier: TIER_2}
+  - {code: STC,  name: Santacruz,        lat: 19.081000, lon: 72.841500, platforms: 4, junction: false, coord_src: s, expect_tier: TIER_2}
+  - {code: VLP,  name: Vile Parle,       lat: 19.099274, lon: 72.843630, platforms: 4, junction: false, coord_src: d, expect_tier: TIER_2}
+  - {code: ADH,  name: Andheri,          lat: 19.117429, lon: 72.846853, platforms: 8, junction: true,  coord_src: d, expect_tier: TIER_1}
+  - {code: JOS,  name: Jogeshwari,       lat: 19.136551, lon: 72.849066, platforms: 4, junction: false, coord_src: d, expect_tier: TIER_2}
+  - {code: GMN,  name: Goregaon,         lat: 19.164447, lon: 72.849389, platforms: 6, junction: true,  coord_src: d, expect_tier: TIER_2}
+  - {code: MDD,  name: Malad,            lat: 19.187089, lon: 72.849170, platforms: 4, junction: false, coord_src: d, expect_tier: TIER_2}
+  - {code: KILE, name: Kandivali,        lat: 19.204551, lon: 72.852098, platforms: 4, junction: false, coord_src: d, expect_tier: TIER_2}
+  - {code: BVI,  name: Borivali,         lat: 19.228739, lon: 72.856412, platforms: 8, junction: true,  coord_src: d, expect_tier: TIER_1}
+  - {code: DIC,  name: Dahisar,          lat: 19.250166, lon: 72.859587, platforms: 4, junction: false, coord_src: d, expect_tier: TIER_2}
+  - {code: MIRA, name: Mira Road,        lat: 19.295200, lon: 72.854400, platforms: 4, junction: false, coord_src: s, expect_tier: TIER_2}
+  - {code: BYR,  name: Bhayandar,        lat: 19.311766, lon: 72.853039, platforms: 5, junction: false, coord_src: d, expect_tier: TIER_2}
+  - {code: NIG,  name: Naigaon,          lat: 19.350875, lon: 72.845954, platforms: 3, junction: false, coord_src: d, expect_tier: TIER_3}
+  - {code: BSR,  name: Vasai Road,       lat: 19.382449, lon: 72.832222, platforms: 7, junction: true,  coord_src: d, expect_tier: TIER_2}
+  - {code: NSP,  name: Nalasopara,       lat: 19.418000, lon: 72.812200, platforms: 4, junction: false, coord_src: s, expect_tier: TIER_3}
+  - {code: VR,   name: Virar,            lat: 19.454407, lon: 72.811737, platforms: 6, junction: true,  coord_src: d, expect_tier: TIER_2}
+
+section_overrides:
+  CCG-MEL: {line_speed_kmph: 60}
+  MEL-CYR: {line_speed_kmph: 60}
+  BSR-NSP: {tracks: [UP, DN]}
+  NSP-VR:  {tracks: [UP, DN]}
+
+suburban:
+  enabled: true
+  services_per_day: 1300
+  first_up: "04:00"
+  last_down: "01:05"
+  peak_windows: [["07:30", "11:00"], ["17:00", "21:30"]]
+  peak_headway_min: [3, 5]
+  offpeak_headway_min: [7, 14]
+  dwell_s: 25
+  patterns:
+    - {from: CCG, to: BVI,  share: 0.30}
+    - {from: CCG, to: ADH,  share: 0.22}
+    - {from: CCG, to: VR,   share: 0.18}
+    - {from: CCG, to: BYR,  share: 0.12}
+    - {from: CCG, to: BA,   share: 0.10}
+    - {from: CCG, to: BSR,  share: 0.08}
+
+long_distance:
+  enabled: true
+  source: data/raw/schedules.json
+  min_corridor_stations: 3
+  freight_share: 0.18
+  freight_band: ["01:00", "04:30"]
+
+allotments:
+  PWI:
+    [CCG-MEL, MEL-CYR, CYR-GTR, GTR-BCT, BCT-MX, MX-PL, PL-EPR, EPR-DDR, DDR-MRU, MRU-MM,
+     MM-BA, BA-KHAR, KHAR-STC, STC-VLP, VLP-ADH, ADH-JOS, JOS-GMN, GMN-MDD, MDD-KILE,
+     KILE-BVI, BVI-DIC, DIC-MIRA, MIRA-BYR, BYR-NIG, NIG-BSR, BSR-NSP, NSP-VR]
+  OWD:
+    [CCG-MEL, MEL-CYR, CYR-GTR, GTR-BCT, BCT-MX, MX-PL, PL-EPR, EPR-DDR, DDR-MRU, MRU-MM,
+     MM-BA, BA-KHAR, KHAR-STC, STC-VLP, VLP-ADH, ADH-JOS, JOS-GMN, GMN-MDD, MDD-KILE,
+     KILE-BVI, BVI-DIC, DIC-MIRA, MIRA-BYR, BYR-NIG, NIG-BSR]
+  S_AND_T:
+    [CCG-MEL, MEL-CYR, CYR-GTR, GTR-BCT, BCT-MX, MX-PL, PL-EPR, EPR-DDR, DDR-MRU, MRU-MM,
+     MM-BA, BA-KHAR, KHAR-STC, STC-VLP, VLP-ADH, ADH-JOS, JOS-GMN, GMN-MDD, MDD-KILE,
+     KILE-BVI, BVI-DIC, DIC-MIRA, MIRA-BYR, BYR-NIG, NIG-BSR, BSR-NSP, NSP-VR]
