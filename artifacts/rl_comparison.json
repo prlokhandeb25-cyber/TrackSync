@@ -1,0 +1,54 @@
+{
+  "table": [
+    {
+      "policy": "random",
+      "instances": 20,
+      "mean_gap_vs_cpsat_pct": 59.65,
+      "median_gap_pct": 54.77,
+      "mean_scheduled_pct": 81.7,
+      "mean_micro_gap": 5.5,
+      "mean_decision_ms": 0.05,
+      "p95_decision_ms": 0.102,
+      "mean_full_replan_ms": 173.5,
+      "constraint_violations": 0
+    },
+    {
+      "policy": "greedy",
+      "instances": 20,
+      "mean_gap_vs_cpsat_pct": 19.73,
+      "median_gap_pct": 14.64,
+      "mean_scheduled_pct": 85.6,
+      "mean_micro_gap": 6.7,
+      "mean_decision_ms": 0.036,
+      "p95_decision_ms": 0.071,
+      "mean_full_replan_ms": 151.9,
+      "constraint_violations": 0
+    },
+    {
+      "policy": "behaviour cloning",
+      "instances": 20,
+      "mean_gap_vs_cpsat_pct": 15.82,
+      "median_gap_pct": 13.98,
+      "mean_scheduled_pct": 85.9,
+      "mean_micro_gap": 10.0,
+      "mean_decision_ms": 0.327,
+      "p95_decision_ms": 0.58,
+      "mean_full_replan_ms": 167.3,
+      "constraint_violations": 0
+    },
+    {
+      "policy": "CQL-DQN",
+      "instances": 20,
+      "mean_gap_vs_cpsat_pct": 14.75,
+      "median_gap_pct": 12.11,
+      "mean_scheduled_pct": 85.9,
+      "mean_micro_gap": 10.1,
+      "mean_decision_ms": 0.309,
+      "p95_decision_ms": 0.513,
+      "mean_full_replan_ms": 176.9,
+      "constraint_violations": 0
+    }
+  ],
+  "cpsat_mean_ms": 5093.4,
+  "instances": 20
+}

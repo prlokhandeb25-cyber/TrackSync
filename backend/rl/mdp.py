@@ -154,8 +154,16 @@ def rank_tasks(pending: list[Task], now_s: int) -> list[Task]:
 
 
 def pick_window(task: Task, choice: GapChoice, windows: list[CandidateWindow],
-                now_s: int) -> CandidateWindow | None:
-    """The concrete window an action resolves to: earliest of the requested kind."""
+                now_s: int, state: "DispatchState | None" = None,
+                net: Network | None = None) -> CandidateWindow | None:
+    """The concrete window an action resolves to: the earliest FREE one of the requested kind.
+
+    "Free" is the important word. Returning simply the earliest window means that once
+    something is placed there, the whole action is masked out as conflicting - even though the
+    same job would fit perfectly in the next window along. Tasks then pile onto identical
+    slots until nothing is legal and the rollout stalls with most of the work unplaced, which
+    looks like a bad policy and is really a bad environment.
+    """
     usable = [w for w in windows if w.start_s >= now_s
               and w.usable_min(task.requires_power_block) >= task.duration_min]
     if choice is not GapChoice.EARLIEST:
@@ -165,7 +173,20 @@ def pick_window(task: Task, choice: GapChoice, windows: list[CandidateWindow],
             GapChoice.MEGABLOCK: GapType.MEGABLOCK,
         }[choice]
         usable = [w for w in usable if w.gap_type is want]
-    return min(usable, key=lambda w: w.start_s) if usable else None
+    if not usable:
+        return None
+
+    usable.sort(key=lambda w: w.start_s)
+    if state is None or net is None:
+        return usable[0]
+
+    cap = int(load_config().get_path("planner.max_blocks_per_day", 8))
+    for w in usable:
+        if state.blocks_today.get(w.start_s // DAY_S, 0) >= cap:
+            continue
+        if not _conflicts_with_scheduled(net, task, w, state):
+            return w
+    return None
 
 
 def legal_mask(state: DispatchState, net: Network,
@@ -187,14 +208,8 @@ def legal_mask(state: DispatchState, net: Network,
         if state.gang_busy.get(task.department, 0) >= gangs:
             continue
         for choice in GapChoice:
-            w = pick_window(task, choice, windows, state.time_s)
-            if w is None:
-                continue
-            if state.blocks_today.get(w.start_s // DAY_S, 0) >= cap:
-                continue
-            if _conflicts_with_scheduled(net, task, w, state):
-                continue
-            mask[slot * N_GAP_CHOICES + int(choice)] = True
+            if pick_window(task, choice, windows, state.time_s, state, net) is not None:
+                mask[slot * N_GAP_CHOICES + int(choice)] = True
     return mask
 
 
@@ -222,7 +237,8 @@ def _conflicts_with_scheduled(net: Network, task: Task, window: CandidateWindow,
 
 
 def decode_action(index: int, state: DispatchState,
-                  eligible: dict[str, list[CandidateWindow]]
+                  eligible: dict[str, list[CandidateWindow]],
+                  net: Network | None = None
                   ) -> tuple[Task, CandidateWindow, GapChoice] | None:
     """Action index -> concrete (task, window). None means NO-OP."""
     if index == noop_index():
@@ -233,7 +249,7 @@ def decode_action(index: int, state: DispatchState,
         return None
     task = ordered[slot]
     choice = GapChoice(choice_i)
-    w = pick_window(task, choice, eligible.get(task.id, []), state.time_s)
+    w = pick_window(task, choice, eligible.get(task.id, []), state.time_s, state, net)
     return (task, w, choice) if w is not None else None
 
 
