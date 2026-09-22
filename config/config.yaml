@@ -75,12 +75,16 @@ departments:
   iwp_quota_per_day: 2             # Integrated Work Permission daily quota (SPEC §7.2 R1)
 
 planner:                           # SPEC §10
+  max_blocks_per_day: 8            # blocks the division can protect and supervise in a day
   solve_time_s_demo: 60
   solve_time_s_instance: 10
   num_search_workers: 8
   weights:
     w1_train_minutes_lost: 1.0     # primary operational cost
-    w2_unscheduled_task: 12.0      # per priority-point, per task left unplanned
+    w2_unscheduled_task: 100.0     # per priority-point, per task left unplanned.
+                                   # MUST exceed w3 x horizon_days (6 x 7 = 42), otherwise
+                                   # scheduling late costs more than never scheduling and the
+                                   # solver rationally abandons work it could have done.
     w3_degraded_status_hours: 6.0  # CAUTION_ORDER / STOP_AND_START section-hours
     w4_rerouted_train_delay: 0.8
     w5_single_line_minutes: 0.5

@@ -319,8 +319,21 @@ def station_node_windows(net: Network, report: GapReport) -> list[CandidateWindo
         if not all(per_section):
             continue
 
-        # Intersect the window sets pairwise.
-        current = per_section[0]
+        # Re-label the first section's windows as station-node windows before intersecting.
+        # Without this a terminus - which touches only one section - never enters the pairwise
+        # loop below, so its windows keep the SECTION zone_ref and no work can be placed at
+        # the station at all. CSTM had zero candidate windows because of exactly that.
+        wid += 1
+        current = [
+            CandidateWindow(
+                id=f"S{wid:05d}-{i}", section_id=a.section_id, zone_ref=code,
+                zone_kind=WorkZoneKind.STATION_NODE, track=a.track, direction=a.direction,
+                start_s=a.start_s, end_s=a.end_s, gap_type=a.gap_type,
+                station_tier=net.stations[code].tier,
+                trains_within_60min_after=a.trains_within_60min_after,
+            )
+            for i, a in enumerate(per_section[0])
+        ]
         for nxt in per_section[1:]:
             merged: list[CandidateWindow] = []
             for a in current:
