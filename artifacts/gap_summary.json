@@ -1,0 +1,233 @@
+{
+  "services_week": 4199,
+  "traversals": 38834,
+  "windows_section": 3649,
+  "windows_station_node": 6144,
+  "by_type": {
+    "NIGHT_WINDOW": 302,
+    "MICRO_GAP": 3167,
+    "MEGABLOCK": 180
+  },
+  "raw_hours": 3342.1,
+  "usable_hours": 1849.1,
+  "night_windows": {
+    "CSTM-BY/DN_FAST": [
+      "00:18",
+      "05:18"
+    ],
+    "BY-DR/DN_FAST": [
+      "00:25",
+      "05:21"
+    ],
+    "DR-MTN/DN_FAST": [
+      "00:28",
+      "05:28"
+    ],
+    "MTN-SIN/DN_FAST": [
+      "00:31",
+      "05:30"
+    ],
+    "SIN-CLA/DN_FAST": [
+      "00:33",
+      "05:33"
+    ],
+    "CLA-GC/DN_FAST": [
+      "00:37",
+      "05:36"
+    ],
+    "GC-TNA/DN_FAST": [
+      "00:50",
+      "05:21"
+    ],
+    "TNA-DI/DN_FAST": [
+      "01:07",
+      "05:38"
+    ],
+    "DI-KYN/DN_FAST": [
+      "01:12",
+      "05:57"
+    ],
+    "KYN-ABH/DN": [
+      "01:16",
+      "02:33"
+    ],
+    "ABH-BUD/DN": [
+      "01:25",
+      "02:46"
+    ],
+    "BUD-VGI/DN": [
+      "01:39",
+      "03:04"
+    ],
+    "VGI-SHLU/DN": [
+      "01:44",
+      "03:28"
+    ],
+    "SHLU-NRL/DN": [
+      "01:49",
+      "03:39"
+    ],
+    "NRL-BVS/DN": [
+      "01:58",
+      "03:48"
+    ],
+    "BVS-KJT/DN": [
+      "02:05",
+      "04:01"
+    ],
+    "BVS-KJT/UP": [
+      "22:15",
+      "00:00"
+    ],
+    "NRL-BVS/UP": [
+      "22:22",
+      "00:00"
+    ],
+    "SHLU-NRL/UP": [
+      "06:20",
+      "07:54"
+    ],
+    "VGI-SHLU/UP": [
+      "06:25",
+      "07:59"
+    ],
+    "BUD-VGI/UP": [
+      "00:00",
+      "01:31"
+    ],
+    "ABH-BUD/UP": [
+      "00:00",
+      "01:49"
+    ],
+    "KYN-ABH/UP": [
+      "00:00",
+      "02:08"
+    ],
+    "DI-KYN/UP_FAST": [
+      "00:00",
+      "08:00"
+    ],
+    "TNA-DI/UP_FAST": [
+      "00:00",
+      "08:00"
+    ],
+    "GC-TNA/UP_FAST": [
+      "00:00",
+      "08:00"
+    ],
+    "CLA-GC/UP_FAST": [
+      "00:00",
+      "08:00"
+    ],
+    "SIN-CLA/UP_FAST": [
+      "00:00",
+      "08:00"
+    ],
+    "MTN-SIN/UP_FAST": [
+      "00:00",
+      "08:00"
+    ],
+    "DR-MTN/UP_FAST": [
+      "00:00",
+      "08:00"
+    ],
+    "BY-DR/UP_FAST": [
+      "00:00",
+      "08:00"
+    ],
+    "CSTM-BY/UP_FAST": [
+      "00:00",
+      "08:00"
+    ],
+    "CSTM-BY/DN_SLOW": [
+      "00:00",
+      "00:32"
+    ],
+    "BY-DR/DN_SLOW": [
+      "00:00",
+      "00:45"
+    ],
+    "DR-MTN/DN_SLOW": [
+      "00:00",
+      "00:55"
+    ],
+    "MTN-SIN/DN_SLOW": [
+      "00:00",
+      "01:00"
+    ],
+    "SIN-CLA/DN_SLOW": [
+      "00:00",
+      "01:09"
+    ],
+    "CLA-GC/DN_SLOW": [
+      "00:00",
+      "01:15"
+    ],
+    "GC-TNA/DN_SLOW": [
+      "00:00",
+      "01:27"
+    ],
+    "TNA-DI/DN_SLOW": [
+      "00:00",
+      "01:55"
+    ],
+    "DI-KYN/DN_SLOW": [
+      "00:00",
+      "02:20"
+    ],
+    "DI-KYN/UP_SLOW": [
+      "00:00",
+      "02:22"
+    ],
+    "TNA-DI/UP_SLOW": [
+      "00:00",
+      "02:36"
+    ],
+    "GC-TNA/UP_SLOW": [
+      "00:00",
+      "03:03"
+    ],
+    "CLA-GC/UP_SLOW": [
+      "00:00",
+      "03:28"
+    ],
+    "SIN-CLA/UP_SLOW": [
+      "00:00",
+      "03:33"
+    ],
+    "MTN-SIN/UP_SLOW": [
+      "00:00",
+      "03:37"
+    ],
+    "DR-MTN/UP_SLOW": [
+      "00:00",
+      "03:40"
+    ],
+    "BY-DR/UP_SLOW": [
+      "00:00",
+      "03:43"
+    ],
+    "CSTM-BY/UP_SLOW": [
+      "00:00",
+      "03:48"
+    ]
+  },
+  "megablock_observed_reduction": {
+    "CSTM-BY": 0.628,
+    "BY-DR": 0.649,
+    "DR-MTN": 0.646,
+    "MTN-SIN": 0.641,
+    "SIN-CLA": 0.641,
+    "CLA-GC": 0.645,
+    "GC-TNA": 0.543,
+    "TNA-DI": 0.486,
+    "DI-KYN": 0.507,
+    "KYN-ABH": 0.467,
+    "ABH-BUD": 0.417,
+    "BUD-VGI": 0.25,
+    "VGI-SHLU": 0.333,
+    "SHLU-NRL": 0.429,
+    "NRL-BVS": 0.429,
+    "BVS-KJT": 0.429
+  }
+}
