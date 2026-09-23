@@ -111,7 +111,21 @@ def compute(net: Network, tasks: list[Task], windows: list[CandidateWindow],
     man_deg = _degraded_hours(manual.placements, tasks)
     aft_deg = _degraded_hours(after_placements, tasks)
 
-    auto_conflicts = coordination_conflicts(net, tasks)
+    # The cost of manual coordination is NOT "collisions a greedy pass happened to hit". With
+    # many night windows across a large network, a single pass can separate every department
+    # by luck and report zero - which is what it did before this was fixed, while the
+    # compatibility view was simultaneously reporting several conflicts.
+    #
+    # What the department heads actually face is every cross-department pair that COULD
+    # conflict, negotiated before anyone knows where the work will land, because no one has
+    # the global view that would show a collision was avoidable. That count is the honest
+    # measure, and it is the same number the compatibility matrix shows.
+    unscheduled_view = [
+        t.model_copy(update={"scheduled_start_s": None, "scheduled_end_s": None})
+        for t in tasks
+    ]
+    negotiations = coordination_conflicts(net, unscheduled_view)
+    manual_hours = negotiations * hours_per_conflict
 
     ms = [
         Metric("M1", "Re-planning latency for an unplanned defect",
@@ -119,11 +133,11 @@ def compute(net: Network, tasks: list[Task], windows: list[CandidateWindow],
                note=("Today an unplanned defect waits for the next weekly planning cycle. "
                      "The learned dispatcher re-plans in milliseconds.")),
         Metric("M2", "Department coordination time",
-               before=manual.coordination_hours,
+               before=manual_hours,
                after=0.02, unit="hours", better="lower",
-               note=(f"{manual.conflicts_negotiated} cross-department clashes negotiated by "
-                     f"phone at {hours_per_conflict}h each, against a compatibility matrix "
-                     f"computed in milliseconds ({auto_conflicts} conflicts resolved).")),
+               note=(f"{negotiations} cross-department pairs need a decision. Today each is "
+                     f"settled by phone at about {hours_per_conflict}h; here the whole matrix "
+                     f"is computed in milliseconds, with a written reason per pair.")),
         Metric("M3", "Asset availability (work completed this week)",
                before=100.0 * man_sched / max(1, n), after=100.0 * aft_sched / max(1, n),
                unit="%", better="higher",
@@ -144,12 +158,13 @@ def compute(net: Network, tasks: list[Task], windows: list[CandidateWindow],
         Metric("M7", "Weekly task throughput",
                before=float(man_sched), after=float(aft_sched), unit="jobs", better="higher"),
         Metric("M8", "Backlog left at week end",
-               before=float(len(manual.unscheduled)), after=float(cpsat.n_unscheduled),
+               before=float(len(manual.unscheduled)), after=float(len(cpsat.unscheduled)),
                unit="jobs", better="lower"),
-        Metric("M9", "Jobs deferred by a coordination clash",
-               before=float(manual.deferrals), after=0.0, unit="jobs", better="lower",
-               note=("Under manual coordination a clash defers work to another night. The "
-                     "compatibility rules resolve adjacency instead of serialising it.")),
+        Metric("M9", "Work pairs serialised for want of a rule",
+               before=float(negotiations), after=0.0, unit="pairs", better="lower",
+               note=("Without adjacency reasoning, two departments whose work merely touches "
+                     "at a station get put on separate nights. The R2 rule lets them proceed "
+                     "together, which is the capacity manual coordination gives away.")),
         Metric("M10", "Dependence on megablocks",
                before=100.0 * sum(1 for _, w in manual.placements
                                   if w.gap_type is GapType.MEGABLOCK) / max(1, man_sched),

@@ -1,0 +1,132 @@
+{
+  "instances": 6,
+  "seed": 20260923,
+  "dispatcher": "greedy heuristic (torch unavailable on this machine)",
+  "assumptions": {
+    "manual_coordination_hours_per_conflict": 4.0,
+    "manual_replan_wait_days": 7.0,
+    "note": "The 'before' case is a model of current decentralised practice, not measured field data. Both parameters above are adjustable so the comparison can be stress-tested rather than taken on trust."
+  },
+  "metrics": [
+    {
+      "id": "M1",
+      "metric": "Re-planning latency for an unplanned defect",
+      "unit": "ms",
+      "before_manual": 604800000.0,
+      "after_railblock": 482.69,
+      "absolute_delta": -604799517.31,
+      "improvement_pct": 100.0,
+      "new_capability": false,
+      "better": "lower",
+      "note": "Today an unplanned defect waits for the next weekly planning cycle. The learned dispatcher re-plans in milliseconds."
+    },
+    {
+      "id": "M2",
+      "metric": "Department coordination time",
+      "unit": "hours",
+      "before_manual": 16.0,
+      "after_railblock": 0.02,
+      "absolute_delta": -15.98,
+      "improvement_pct": 99.9,
+      "new_capability": false,
+      "better": "lower",
+      "note": "5 cross-department pairs need a decision. Today each is settled by phone at about 4.0h; here the whole matrix is computed in milliseconds, with a written reason per pair."
+    },
+    {
+      "id": "M3",
+      "metric": "Asset availability (work completed this week)",
+      "unit": "%",
+      "before_manual": 87.5,
+      "after_railblock": 91.25,
+      "absolute_delta": 3.75,
+      "improvement_pct": 4.3,
+      "new_capability": false,
+      "better": "higher",
+      "note": "Share of the maintenance backlog actually placed in the week."
+    },
+    {
+      "id": "M4",
+      "metric": "Degraded section-hours",
+      "unit": "section-hours",
+      "before_manual": 2513.84,
+      "after_railblock": 2357.75,
+      "absolute_delta": -156.09,
+      "improvement_pct": 6.2,
+      "new_capability": false,
+      "better": "lower",
+      "note": "Time sections spend waiting for attention, weighted by how long."
+    },
+    {
+      "id": "M5",
+      "metric": "Mean time from defect to repair",
+      "unit": "hours",
+      "before_manual": 62.85,
+      "after_railblock": 58.94,
+      "absolute_delta": -3.9,
+      "improvement_pct": 6.2,
+      "new_capability": false,
+      "better": "lower",
+      "note": ""
+    },
+    {
+      "id": "M6",
+      "metric": "Work fitted into gaps between trains",
+      "unit": "jobs",
+      "before_manual": 0.0,
+      "after_railblock": 6.5,
+      "absolute_delta": 6.5,
+      "improvement_pct": null,
+      "new_capability": true,
+      "better": "higher",
+      "note": "Manual planning uses night windows and megablocks only, so this is zero by construction. Every job here is capacity that did not exist before."
+    },
+    {
+      "id": "M7",
+      "metric": "Weekly task throughput",
+      "unit": "jobs",
+      "before_manual": 35.0,
+      "after_railblock": 36.5,
+      "absolute_delta": 1.5,
+      "improvement_pct": 4.3,
+      "new_capability": false,
+      "better": "higher",
+      "note": ""
+    },
+    {
+      "id": "M8",
+      "metric": "Backlog left at week end",
+      "unit": "jobs",
+      "before_manual": 5.0,
+      "after_railblock": 3.5,
+      "absolute_delta": -1.5,
+      "improvement_pct": 30.0,
+      "new_capability": false,
+      "better": "lower",
+      "note": ""
+    },
+    {
+      "id": "M9",
+      "metric": "Work pairs serialised for want of a rule",
+      "unit": "pairs",
+      "before_manual": 4.0,
+      "after_railblock": 0.0,
+      "absolute_delta": -4.0,
+      "improvement_pct": 100.0,
+      "new_capability": false,
+      "better": "lower",
+      "note": "Without adjacency reasoning, two departments whose work merely touches at a station get put on separate nights. The R2 rule lets them proceed together, which is the capacity manual coordination gives away."
+    },
+    {
+      "id": "M10",
+      "metric": "Dependence on megablocks",
+      "unit": "%",
+      "before_manual": 9.66,
+      "after_railblock": 4.66,
+      "absolute_delta": -5.0,
+      "improvement_pct": 51.8,
+      "new_capability": false,
+      "better": "lower",
+      "note": "Share of work that needed an extended Sunday block."
+    }
+  ]
+}

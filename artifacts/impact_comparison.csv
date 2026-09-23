@@ -1,0 +1,11 @@
+id,metric,unit,before_manual,after_railblock,absolute_delta,improvement_pct,new_capability,better,note
+M1,"Re-planning latency for an unplanned defect",ms,604800000.0,482.69,-604799517.31,100.0,False,lower,"Today an unplanned defect waits for the next weekly planning cycle. The learned dispatcher re-plans in milliseconds."
+M2,"Department coordination time",hours,16.0,0.02,-15.98,99.9,False,lower,"5 cross-department pairs need a decision. Today each is settled by phone at about 4.0h; here the whole matrix is computed in milliseconds, with a written reason per pair."
+M3,"Asset availability (work completed this week)",%,87.5,91.25,3.75,4.3,False,higher,"Share of the maintenance backlog actually placed in the week."
+M4,"Degraded section-hours",section-hours,2513.84,2357.75,-156.09,6.2,False,lower,"Time sections spend waiting for attention, weighted by how long."
+M5,"Mean time from defect to repair",hours,62.85,58.94,-3.9,6.2,False,lower,""
+M6,"Work fitted into gaps between trains",jobs,0.0,6.5,6.5,,True,higher,"Manual planning uses night windows and megablocks only, so this is zero by construction. Every job here is capacity that did not exist before."
+M7,"Weekly task throughput",jobs,35.0,36.5,1.5,4.3,False,higher,""
+M8,"Backlog left at week end",jobs,5.0,3.5,-1.5,30.0,False,lower,""
+M9,"Work pairs serialised for want of a rule",pairs,4.0,0.0,-4.0,100.0,False,lower,"Without adjacency reasoning, two departments whose work merely touches at a station get put on separate nights. The R2 rule lets them proceed together, which is the capacity manual coordination gives away."
+M10,"Dependence on megablocks",%,9.66,4.66,-5.0,51.8,False,lower,"Share of work that needed an extended Sunday block."

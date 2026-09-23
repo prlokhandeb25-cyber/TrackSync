@@ -269,23 +269,24 @@ def chat(payload: dict) -> dict:
 
 @router.get("/api/metrics/impact")
 def impact() -> dict:
+    """Before/after metrics.
+
+    The dispatcher comes from load_best_policy, which lives in the torch-free policies module.
+    Importing it from backend.rl.agents instead would pull torch into the request path, and on
+    a memory-constrained machine torch's DLL init takes an access violation that no try/except
+    can catch - which is exactly how this endpoint was returning 500 while the same computation
+    ran fine from a script.
+    """
     w = ensure_world()
     plan = ensure_plan()
-    from backend.rl.agents import GreedyPolicy
-    policy = GreedyPolicy()
-    try:
-        import torch
+    from backend.rl.policies import load_best_policy
 
-        from backend.rl.agents import TorchPolicy
-        from backend.rl.nets import QNet
-        blob = torch.load(REPO_ROOT_MODELS / "cql_dqn.pt", map_location="cpu", weights_only=True)
-        net = QNet(blob["state_dim"], blob["action_dim"], blob["hidden"])
-        net.load_state_dict(blob["state_dict"]); net.eval()
-        policy = TorchPolicy(net, "CQL-DQN")
-    except Exception:  # noqa: BLE001 - fall back to greedy if the model is unavailable
-        pass
+    policy, note = load_best_policy()
     rep = compute_impact(w.net, w.tasks, w.windows, plan, policy)
-    return rep.to_dict()
+    d = rep.to_dict()
+    # Which dispatcher produced the latency figure is part of the claim, not a footnote.
+    d["dispatcher"] = note
+    return d
 
 
 @router.get("/api/rl/comparison")
