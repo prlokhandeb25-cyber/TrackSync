@@ -49,6 +49,7 @@ gaps:                              # SPEC §6.3
   block_release_min: 10
   power_block_extra_min: 10
   min_usable_gap_min: 20
+  min_workable_min: 15             # every window must leave at least this much real work time
   headway_buffer_s: 120
 
 station_tiers:                     # SPEC §8.1 — quantile-derived, not hardcoded
@@ -95,6 +96,7 @@ planner:                           # SPEC §10
     w5_single_line_minutes: 0.5
     w6_iwp_usage: 25.0             # administratively expensive; use sparingly
     w7_micro_gap_bonus: 15.0       # deliberate: we want micro-gap usage (SPEC §10.3)
+    w8_integrated_block: 6.0       # reward per compatible cross-department pair sharing a block
 
 rl:                                # SPEC §11-§12
   n_instances: 500
@@ -118,3 +120,11 @@ adapters:
 
 clustering:                        # backend/planner/clustering.py (ASSUMPTIONS A-029)
   cut_km: 5.0                      # average-linkage distance at which job groups stop merging
+
+gap_creation:                      # backend/gaps/creation.py (ASSUMPTIONS A-032)
+  max_hold_min: 4                  # longest any one train may be held to widen a gap
+  max_total_delay_min: 30          # train-minutes one created gap may cost, cascade included
+  survey_max_deficit_min: 12       # how far short of workable a gap may be and still be widened
+  single_line_max_hold_min: 8      # longest a train may wait when a section runs single-line
+  single_line_max_total_min: 60    # train-minutes single-line working may cost for one window
+  max_reroutes_per_gap: 4          # long-distance/freight trains that may be diverted for one gap

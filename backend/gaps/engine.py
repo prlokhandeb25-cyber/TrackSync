@@ -45,6 +45,19 @@ class GapType(str, Enum):
 NIGHT_BAND = (21 * 3600, 8 * 3600)  # wraps midnight
 
 
+def min_raw_gap_min() -> int:
+    """Shortest raw gap worth keeping: one that still leaves the minimum workable time.
+
+    A gap is not working time - protection has to be set up and the line handed back - so a gap
+    only counts if, after those overheads, at least `gaps.min_workable_min` minutes of real work
+    remain (15 by default). Everything below that is dropped at the source, so no window in the
+    system, and nothing drawn from one, is shorter than 15 usable minutes.
+    """
+    cfg = load_config()["gaps"]
+    overhead = int(cfg["block_setup_min"]) + int(cfg["block_release_min"])
+    return max(int(cfg["min_usable_gap_min"]), overhead + int(cfg.get("min_workable_min", 15)))
+
+
 def _clip_to_night_band(start_s: int, end_s: int) -> tuple[int, int] | None:
     """Clip a gap to the night band it sits in.
 
@@ -59,7 +72,7 @@ def _clip_to_night_band(start_s: int, end_s: int) -> tuple[int, int] | None:
         lo = base * DAY_S + lo_t
         hi = (base + 1) * DAY_S + hi_t
         c_lo, c_hi = max(start_s, lo), min(end_s, hi)
-        if c_hi - c_lo >= 20 * 60:
+        if c_hi - c_lo >= min_raw_gap_min() * 60:
             return c_lo, c_hi
     return None
 
@@ -95,6 +108,11 @@ class CandidateWindow:
     prev_train_id: str | None = None
     next_train_id: str | None = None
     trains_within_60min_after: int = 0
+    # Set only on windows that did not exist in the timetable and were created by a lever
+    # (backend/gaps/creation.py): which lever, and what it costs the trains in train-minutes.
+    created_by: str | None = None
+    delay_cost_min: float = 0.0
+    created_note: str = ""
 
     @property
     def raw_min(self) -> int:
@@ -144,6 +162,8 @@ class CandidateWindow:
             "station_tier": self.station_tier.value if self.station_tier else None,
             "extension_cost_min": self.extension_cost_min,
             "prev_train_id": self.prev_train_id, "next_train_id": self.next_train_id,
+            "created_by": self.created_by, "delay_cost_min": self.delay_cost_min,
+            "created_note": self.created_note,
         }
 
 
@@ -180,7 +200,7 @@ class GapReport:
 
 def find_gaps(net: Network, occ: list[SectionOccupancy], horizon_days: int = 7) -> GapReport:
     cfg = load_config()["gaps"]
-    min_usable = int(cfg["min_usable_gap_min"])
+    min_usable = min_raw_gap_min()
     buffer_s = int(cfg["headway_buffer_s"])
 
     report = GapReport()
@@ -346,7 +366,7 @@ def station_node_windows(net: Network, report: GapReport) -> list[CandidateWindo
             for a in current:
                 for b in nxt:
                     lo, hi = max(a.start_s, b.start_s), min(a.end_s, b.end_s)
-                    if hi - lo >= 20 * 60:
+                    if hi - lo >= min_raw_gap_min() * 60:
                         wid += 1
                         merged.append(
                             CandidateWindow(

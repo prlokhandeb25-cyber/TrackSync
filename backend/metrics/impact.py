@@ -86,10 +86,15 @@ def _degraded_hours(placements: list[tuple[Task, CandidateWindow]], tasks: list[
 
 
 def compute(net: Network, tasks: list[Task], windows: list[CandidateWindow],
-            cpsat: PlanResult, rl_policy) -> ImpactReport:
+            cpsat: PlanResult, rl_policy, hours_per_conflict: float | None = None,
+            wait_days: float | None = None) -> ImpactReport:
     cfg = load_config()
-    hours_per_conflict = float(cfg.get_path("metrics.manual_coordination_hours_per_conflict", 4.0))
-    wait_days = float(cfg.get_path("metrics.manual_replan_wait_days", 7))
+    # Both baseline parameters can be overridden, so a sceptic can dial them down and watch
+    # whether the advantage survives.
+    hours_per_conflict = float(hours_per_conflict if hours_per_conflict is not None
+                               else cfg.get_path("metrics.manual_coordination_hours_per_conflict", 4.0))
+    wait_days = float(wait_days if wait_days is not None
+                      else cfg.get_path("metrics.manual_replan_wait_days", 7))
 
     manual = plan_manually(net, tasks, windows)
     after_placements = [

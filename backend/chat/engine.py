@@ -296,8 +296,8 @@ def _h_gaps(q: str, e: Entities, world) -> Answer:
            f"**{counts.get('MEGABLOCK', 0)} megablock windows**. "
            f"Only **{100 * use // max(1, raw)}% of raw gap time is actually workable** — every "
            f"block costs {cfg['block_setup_min']} minutes to protect and "
-           f"{cfg['block_release_min']} to hand back, so a 40-minute gap yields about 15 "
-           f"minutes of work. The gaps between trains are the capacity conventional planning "
+           f"{cfg['block_release_min']} to hand back, so a gap must be about 40 minutes "
+           f"long to leave the 15 minutes of work that is the minimum here. The gaps between trains are the capacity conventional planning "
            f"leaves on the table.")
     facts = [{"k": k.lower().replace('_', ' '), "v": f"{v} ({usable.get(k, 0) // 60}h usable)"}
              for k, v in counts.items()]
@@ -354,9 +354,62 @@ def _h_rl(q: str, e: Entities, world) -> Answer:
     return Answer(txt, facts, ["artifacts/rl_comparison.json"], "rl")
 
 
+def _h_mine(q: str, e: Entities, world) -> Answer:
+    from backend.api.routes_tasks import _scored_pool
+    pool, clusters, scores, cluster_of = _scored_pool()
+    mine = [t for t in pool if t.source == "USER"]
+    if not mine:
+        return Answer("You have not raised any jobs yet. Use the form on the Department "
+                      "coordination page and I will tell you how each one scored and where it went.",
+                      [], ["job pool"], "mine",
+                      suggestions=["how are jobs grouped?", "what did gap creation open?"])
+    lines, facts = [], []
+    for t in mine[-3:]:
+        sc = scores.get(t.id)
+        cl = cluster_of.get(t.id)
+        lines.append(f"**{t.id}** ({t.department.value}, {t.zone.ref}) scored **{sc.score if sc else '-'}**"
+                     f", group of {cl['size'] if cl else 1} around {cl['label'] if cl else 'its area'}")
+        facts.append({"k": t.id, "v": f"score {sc.score if sc else '-'}"})
+    return Answer("Your latest jobs: " + "; ".join(lines) + ".", facts,
+                  ["job pool", "compatibility scores"], "mine")
+
+
+def _h_clusters(q: str, e: Entities, world) -> Answer:
+    from backend.api.routes_tasks import _scored_pool
+    pool, clusters, scores, cluster_of = _scored_pool()
+    shared = sorted((c for c in clusters if len(c.task_ids) > 1), key=lambda c: -len(c.task_ids))
+    cut = load_config().get_path("clustering.cut_km", 5.0)
+    if not shared:
+        return Answer(f"No two jobs are within {cut} km of each other right now, so nothing is grouped.",
+                      [], ["clustering"], "clusters")
+    top = shared[0]
+    txt = (f"**{len(pool)} jobs** fall into **{len(shared)} shared groups** (jobs within about {cut} km "
+           f"that could share one protected block), by average-linkage hierarchical clustering. The biggest is "
+           f"**{len(top.task_ids)} jobs around {top.label}**: {top.compatible} pair(s) can share a block, "
+           f"{top.requires_iwp} need a work permit, {top.incompatible} must be apart.")
+    return Answer(txt, [{"k": c.label, "v": f"{len(c.task_ids)} jobs"} for c in shared[:5]],
+                  ["clustering", "compatibility rules"], "clusters")
+
+
+def _h_creation(q: str, e: Entities, world) -> Answer:
+    from backend.api.routes_tasks import creation_experiment, creation_summary_route
+    cs = creation_summary_route()["survey"]
+    ex = creation_experiment()
+    txt = (f"A gap has to leave **{load_config()['gaps']['min_workable_min']} minutes of real work**. "
+           f"**{cs['near_gaps']:,} gaps** miss that by a few minutes; small changes to the trains "
+           f"(hold one a few minutes, send a long-distance train another way, or run one track for both "
+           f"directions) can open **{cs['created']}** of them (+{cs['usable_hours_added']} usable hours). "
+           f"In a test of {ex['jobs']} urgent jobs due within {ex['due_within_h']} hours, only "
+           f"**{ex['natural_placed']}** fit the existing gaps but **{ex['with_creation_placed']}** fit with gap "
+           f"creation, at a cost of {ex['delay_train_min']} train-minutes. Suburban locals are never rerouted.")
+    return Answer(txt, [{"k": "opened", "v": str(cs["created"])},
+                        {"k": "urgent jobs placed", "v": f"{ex['natural_placed']} -> {ex['with_creation_placed']}"}],
+                  ["gap creation survey", "creation experiment"], "creation")
+
+
 def _h_help(q: str, e: Entities, world) -> Answer:
     return Answer(
-        "I read the live plan and answer from it — there is no language model here, so every "
+        "I'm RailMitra. I read the live plan and answer from it — there is no language model here, so every "
         "number I give you comes straight out of the same objects the map and the solver use. "
         "Try asking about a section's status, why a department can or cannot work somewhere, "
         "when the next window is, or how the learned dispatcher compares with the solver.",
@@ -368,6 +421,8 @@ def _h_help(q: str, e: Entities, world) -> Answer:
             "how many gaps between trains are there?",
             "show me the department conflicts",
             "how does the RL dispatcher compare with CP-SAT?",
+            "how are jobs grouped?",
+            "what did gap creation open?",
         ])
 
 
@@ -383,6 +438,9 @@ INTENTS: list[tuple[str, re.Pattern, Callable]] = [
     ("compatibility", re.compile(
         r"\b(compat|conflict|together|same time|clash|iwp|permission|coordinat|negotiat)\w*"),
      _h_compatibility),
+    ("mine", re.compile(r"\b(my (job|task|work)|i (submitted|added|raised)|score[sd]?)\w*"), _h_mine),
+    ("creation", re.compile(r"\b(creat|single.?line|reroute|rerout|retim|near.?miss|open(ed)? a gap)\w*"), _h_creation),
+    ("clusters", re.compile(r"\b(cluster|grouped?|integrated|share a block)\w*"), _h_clusters),
     ("when", re.compile(r"\b(when|next window|what time|earliest|slot)\w*"), _h_when),
     ("gaps", re.compile(r"\b(gap|micro|megablock|capacity|how much time|window)\w*"), _h_gaps),
     ("plan", re.compile(r"\b(plan|scheduled|block|this week|how many job|backlog)\w*"), _h_plan),

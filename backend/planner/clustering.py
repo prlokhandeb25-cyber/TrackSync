@@ -22,7 +22,8 @@ import numpy as np
 from scipy.cluster.hierarchy import fcluster, linkage
 
 from backend.config import load_config
-from backend.domain.compatibility import Verdict, compatibility
+from backend.domain.compatibility import Verdict
+from backend.domain.scoring import pair_verdict
 from backend.domain.models import WorkZoneKind
 from backend.domain.network import Network
 from backend.domain.task import Task
@@ -115,7 +116,7 @@ def cluster_tasks(net: Network, tasks: list[Task], cut_km: float | None = None) 
                 if tasks[i].department == tasks[j].department:
                     continue
                 c.cross_pairs += 1
-                v = compatibility(net, unscheduled[i], unscheduled[j]).value
+                v = pair_verdict(net, unscheduled[i], unscheduled[j]).value
                 if v is Verdict.COMPATIBLE:
                     c.compatible += 1
                 elif v is Verdict.REQUIRES_IWP:
@@ -124,3 +125,36 @@ def cluster_tasks(net: Network, tasks: list[Task], cut_km: float | None = None) 
                     c.incompatible += 1
         clusters.append(c)
     return clusters
+
+
+def cluster_trace(net: Network, tasks: list[Task], cut_km: float | None = None) -> dict:
+    """The clustering run laid out step by step, for the explainer pages.
+
+    Same positions, same linkage, same cut as `cluster_tasks`; this returns the merge history
+    (scipy's linkage matrix) alongside the final groups so a UI can replay it.
+    """
+    cut = float(cut_km if cut_km is not None
+                else load_config().get_path("clustering.cut_km", 5.0))
+    pos = [_position(net, t) for t in tasks]
+    pts = np.array([_to_km(la, lo) for la, lo in pos]) if tasks else np.zeros((0, 2))
+    merges = []
+    labels: list[int] = []
+    if len(tasks) >= 2:
+        z = linkage(pts, method="average")
+        labels = [int(x) for x in fcluster(z, t=cut, criterion="distance")]
+        n = len(tasks)
+        for k, (a, b, d, size) in enumerate(z):
+            merges.append({"a": int(a), "b": int(b), "distance_km": round(float(d), 2),
+                           "size": int(size), "id": n + k})
+    elif tasks:
+        labels = [1]
+    return {
+        "cut_km": cut, "method": "average-linkage agglomerative (scipy)",
+        "points": [
+            {"index": i, "id": t.id, "x_km": round(float(pts[i][0]), 2), "y_km": round(float(pts[i][1]), 2),
+             "lat": pos[i][0], "lon": pos[i][1], "department": t.department.value,
+             "zone": t.zone.ref, "label": t.label, "cluster": labels[i]}
+            for i, t in enumerate(tasks)
+        ],
+        "merges": merges,
+    }

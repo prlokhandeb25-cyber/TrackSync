@@ -18,8 +18,10 @@ from backend.domain.fsm import StatusRegistry
 from backend.domain.task import Task, WorkZone
 from backend.planner.context import World, build_base_world
 from backend.planner.cpsat import PlanResult, solve_with_relaxation
+from backend.planner.creation_plan import solve_with_creation
 from backend.planner.interval_index import IntervalWindowIndex, build_interval_index
-from backend.planner.live_sim import LiveSimState
+from backend.gaps.creation import RerouteCache, options_for_task
+from backend.planner.live_sim import LiveSimPlacement, LiveSimState
 
 _LOCK = threading.Lock()
 
@@ -37,6 +39,13 @@ class AppState:
     interval_index: IntervalWindowIndex | None = None
     live_sim: LiveSimState = field(default_factory=LiveSimState)
     sim_seq: int = 0
+    user_placements: dict[str, LiveSimPlacement] = field(default_factory=dict)
+    user_counter: int = 0
+    user_unplaced: dict[str, str] = field(default_factory=dict)
+    reroute_cache: RerouteCache | None = None
+    occ_by_section: dict | None = None
+    plan_natural: PlanResult | None = None      # weekly plan before any gap creation
+    creation_used: list = field(default_factory=list)
 
     def log(self, at_s: int, text: str, kind: str = "info") -> None:
         self.event_log.append({"at_s": at_s, "text": text, "kind": kind})
@@ -64,18 +73,44 @@ def ensure_world(n_tasks: int = 40) -> World:
         return STATE.world
 
 
+def creation_summary(world: World, res: PlanResult, created: list) -> list[dict]:
+    """The created windows the final plan actually used, with what each one cost."""
+    by_id = {t.id: t for t in world.tasks}
+    used = []
+    for w in created:
+        a = next((x for x in res.assignments if x.window_id == w.id), None)
+        if a is None:
+            continue
+        t = by_id.get(a.task_id)
+        used.append({
+            "window_id": w.id, "task_id": a.task_id, "task": t.label if t else a.task_id,
+            "department": t.department.value if t else "", "section_id": w.section_id,
+            "track": w.track, "lever": w.created_by, "delay_min": round(w.delay_cost_min, 1),
+            "note": w.created_note, "start_s": a.start_s, "end_s": a.end_s,
+        })
+    return used
+
+
 def ensure_plan() -> PlanResult:
     world = ensure_world()
+    # Built BEFORE taking the lock: these helpers call ensure_world(), which takes the same
+    # (non-reentrant) lock, so calling them while holding it deadlocks the whole API.
+    occ, rc = occupancy_by_section(), reroute_cache()
     with _LOCK:
         if STATE.plan is not None:
             return STATE.plan
-        res = solve_with_relaxation(
-            world.net, world.tasks, world.windows,
+        natural, res, created = solve_with_creation(
+            world.net, world.tasks, world.windows, occ, rc,
             time_limit_s=load_config()["planner"]["solve_time_s_demo"],
         )
+        STATE.plan_natural = natural
         STATE.plan = res
+        STATE.creation_used = creation_summary(world, res, created)
         STATE.log(0, (f"Weekly block plan solved: {len(res.assignments)} of {res.n_tasks} jobs "
                       f"placed, {res.micro_gap_count} of them into gaps between trains."), "plan")
+        if len(res.assignments) > len(natural.assignments):
+            STATE.log(0, (f"Gap creation opened {len(STATE.creation_used)} extra window(s): "
+                          f"{len(natural.assignments)} -> {len(res.assignments)} jobs placed."), "plan")
         return res
 
 
@@ -85,6 +120,35 @@ def ensure_interval_index() -> IntervalWindowIndex:
         if STATE.interval_index is None:
             STATE.interval_index = build_interval_index(world.windows)
         return STATE.interval_index
+
+
+def occupancy_by_section() -> dict:
+    world = ensure_world()
+    if STATE.occ_by_section is None:
+        idx: dict = {}
+        for o in world.occupancy:
+            idx.setdefault(o.section_id, []).append(o)
+        STATE.occ_by_section = idx
+    return STATE.occ_by_section
+
+
+def reroute_cache() -> RerouteCache:
+    world = ensure_world()
+    if STATE.reroute_cache is None:
+        STATE.reroute_cache = RerouteCache(world.net, {t.id: t for t in world.week})
+    return STATE.reroute_cache
+
+
+def make_creator():
+    """A function the scheduler calls when no natural gap fits: priced ways to open one."""
+    world = ensure_world()
+    occ = occupancy_by_section()
+    rc = reroute_cache()
+
+    def creator(task, from_s):
+        return options_for_task(world.net, task, occ.get(task.zone.ref, []), rc,
+                                from_s=from_s, horizon_days=2, deadline_s=task.due_by_s)
+    return creator
 
 
 def new_demand_task(at_s: int, zone_ref: str | None = None) -> Task:
@@ -113,3 +177,8 @@ def reset() -> None:
         STATE.interval_index = None
         STATE.live_sim = LiveSimState()
         STATE.sim_seq = 0
+        STATE.user_placements = {}
+        STATE.user_counter = 0
+        STATE.user_unplaced = {}
+        STATE.plan_natural = None
+        STATE.creation_used = []

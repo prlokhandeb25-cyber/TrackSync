@@ -158,6 +158,12 @@ class Task(BaseModel):
     completed: bool = False
     outcome: TrackStatus | None = None
     is_followup: bool = False
+    # Where the job came from and what its raiser said about it. `allows_with` is the checkbox the
+    # raising department ticks: the OTHER departments it is willing to share a block with. None
+    # means no restriction (generated jobs), leaving the decision entirely to the rule engine.
+    source: str = "SYNTH"           # SYNTH | SIM | USER
+    description: str = ""
+    allows_with: list[Department] | None = None
 
     @property
     def type_def(self) -> TaskType:
@@ -170,5 +176,8 @@ class Task(BaseModel):
     def describe(self) -> str:
         """One human-readable line, for the status board."""
         cat = "unplanned" if self.category == TaskCategory.DEMAND else "planned"
+        if self.description:
+            return (f"{self.department.value} - {self.description} on {self.zone.describe()}, "
+                    f"{self.duration_min} min, priority {self.priority} ({cat})")
         return (f"{self.department.value} {self.label.lower()} on {self.zone.describe()}, "
                 f"{self.duration_min} min, priority {self.priority} ({cat})")

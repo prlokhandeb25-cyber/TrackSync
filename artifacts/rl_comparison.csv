@@ -1,5 +1,5 @@
 policy,instances,mean_gap_vs_cpsat_pct,median_gap_pct,mean_scheduled_pct,mean_micro_gap,mean_decision_ms,p95_decision_ms,mean_full_replan_ms,constraint_violations
-random,20,59.65,54.77,81.7,5.5,0.05,0.102,173.5,0
-greedy,20,19.73,14.64,85.6,6.7,0.036,0.071,151.9,0
-behaviour cloning,20,15.82,13.98,85.9,10.0,0.327,0.58,167.3,0
-CQL-DQN,20,14.75,12.11,85.9,10.1,0.309,0.513,176.9,0
+random,20,54.91,47.81,84.5,2.0,0.131,0.242,263.7,0
+greedy,20,12.9,11.75,86.3,2.0,0.097,0.165,232.9,0
+behaviour cloning,20,10.93,8.09,86.7,6.0,1.032,2.252,234.4,0
+CQL-DQN,20,10.35,6.54,86.7,5.5,1.166,3.215,258.8,0

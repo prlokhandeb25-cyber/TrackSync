@@ -60,7 +60,18 @@ class RandomPolicy(Policy):
         return int(self.rng.choice(legal)) if legal.size else noop_index()
 
 
+_BEST: tuple[Policy, str] | None = None
+
+
 def load_best_policy(quiet: bool = True) -> tuple[Policy, str]:
+    """Cached: importing torch and loading weights costs seconds, and this is called per request."""
+    global _BEST
+    if _BEST is None:
+        _BEST = _load_best_policy(quiet)
+    return _BEST
+
+
+def _load_best_policy(quiet: bool = True) -> tuple[Policy, str]:
     """The best dispatcher available right now, and a plain note about which one it is.
 
     Returns greedy when torch or the trained weights are unavailable, rather than failing.

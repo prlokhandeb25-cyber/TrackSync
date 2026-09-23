@@ -28,7 +28,8 @@ from dataclasses import dataclass, field
 from ortools.sat.python import cp_model
 
 from backend.config import load_config
-from backend.domain.compatibility import Verdict, check_allotment, compatibility
+from backend.domain.compatibility import Verdict, check_allotment
+from backend.domain.scoring import pair_verdict
 from backend.domain.network import Network
 from backend.domain.task import Task
 from backend.gaps.engine import CandidateWindow, GapType
@@ -64,6 +65,7 @@ class PlanResult:
     relaxations: list[str] = field(default_factory=list)
     n_tasks: int = 0
     n_windows_considered: int = 0
+    integrated_pairs: int = 0       # compatible cross-department neighbours placed in one shared block
 
     @property
     def micro_gap_count(self) -> int:
@@ -84,6 +86,7 @@ class PlanResult:
             "micro_gap_count": self.micro_gap_count, "iwp_used": self.iwp_used,
             "relaxations": self.relaxations,
             "n_windows_considered": self.n_windows_considered,
+            "integrated_pairs": self.integrated_pairs,
             "assignments": [a.__dict__ for a in self.assignments],
             "unscheduled": self.unscheduled,
             "rejected": self.rejected,
@@ -223,14 +226,18 @@ def build_and_solve(
         if t.due_by_s is not None and t.priority == 1 and "drop_due_dates" not in relax:
             model.Add(e <= min(t.due_by_s, horizon)).OnlyEnforceIf(sched)
 
-    # ---- Constraint 2: compatibility between every pair that could coincide
+    # ---- Constraint 2: compatibility between every pair that could coincide.
+    # Verdicts are taken on unscheduled copies: a task still carrying the previous solve's times
+    # would read as "not overlapping" (rule R3) and its constraint would silently vanish.
+    probes = {t.id: t.model_copy(update={"scheduled_start_s": None, "scheduled_end_s": None})
+              for t in live}
     iwp_lits: dict[int, list[cp_model.IntVar]] = {d: [] for d in range(horizon_days)}
     for i, a in enumerate(live):
         for b_task in live[i + 1:]:
             # Only pairs that could physically interact need a constraint.
             if not (a.zone.endpoints & b_task.zone.endpoints):
                 continue
-            verdict = compatibility(net, a, b_task)
+            verdict = pair_verdict(net, probes[a.id], probes[b_task.id])
             ia, ib = interval[a.id], interval[b_task.id]
 
             if verdict.value is Verdict.INCOMPATIBLE:
@@ -253,6 +260,29 @@ def build_and_solve(
                 model.Add(before + after + overlap == 0).OnlyEnforceIf(both.Not())
                 for d in range(horizon_days):
                     iwp_lits[d].append(overlap)
+
+    # ---- Integrated blocks: prefer compatible jobs from different departments that sit close by
+    # to share one protected block. `ov` can only be true if both jobs are scheduled and their
+    # times genuinely overlap, so the reward cannot be collected without doing the work.
+    integ_lits: list[cp_model.IntVar] = []
+    w8 = float(w.get("w8_integrated_block", 0))
+    if w8 > 0 and len(live) > 1:
+        from backend.planner.clustering import cluster_tasks
+
+        for cl in cluster_tasks(net, live):
+            ids = cl.task_ids
+            for xi, a_id in enumerate(ids):
+                for b_id in ids[xi + 1:]:
+                    if by_id[a_id].department == by_id[b_id].department:
+                        continue
+                    if pair_verdict(net, probes[a_id], probes[b_id]).value is not Verdict.COMPATIBLE:
+                        continue
+                    ov = model.NewBoolVar(f"integ_{a_id}_{b_id}")
+                    model.AddImplication(ov, scheduled[a_id])
+                    model.AddImplication(ov, scheduled[b_id])
+                    model.Add(start[a_id] < end[b_id]).OnlyEnforceIf(ov)
+                    model.Add(start[b_id] < end[a_id]).OnlyEnforceIf(ov)
+                    integ_lits.append(ov)
 
     # ---- Constraint 4: gang capacity per department
     gangs = int(cfg.get_path("departments.gangs_per_department", 2))
@@ -311,6 +341,12 @@ def build_and_solve(
         for cw in cand[t.id]:
             if cw.gap_type is GapType.MICRO_GAP:
                 terms.append(-int(w["w7_micro_gap_bonus"]) * x[(t.id, cw.id)])
+            if cw.created_by:
+                # a created window is not free: it costs the trains it delays or diverts
+                terms.append(int(w["w1_train_minutes_lost"] * cw.delay_cost_min * 4) * x[(t.id, cw.id)])
+
+    if integ_lits:
+        terms.append(-int(w8) * sum(integ_lits))
 
     all_iwp = [lit for lits in iwp_lits.values() for lit in lits]
     unique_iwp = list({id(l): l for l in all_iwp}.values())
@@ -369,6 +405,7 @@ def build_and_solve(
         t.gap_type = chosen.gap_type.value
 
     result.iwp_used = sum(solver.Value(l) for l in unique_iwp) if unique_iwp else 0
+    result.integrated_pairs = sum(solver.Value(l) for l in integ_lits)
     return result
 
 

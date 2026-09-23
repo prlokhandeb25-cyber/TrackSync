@@ -41,6 +41,11 @@ def load_policy(kind: str):
 
 def main() -> int:
     seed = seed_everything()
+    # The dispatcher is trained on, and compared against, the PLACEMENT objective. The weekly
+    # planner also rewards integrated blocks (w8), which the dispatcher was never trained to chase
+    # and which makes CP-SAT far slower to prove optimal; leaving it on would compare two different
+    # problems and inflate CP-SAT's time. So the benchmark switches it off, on both sides.
+    load_config()["planner"]["weights"]["w8_integrated_block"] = 0.0
     n_eval = int(sys.argv[1]) if len(sys.argv) > 1 else 30
 
     ids = np.load(REPO_ROOT / "data" / "expert" / "test.npz")["instance_id"]

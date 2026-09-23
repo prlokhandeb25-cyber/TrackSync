@@ -12,7 +12,8 @@ from collections import Counter
 from fastapi import APIRouter, HTTPException
 
 from backend.api.state import (
-    STATE, ensure_interval_index, ensure_plan, ensure_world, new_demand_task, reset,
+    STATE, ensure_interval_index, ensure_plan, ensure_world, make_creator, new_demand_task,
+    occupancy_by_section, reset,
 )
 from backend.config import load_config
 from backend.domain.compatibility import coordination_conflicts, matrix
@@ -80,11 +81,18 @@ def tasks() -> dict:
             "power_block": t.requires_power_block, "completed": t.completed,
             "outcome": t.outcome.value if t.outcome else None,
             "describe": t.describe(),
-            "scheduled": bool(a),
-            "start_s": a.start_s if a else None,
-            "day": DAYS[a.day] if a else None,
-            "start_hhmm": s_to_hhmm(a.start_s % DAY_S) if a else None,
-            "gap_type": a.gap_type if a else None,
+            "scheduled": bool(a) or t.id in STATE.user_placements,
+            "start_s": (a.start_s if a else (STATE.user_placements[t.id].start_s
+                                              if t.id in STATE.user_placements else None)),
+            "day": (DAYS[a.day] if a else (DAYS[STATE.user_placements[t.id].start_s // DAY_S % 7]
+                                            if t.id in STATE.user_placements else None)),
+            "start_hhmm": (s_to_hhmm(a.start_s % DAY_S) if a else (
+                s_to_hhmm(STATE.user_placements[t.id].start_s % DAY_S)
+                if t.id in STATE.user_placements else None)),
+            "gap_type": a.gap_type if a else (STATE.user_placements[t.id].window.gap_type.value
+                                              if t.id in STATE.user_placements
+                                              and STATE.user_placements[t.id].window else None),
+            "source": t.source, "description": t.description,
         })
     return {"tasks": out, "total": len(out),
             "by_department": dict(Counter(t["department"] for t in out))}
@@ -150,9 +158,16 @@ def gaps() -> dict:
 def plan_cpsat() -> dict:
     w = ensure_world()
     t0 = time.time()
-    res = solve_with_relaxation(w.net, w.tasks, w.windows,
-                                time_limit_s=load_config()["planner"]["solve_time_s_demo"])
+    from backend.api.state import reroute_cache
+    from backend.planner.creation_plan import solve_with_creation
+
+    natural, res, created = solve_with_creation(
+        w.net, w.tasks, w.windows, occupancy_by_section(), reroute_cache(),
+        time_limit_s=load_config()["planner"]["solve_time_s_demo"])
+    STATE.plan_natural = natural
     STATE.plan = res
+    from backend.api.state import creation_summary
+    STATE.creation_used = creation_summary(w, res, created)
     STATE.log(0, (f"CP-SAT re-planned the week in {res.wall_s:.1f}s: "
                   f"{len(res.assignments)} jobs placed."), "plan")
     d = res.to_dict()
@@ -242,10 +257,12 @@ def sim_tick(at_s: int = 0) -> dict:
         STATE.sim_seq += 1
         batch.append(random_task(w.net, rng, at_s, STATE.sim_seq))
     ordered = order_max_to_min(batch)
+    creator = make_creator()
 
     results = []
     for t in ordered:
-        placement = alns_lite_insert(w.net, t, index, w.tasks, STATE.live_sim)
+        placement = alns_lite_insert(w.net, t, index, w.tasks, STATE.live_sim,
+                                     creator=creator, at_s=at_s)
         STATE.log(
             at_s,
             f"Simulated arrival: {t.describe()} — {placement.reason}.",
@@ -259,27 +276,21 @@ def sim_tick(at_s: int = 0) -> dict:
             "window": (None if placement.window is None else {
                 "id": placement.window.id, "section_id": placement.window.section_id,
                 "zone_ref": placement.window.zone_ref,
-                "start_s": placement.window.start_s,
-                "end_s": placement.window.start_s + t.duration_min * 60,
+                "start_s": placement.start_s,
+                "end_s": placement.end_s,
                 "gap_type": placement.window.gap_type.value,
+                "created_by": placement.window.created_by,
             }),
             "reason": placement.reason,
+            "integrated_with": placement.integrated_with,
+            "created": None if placement.created is None else placement.created.to_dict(),
         })
     return {"at_s": at_s, "results": results,
             "algorithm": "Max-to-Min greedy ordering + ALNS-lite destroy/repair insertion"}
 
 
-_OCC_BY_SECTION: dict | None = None
-
-
 def _occupancy_by_section() -> dict:
-    global _OCC_BY_SECTION
-    if _OCC_BY_SECTION is None:
-        idx: dict = {}
-        for o in ensure_world().occupancy:
-            idx.setdefault(o.section_id, []).append(o)
-        _OCC_BY_SECTION = idx
-    return _OCC_BY_SECTION
+    return occupancy_by_section()
 
 
 @router.get("/api/sections/{section_id}/brief")
@@ -402,12 +413,10 @@ def _active_blocks(at_s: int) -> list[tuple[str, int, int]]:
         for a in STATE.plan.assignments:
             if a.zone_ref in w.net.sections and a.start_s <= at_s < a.end_s:
                 out.append((a.zone_ref, a.start_s, a.end_s))
-    for p in STATE.live_sim.placed:
+    for p in list(STATE.live_sim.placed) + list(STATE.user_placements.values()):
         if p.placed and p.window is not None and p.window.zone_ref in w.net.sections:
-            start = p.window.start_s
-            end = start + p.task.duration_min * 60
-            if start <= at_s < end:
-                out.append((p.window.zone_ref, start, end))
+            if p.start_s is not None and p.start_s <= at_s < p.end_s:
+                out.append((p.window.zone_ref, p.start_s, p.end_s))
     return list(dict.fromkeys(out))
 
 
@@ -671,7 +680,7 @@ def chat(payload: dict) -> dict:
 
 
 @router.get("/api/metrics/impact")
-def impact() -> dict:
+def impact(hours_per_conflict: float | None = None, wait_days: float | None = None) -> dict:
     """Before/after metrics.
 
     The dispatcher comes from load_best_policy, which lives in the torch-free policies module.
@@ -685,7 +694,8 @@ def impact() -> dict:
     from backend.rl.policies import load_best_policy
 
     policy, note = load_best_policy()
-    rep = compute_impact(w.net, w.tasks, w.windows, plan, policy)
+    rep = compute_impact(w.net, w.tasks, w.windows, plan, policy,
+                         hours_per_conflict=hours_per_conflict, wait_days=wait_days)
     d = rep.to_dict()
     # Which dispatcher produced the latency figure is part of the claim, not a footnote.
     d["dispatcher"] = note
