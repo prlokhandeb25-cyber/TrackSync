@@ -62,6 +62,13 @@ def _urgent_twin(victim: Task, priority: int, tid: str) -> Task:
         "released_s": 0, "due_by_s": 7 * 86400})
 
 
+def _fill_window(t: Task, index) -> Task:
+    """Make the job as long as the only window allows, so it cannot sit beside anything in it."""
+    win = next(iter(next(iter(index.trees.values()))))[2]
+    t.duration_min = win.usable_min(power_block=t.requires_power_block)
+    return t
+
+
 def _boxed_in(world):
     """A schedule where the only window on a section is taken by a low-priority planned job.
 
@@ -84,7 +91,7 @@ def _boxed_in(world):
 def test_a_critical_job_pushes_aside_only_lower_priority_work(world):
     w, victim, index, tasks = _boxed_in(world)
     victim.priority = 5
-    sudden = _urgent_twin(victim, 1, "SUD-T1")
+    sudden = _fill_window(_urgent_twin(victim, 1, "SUD-T1"), index)
     res = place_sudden(w.net, sudden, index, tasks, LiveSimState(), None, 0, None, lambda b: True)
     assert res.method == "bumped"
     assert res.moves and all(m.task.priority > sudden.priority for m in res.moves)
@@ -100,7 +107,7 @@ def test_a_displaced_job_is_replaced_elsewhere_when_room_exists(world):
     if alt is None:
         pytest.skip("no second window on this zone to move to")
     index = build_interval_index([win, alt])
-    sudden = _urgent_twin(victim, 1, "SUD-T4")
+    sudden = _fill_window(_urgent_twin(victim, 1, "SUD-T4"), boxed)
     sudden.due_by_s = win.end_s          # only the first window is early enough for the urgent job
     res = place_sudden(w.net, sudden, index, tasks, LiveSimState(), None, 0, None, lambda b: True)
     assert res.method == "bumped"

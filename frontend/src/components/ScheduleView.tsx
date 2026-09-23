@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { api, DAYS, hhmm, type MonthSchedule, type PlanEntry, type WeekSchedule } from '../api'
+import { api, DAYS, hhmm, type MonthSchedule, type PaxWeekly, type PlanEntry, type WeekSchedule } from '../api'
 
 /* The plan itself. Week: every day as a 24-hour column, each job a block at the time the planner
    gave it. Month: four rolling weekly cycles - each week is re-planned with the previous week's
@@ -70,8 +70,15 @@ export default function ScheduleView() {
   const [wk, setWk] = useState<WeekSchedule | null>(null)
   const [mo, setMo] = useState<MonthSchedule | null>(null)
   const [pickDay, setPickDay] = useState<number | null>(null)
+  const [pw, setPw] = useState<PaxWeekly | null>(null)
 
   useEffect(() => { api.scheduleWeek().then(setWk).catch(() => undefined) }, [])
+  useEffect(() => {
+    let alive = true
+    const poll = () => api.paxWeekly().then(r => { if (alive) { setPw(r); if (r.status === 'running') setTimeout(poll, 3000) } }).catch(() => undefined)
+    void poll()
+    return () => { alive = false }
+  }, [])
 
   useEffect(() => {
     if (mode !== 'month') return
@@ -104,6 +111,8 @@ export default function ScheduleView() {
             <div className="tile"><div className="v" style={{ color: 'var(--accent)' }}>{s!.micro_gap}</div><div className="k">in gaps between trains</div></div>
             <div className="tile"><div className="v">{s!.night}</div><div className="k">in night windows</div></div>
             <div className="tile"><div className="v">{s!.megablock}</div><div className="k">in the Sunday megablock</div></div>
+            <div className="tile"><div className="v" style={{ color: 'var(--fit)' }}>{pw?.data ? `−${Math.round(pw.data.saved_pct)}%` : '…'}</div>
+              <div className="k">passengers within reach</div><div className="note">vs timing that ignores them</div></div>
             <div className="tile"><div className="v" style={{ color: 'var(--sick)' }}>+{Math.max(0, s!.plan_placed - s!.natural_only_placed)}</div>
               <div className="k">extra from gap creation</div></div>
           </div>

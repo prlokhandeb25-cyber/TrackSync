@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
-  api, type ImpactData, type PaxExperiment, type ScoreCardData, type SuddenMetrics,
+  api, type ImpactData, type PaxExperiment, type PaxWeekly, type ScoreCardData, type SuddenMetrics,
 } from '../api'
 
 /* Before / after, for a reader who has ten minutes: what today's manual practice achieves against
@@ -73,6 +73,7 @@ export default function Impact() {
   const [sc, setSc] = useState<ScoreCardData | null>(null)
   const [px, setPx] = useState<PaxExperiment | null>(null)
   const [sd, setSd] = useState<SuddenMetrics | null>(null)
+  const [pw, setPw] = useState<PaxWeekly | null>(null)
   const [err, setErr] = useState<string | null>(null)
   const [hours, setHours] = useState(4)
   const [wait, setWait] = useState(7)
@@ -83,6 +84,10 @@ export default function Impact() {
     api.scorecard().then(setSc).catch(() => undefined)
     api.paxExperiment().then(setPx).catch(() => undefined)
     api.suddenMetrics().then(setSd).catch(() => undefined)
+    let alive = true
+    const poll = () => api.paxWeekly().then(r => { if (alive) { setPw(r); if (r.status === 'running') setTimeout(poll, 3000) } }).catch(() => undefined)
+    void poll()
+    return () => { alive = false }
   }, [])
   useEffect(() => {
     if (hours === 4 && wait === 7) { setStress(null); return }   // the defaults are the main run
@@ -120,19 +125,19 @@ export default function Impact() {
       bars: [{ who: 'Phone calls*', v: cp.before.value * 3_600_000, tone: 'before' }, { who: 'RailBlock', v: cp.after.value, tone: 'after' }],
       how: `*${cp.how}`, repro: cp.repro })
     if (px) {
-      out.push({ id: 'pax', title: 'Passengers within reach of the work', kind: 'n', better: 'lower',
+      // Manual (night + Sunday windows only) touches few passengers because it works almost only when
+      // trains are few - and it places fewer jobs. It is named in the text rather than left out.
+      out.push({ id: 'pax', title: `Passengers within reach of ${px.jobs} urgent jobs`, kind: 'n', better: 'lower',
         bars: [
-          { who: 'Manual', v: px.manual.passengers, tone: 'before' },
-          { who: 'No passenger term', v: px.unaware.passengers, tone: 'mid' },
+          { who: 'Timing ignores them', v: px.unaware.passengers, tone: 'before' },
           { who: 'RailBlock', v: px.aware.passengers, tone: 'after' }],
-        how: px.how, repro: 'GET /api/pax/experiment' })
-      out.push({ id: 'jobs', title: `Urgent jobs placed (of ${px.jobs}), passenger-aware`, kind: 'n', better: 'higher',
-        bars: [{ who: 'Manual', v: px.manual.placed, tone: 'before' }, { who: 'RailBlock', v: px.aware.placed, tone: 'after' }],
-        how: px.how, repro: 'GET /api/pax/experiment' })
-      out.push({ id: 'wait', title: 'Average wait for a slot', kind: 'h', better: 'lower',
-        bars: [{ who: 'Manual', v: px.manual.mean_wait_h, tone: 'before' }, { who: 'RailBlock', v: px.aware.mean_wait_h, tone: 'after' }],
-        how: px.how, repro: 'GET /api/pax/experiment' })
+        how: `${px.how} For reference, manual planning (night and Sunday windows only) touches ${px.manual.passengers.toLocaleString()} `
+          + `passengers but places ${px.manual.placed} of ${px.jobs} jobs against ${px.aware.placed}, and has no daytime capacity for urgent work.`,
+        repro: 'GET /api/pax/experiment' })
     }
+    if (pw?.data) out.push({ id: 'pw', title: 'Weekly plan: passengers within reach', kind: 'n', better: 'lower',
+      bars: [{ who: 'Timing ignores them', v: pw.data.unaware_common, tone: 'before' }, { who: 'RailBlock', v: pw.data.aware_common, tone: 'after' }],
+      how: pw.data.how, repro: 'GET /api/pax/weekly' })
     if (it) out.push({ id: 'it', title: 'Finding free gaps', kind: 'ms', better: 'lower',
       bars: [{ who: 'Scan every window', v: it.before.value, tone: 'before' }, { who: 'Interval tree', v: it.after.value, tone: 'after' }],
       how: `${it.how} ${it.detail}`, repro: it.repro })
@@ -143,7 +148,7 @@ export default function Impact() {
              { who: 'RailBlock (median)', v: sd.median_ms, tone: 'after' }],
       how: `Median of ${sd.n} sudden task(s) injected on the Operations page.`, repro: 'GET /api/sudden/metrics' })
     return out
-  }, [sc, d, px, sd])
+  }, [sc, d, px, sd, pw])
 
   if (err) return <div className="panel"><div className="panel-body muted">Could not load impact metrics: {err}</div></div>
   if (!d) return <div className="loading"><div className="spinner" />Measuring the manual baseline and every algorithm…</div>

@@ -212,6 +212,7 @@ export const api = {
   suddenMetrics: () => j<SuddenMetrics>('/api/sudden/metrics'),
   suddenClear: () => j<{ cleared: number }>('/api/sudden/clear', { method: 'POST' }),
   paxExperiment: () => j<PaxExperiment>('/api/pax/experiment'),
+  paxWeekly: () => j<PaxWeekly>('/api/pax/weekly'),
   buildMonth: (force = false) => j<{ status: string }>(`/api/schedule/month/build?force=${force}`, { method: 'POST' }),
 }
 
@@ -399,4 +400,14 @@ export interface PaxExperiment {
   jobs: number; network_tph: number; passengers_saved_pct: number; how: string
   aware: { placed: number; passengers: number; mean_tph: number; mean_wait_h: number; in_peak: number }
   unaware: { placed: number; passengers: number; mean_tph: number; mean_wait_h: number; in_peak: number }
+}
+
+export interface PaxWeekly {
+  status: 'idle' | 'running' | 'done' | 'error'
+  error: string | null
+  data: {
+    aware: { placed: number; pax: number; status: string }
+    unaware: { placed: number; pax: number; status: string }
+    common_jobs: number; aware_common: number; unaware_common: number; saved_pct: number; how: string
+  } | null
 }

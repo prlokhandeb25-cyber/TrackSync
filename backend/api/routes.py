@@ -685,6 +685,9 @@ def chat(payload: dict) -> dict:
     return a.to_dict()
 
 
+_IMPACT_CACHE: dict = {}
+
+
 @router.get("/api/metrics/impact")
 def impact(hours_per_conflict: float | None = None, wait_days: float | None = None) -> dict:
     """Before/after metrics.
@@ -699,12 +702,19 @@ def impact(hours_per_conflict: float | None = None, wait_days: float | None = No
     plan = ensure_plan()
     from backend.rl.policies import load_best_policy
 
+    # The measurement re-runs several solves; for one plan and one setting it cannot change, so it is
+    # done once. A new plan (or a different slider position) is a different key.
+    key = (id(plan), len(w.tasks), hours_per_conflict, wait_days)
+    if key in _IMPACT_CACHE:
+        return _IMPACT_CACHE[key]
     policy, note = load_best_policy()
     rep = compute_impact(w.net, w.tasks, w.windows, plan, policy,
                          hours_per_conflict=hours_per_conflict, wait_days=wait_days)
     d = rep.to_dict()
     # Which dispatcher produced the latency figure is part of the claim, not a footnote.
     d["dispatcher"] = note
+    _IMPACT_CACHE.clear() if len(_IMPACT_CACHE) > 12 else None
+    _IMPACT_CACHE[key] = d
     return d
 
 

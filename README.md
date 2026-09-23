@@ -23,32 +23,46 @@ reacting to an unplanned defect mid-week possible at all.
 - Reads the real Indian Railways timetable, filters it to the Mumbai network, and **refuses to
   run on data it cannot validate** (ten checks, blocking).
 - Finds every window where maintenance could go — night windows **derived per section**, Sunday
-  megablocks **corroborated against observed traffic**, and the ordinary **gaps between trains**
-  — and keeps a gap only if **15 minutes of real work** remain after safety and set-up time.
+  megablocks **corroborated against observed traffic**, and the ordinary **gaps between trains** —
+  and keeps a gap only if **15 minutes of real work** remain after safety, a lookout margin before
+  the next train, set-up and hand-back. Blocks sit on a 5-minute grid and each gap carries the
+  chance its start runs late.
+- **Prefers quiet places and times**: a train-frequency and passenger model prices every slot by how
+  many services and people are within reach, in the weekly plan and in the live scheduler.
 - **Opens near-miss gaps** with small, priced changes to the trains: hold one a few minutes,
-  reroute a long-distance train, or run one track for both directions. Suburban locals are never
-  rerouted.
+  reroute a long-distance train, run one track for both directions, or (critical faults only) take
+  an emergency block. Suburban locals are never rerouted.
 - Lets a department **raise a job** with the departments it may work alongside; the system scores
   it, **clusters** it with nearby jobs (hierarchical clustering), and schedules it into a gap,
   sharing a block with a compatible neighbour where the rules allow.
+- Takes **sudden tasks** (low to critical) that were never in the plan: fits them into an existing
+  gap, or opens one, or moves lower-priority work aside and re-places it, in milliseconds, with the
+  cost in train-minutes and passengers shown.
 - Plans the week with CP-SAT (and a rolling four-week month), then re-plans reactively with a
   learned dispatcher when an unplanned defect appears.
-- Shows all of it: a live map of the Mumbai region with each section drawn as its real tracks, a
-  step-by-step replay of the algorithms in plain words, and a before/after page where every
-  figure says how it was measured.
+- Shows all of it: a live map of the Mumbai region with each section drawn as its real tracks; zoom
+  in to see the work site (protected zone, cones, crew, the machine, the track turning green as the
+  work progresses) and diverted long-distance trains travelling their detour; a step-by-step replay
+  of the algorithms in plain words; and a before/after page where every figure says how it was
+  measured.
+- **RailMitra** answers live questions and what-ifs (a job, a closure, two kinds of work sharing a
+  place) by running the real gap finder, rule engine, passenger model and rerouting search on a
+  copy of the schedule. No language model.
+- Light and dark themes.
 
 ## Numbers, all from runs that actually happened
 
 | | |
 |---|---|
 | Network | 4 lines, 73 stations, 74 sections |
-| Windows | 7,705 (5,796 between trains, 1,328 night, 581 megablock), every one with at least 15 min of work |
-| Usable maintenance time | 7,305 h/week against 4,319 h from night + Sunday block alone (**+69%**) |
-| Weekly plan | CP-SAT OPTIMAL, 0% gap, 36 of 40 jobs, 7 compatible cross-department pairs sharing a block |
-| Gap creation | 60 urgent jobs due in 6 h: **11** fit existing gaps, **55** fit with creation, at 553 train-minutes |
-| Interval tree | 39x faster range lookups than a full scan, identical answers |
-| Best learned policy | CQL-DQN within **10.3%** of optimal on 20 held-out instances (greedy 12.9%), **18x** faster to re-plan, 0 constraint violations |
-| Tests | **77 passing** |
+| Windows | 6,922 (5,074 between trains, 1,303 night, 545 megablock), every one with at least 15 min of work |
+| Usable maintenance time | 6,625 h/week against 4,106 h from night + Sunday block alone (**+61%**) |
+| Weekly plan | CP-SAT OPTIMAL in 27 s (0% gap), 36 of 40 jobs, 6 compatible cross-department pairs sharing a block. On some runs the solver stops at its 60 s limit within 0.3% |
+| Gap creation | 60 urgent jobs due in 6 h: **11** fit existing gaps, **59** fit with creation |
+| Passengers | the same 60 jobs placed with and without the passenger term: **75% fewer** passengers within reach (127,950 vs 517,070, estimated); chosen sites average 4.5 trains/h against 12.4 across the network |
+| Interval tree | about 160x faster range lookups than a full scan, identical answers (varies with machine load) |
+| Best learned policy | behaviour cloning within **10.9%** of optimal on 20 held-out instances (CQL-DQN 11.1%, greedy 13.4%), **25x** faster to re-plan (161 ms vs 4,100 ms), 0 constraint violations |
+| Tests | see the last line of `pytest -q` |
 
 The RL figures are on the placement objective only (the integrated-block reward is a weekly-plan
 feature the dispatcher is not trained for) and were re-measured after the gap definition changed.
@@ -100,7 +114,7 @@ backend/
   chat/        grounded question answering (no language model)
   api/         FastAPI routes
 config/network/ one YAML per corridor — adding a line is adding a file
-frontend/      React + TypeScript, seven tabs and the RailMitra assistant
+frontend/      React + TypeScript, five tabs and the RailMitra assistant
 ```
 
 ## Documents
@@ -111,7 +125,7 @@ frontend/      React + TypeScript, seven tabs and the RailMitra assistant
 | `REPORT.md` | results, measured figures, judging traceability |
 | `ASSUMPTIONS.md` | **every invented number, with its rationale** |
 | `ROADMAP.md` | what was deliberately deferred |
-| `DEMO_SCRIPT.md` | the four-minute walkthrough |
+| `DEMO_SCRIPT.md` | the five-minute walkthrough |
 | `COMPARISON.md` | this build vs a parallel Antigravity run |
 
 `ASSUMPTIONS.md` is the one worth reading first if you are evaluating this. Maintenance-task

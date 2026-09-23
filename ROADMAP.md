@@ -103,3 +103,11 @@ These are not deferred on principle — they ran out of clock.
 | **Real track geometry** | Sections are still straight lines between stations. Curved alignment from OpenStreetMap (or divisional track diagrams), and a genuinely separate fast/slow track layout for the Harbour and Trans-Harbour lines if they turn out to need one |
 | **Closing the V5 residual** | 1,050 sub-headway events remain, all real intercity services published at 60-second spacing. Three repair strategies hit a floor; the next is absorbing the hold into the follower's dwell with a per-station cap, or modelling more than one fast path through the CSMT–Kalyan throat |
 | **More expert data** | Both learned models peaked at training step 1,000 of 6,000. The 14.8% gap would likely narrow with a larger dataset or stronger regularisation |
+
+
+### Real passenger loads and real track geometry
+
+The passenger model uses invented per-train loads and one hour-of-day profile (ASSUMPTIONS A-040);
+real footfall per station-hour and directional peaks would replace them. Tracks are still drawn as
+straight lines between stations; OpenStreetMap centre-line geometry is the planned replacement
+(A-010, A-031). Neither changes an algorithm, only the data it reads.

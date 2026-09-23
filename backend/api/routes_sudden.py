@@ -337,3 +337,51 @@ def pax_hours(section: str, day: int = 1) -> dict:
     if section not in w.net.sections:
         raise HTTPException(status_code=404, detail="unknown section")
     return {"section": section, "day": day, "hours": get_pax().hour_profile(section, day)}
+
+
+# ------------------------------------------------- the weekly plan, with and without the passenger term
+
+_WEEKLY: dict = {"status": "idle", "data": None, "error": None}
+_WEEKLY_LOCK = __import__("threading").Lock()
+
+
+def _weekly_worker() -> None:
+    from backend.planner.cpsat import solve_with_relaxation
+    try:
+        w = ensure_world()
+        plan = ensure_plan()
+        pax = get_pax()
+        tasks = [t.model_copy(deep=True) for t in w.tasks]          # the solver writes times onto its tasks
+        for t in tasks:
+            t.scheduled_start_s = t.scheduled_end_s = None
+        res = solve_with_relaxation(w.net, tasks, w.windows,
+                                    time_limit_s=load_config()["planner"]["solve_time_s_demo"], pax=None)
+        unaware = sum(pax.job_exposure(a.section_id, a.start_s, a.end_s) for a in res.assignments)
+        aware = sum(pax.job_exposure(a.section_id, a.start_s, a.end_s)
+                    for a in plan.assignments if a.window_id and not a.window_id.startswith("CW-"))
+        # like for like: only the jobs the natural (uncreated) part of each plan placed
+        nat_ids = {a.task_id for a in plan.assignments if a.window_id and not a.window_id.startswith("CW-")}
+        common = nat_ids & {a.task_id for a in res.assignments}
+        aw_c = sum(pax.job_exposure(a.section_id, a.start_s, a.end_s) for a in plan.assignments if a.task_id in common)
+        un_c = sum(pax.job_exposure(a.section_id, a.start_s, a.end_s) for a in res.assignments if a.task_id in common)
+        with _WEEKLY_LOCK:
+            _WEEKLY.update(status="done", data={
+                "aware": {"placed": len(plan.assignments), "pax": aware, "status": plan.status},
+                "unaware": {"placed": len(res.assignments), "pax": unaware, "status": res.status},
+                "common_jobs": len(common), "aware_common": aw_c, "unaware_common": un_c,
+                "saved_pct": round(100.0 * (un_c - aw_c) / max(1, un_c), 1),
+                "how": "The same week solved twice by CP-SAT, once with the passenger term and once without. "
+                       "Compared on the jobs both plans placed, by passenger-hours within reach (estimated, A-040)."})
+    except Exception as e:                                        # surfaced to the page, not swallowed
+        with _WEEKLY_LOCK:
+            _WEEKLY.update(status="error", error=repr(e))
+
+
+@router.get("/api/pax/weekly")
+def pax_weekly() -> dict:
+    """Start (once) and report the with/without passenger-term comparison of the weekly plan."""
+    with _WEEKLY_LOCK:
+        if _WEEKLY["status"] == "idle":
+            _WEEKLY["status"] = "running"
+            __import__("threading").Thread(target=_weekly_worker, daemon=True).start()
+        return dict(_WEEKLY)

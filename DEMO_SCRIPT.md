@@ -21,82 +21,86 @@ the Mumbai border is cached OpenStreetMap data, so conference wifi cannot break 
 
 ## 1 · The network (30 s) — Operations
 
-> "The Mumbai region, drawn from its real border. Every section is drawn as its real tracks — four
-> abreast on the Central and Western core, two on the outer stretches, slow lines outside and fast
-> inside. Trains run on their own track."
+> "The Mumbai region, drawn from its real border. Every section is its real tracks — four abreast on
+> the Central and Western core, two on the outer stretches. Trains run on their own track."
 
-Point at the yellow-and-black striped track with the crew moving along it.
+Point at a striped track with a crew on it.
 
-> "That is maintenance happening right now. Jobs are arriving and being placed continuously."
+> "That is maintenance happening right now, placed into a gap between trains."
 
-Set the speed to **5×** or **10×**. Point at the cyan train.
+Zoom in on it (scroll, or the + button).
 
-> "A long-distance train due through a closed section is rerouted around it. Suburban locals never
-> are — they serve fixed stations — so where a section has two tracks they run single-line instead,
-> the green dashed track."
+> "Up close it is the work site: protected zone, cones and stop boards at each end, the crew, the
+> machine for that department, and the track turns green behind it as the work progresses."
 
-## 2 · The proof strip (20 s) — Operations, below the map
+Set the speed to **5×**. Point at a cyan detour.
 
-> "Everything under 'Proof it works' is measured, not asserted. Gap lookup with an interval tree
-> against a full scan, with identical answers; the weekly plan solved to optimality; jobs
-> clustered; jobs placed live; trains rerouted."
+> "A long-distance train due through a closed section leaves it, the old path is crossed out, and it
+> runs the detour. Suburban locals are never rerouted; where a section has two local tracks they run
+> single-line instead, with crossovers at each end."
 
-## 3 · Raise your own job (75 s) — Department coordination
+## 2 · A sudden task (75 s) — Operations, right column
 
-> "Three departments raise work independently. Here's the form a department fills in: what, where,
-> for how long, and which other departments may work alongside."
+> "Something breaks that nobody planned. Pick how urgent: low, medium, high, critical."
 
-Raise a **PWI** job on **Dadar – Matunga**, both other departments ticked. Submit.
+Press **Critical**. The map flies to it.
 
-> "It scored 100 against the jobs near it, joined a group, and was scheduled into a gap — sharing a
-> block with a nearby job where the rules allow. Open the card: every pair has a written reason."
+> "It was placed in milliseconds against about half a minute to re-solve the week. It says how: an
+> existing gap, a gap it opened — with the cost in train-minutes and passengers — or lower-priority
+> work it moved aside, and where that went."
 
-Now raise an **S&T** job on the same section with **PWI unticked**.
+Press **How it decided**. Point at "trains per hour at chosen sites vs network average".
 
-> "PWI did not allow it, so the system keeps them at different times. The declaration is a
-> constraint, not a label."
+> "It chooses quiet places and times. The same jobs placed with and without the passenger term touch
+> 75% fewer passengers."
 
-Click **See it on the Operations map →** (or **Watch it** on Operations) and speed to 20×.
+## 3 · Raise your own job (60 s) — Department coordination
 
-> "The job we just raised, happening on the map."
+> "Three departments raise work independently. What, where, how long, and which other departments
+> may work alongside."
 
-## 4 · How it decided (60 s) — Weekly block plan
+Raise a **PWI** job on **Dadar – Matunga**, both other departments ticked. Submit. Open the card.
 
-> "Three steps, each shown from a real run. One: how the gaps were found — every gap between two
-> trains, minus safety and set-up time, kept only if 15 minutes of real work remain. Near misses
-> that a small change would save are marked. Two: the dendrogram — jobs merge nearest first and
-> stop at 5 km; what hangs together shares a block. Three: the schedule."
+> "It scored against the jobs near it, joined a group and was scheduled into a gap, with a written
+> reason for every pair."
+
+Press **Show on Operations map**.
+
+> "The map flies to the job and says what, where, when — and whether it has started."
+
+Raise an **S&T** job on the same section with **PWI unticked**: the system keeps them at different
+times. A declaration is a constraint, not a label.
+
+## 4 · How it decided (45 s) — Weekly block plan
+
+> "Step one: how the gaps were found — the gap, minus safety and a lookout margin, minus set-up; kept
+> only if 15 minutes of work remain, and each carries how reliable its start is. Step two: jobs merge
+> nearest first and stop at 5 km; what hangs together shares a block. Step three: the schedule."
 
 Toggle **Month**.
 
-> "Four rolling weeks, each solved exactly, with the last week's leftovers carried in."
+## 5 · Ask RailMitra (60 s)
 
-## 5 · Watch it think (60 s) — AI dispatcher
+Open the chat button and ask:
 
-Press **Start simulation**.
+- *what if a 60 minute PWI job at Dadar to Matunga?*
+- *what if Dadar to Matunga is closed at 14:00 for an hour?*
+- *can OHE insulator work and tamping happen together at Kurla?*
 
-> "Same algorithms, in plain words: taking a gap apart, opening a near miss, merging the closest
-> jobs, checking the rules, giving each job a time. It is replayed from the real run, so it says
-> exactly what the code did."
+> "It answers by running the real gap finder, rule engine and passenger model on a copy of the
+> schedule. Nothing it tries changes the plan, and there is no language model."
 
-Scroll to the learned dispatcher.
+## 6 · Why adopt (45 s) — Before / after
 
-> "And when an unplanned defect appears mid-week, the learned dispatcher re-plans in milliseconds
-> where the exact solver takes seconds. Zero constraint violations, by construction."
+> "Same timetable, same jobs. Each comparison has one headline and how it was measured behind it. The
+> 'before' case is a model of today's practice; its two invented numbers are sliders at the bottom."
 
-## 6 · Why adopt it (45 s) — Before / after
+Point at what the page does not claim: the department-clash and re-plan baselines are marked as
+assumed, and the multiplier for re-planning is against a full exact solve, which was measured.
 
-> "Each algorithm, before and after, on the same instances — with how it was measured and how to
-> reproduce it. The 'before' case is a model of today's practice, and its two invented numbers are
-> sliders: drag the negotiation time down and watch whether we still win."
+## 7 · Watch it think (30 s) — AI dispatcher
 
-Point at the cost: gap creation delays trains, and that cost is stated in train-minutes.
-
-## 7 · Ask RailMitra (15 s)
-
-Open the chat button: **"how are jobs grouped?"** / **"what did gap creation open?"**
-
-> "Answers come out of the same objects the planner uses. No language model."
+Press **Start simulation**: the same algorithms, in plain words, replayed from the real run.
 
 ---
 
