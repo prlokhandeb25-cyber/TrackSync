@@ -40,6 +40,7 @@ def network() -> dict:
                 "tier": s.tier.value if s.tier else None, "junction": s.is_junction,
                 "platforms": s.platforms, "trains_per_day": s.trains_per_day,
                 "peak_tph": s.peak_trains_per_hour,
+                "line_code": s.line_code, "lines": s.lines, "coord_src": s.coord_src,
                 "status": w.registry.get(s.code).value,
             }
             for s in w.net.stations.values()
@@ -50,6 +51,7 @@ def network() -> dict:
                 "length_km": s.length_km, "line_speed_kmph": s.line_speed_kmph,
                 "tracks": s.tracks, "tier": s.tier.value if s.tier else None,
                 "geometry": s.geometry, "trains_per_day": s.trains_per_day,
+                "line_code": s.line_code,
                 "status": w.registry.get(s.id).value,
             }
             for s in w.net.sections.values()
