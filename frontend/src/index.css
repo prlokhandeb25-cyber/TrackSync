@@ -29,11 +29,19 @@
   --iwp:          #e3a008;
   --incompatible: #f4523b;
 
-  /* Line identity — deliberately desaturated; the network is context, not the message */
+  /* Line identity — deliberately desaturated; the network is context, not the message.
+     Kept for every other tab. The Operations map uses --l-*-vivid instead: SPEC §14.1's
+     "colour only for status" rule is deliberately relaxed there, by request, for that one
+     screen — see SPEC.md §14.1. */
   --l-CR: #6b8cba;
   --l-WR: #b57a8a;
   --l-HR: #6fae9a;
   --l-TH: #9a8fc0;
+
+  --l-CR-vivid: #4f8cff;
+  --l-WR-vivid: #ff5fa8;
+  --l-HR-vivid: #21d4b4;
+  --l-TH-vivid: #b985ff;
 
   --r-sm: 8px;
   --r:    12px;
@@ -159,7 +167,30 @@ a { color: var(--accent); }
 
 /* ---------------- map ---------------- */
 .map-wrap { position: relative; background: radial-gradient(900px 500px at 50% 0%, #0d141f, #070a0f); }
-.map-wrap svg { display: block; width: 100%; height: auto; }
+.map-wrap svg { display: block; width: 100%; height: auto; cursor: grab; touch-action: none; }
+.map-wrap svg.dragging { cursor: grabbing; }
+.map-controls {
+  position: absolute; top: 12px; right: 12px; z-index: 5;
+  display: flex; flex-direction: column; gap: 5px;
+}
+.map-controls button {
+  width: 30px; height: 30px; border-radius: 8px; border: 1px solid var(--line);
+  background: rgba(17,22,31,.88); color: var(--text-dim); font-size: 15px; line-height: 1;
+  cursor: pointer; backdrop-filter: blur(6px); transition: all .15s;
+}
+.map-controls button:hover { border-color: var(--accent); color: var(--text); }
+.map-live {
+  position: absolute; top: 12px; left: 12px; z-index: 5;
+  display: flex; align-items: center; gap: 6px;
+  padding: 4px 10px 4px 7px; border-radius: 999px;
+  background: rgba(17,22,31,.88); border: 1px solid var(--line-soft);
+  font-size: 10.5px; color: var(--text-dim); backdrop-filter: blur(6px);
+}
+.map-live i {
+  width: 6px; height: 6px; border-radius: 50%; background: var(--fit);
+  box-shadow: 0 0 6px var(--fit); animation: pulse-dot 1.6s ease-in-out infinite;
+}
+@keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
 .legend {
   display: flex; flex-wrap: wrap; gap: 9px 16px; align-items: center;
   padding: 11px 16px; border-top: 1px solid var(--line-soft);

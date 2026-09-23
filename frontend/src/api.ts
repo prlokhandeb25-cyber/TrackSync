@@ -107,6 +107,25 @@ export interface ReroutingOpportunity {
 }
 export interface ReroutingData { unscheduled_total: number; opportunities: ReroutingOpportunity[] }
 
+export interface SimTickTask {
+  id: string; describe: string; zone: string; department: string
+  duration_min: number; priority: number
+}
+export interface SimTickWindow {
+  id: string; section_id: string; zone_ref: string
+  start_s: number; end_s: number; gap_type: string
+}
+export interface SimTickPlacement {
+  task: SimTickTask; placed: boolean; window: SimTickWindow | null; reason: string
+}
+export interface SimTickData { at_s: number; results: SimTickPlacement[]; algorithm: string }
+
+export interface NextGap { start_hhmm: string; end_hhmm: string; gap_type: string; usable_min: number }
+export interface SectionBrief {
+  section_id: string; status: Status; summary: string
+  open_task_count: number; next_gap: NextGap | null
+}
+
 const j = async <T,>(url: string, init?: RequestInit): Promise<T> => {
   const r = await fetch(url, init)
   if (!r.ok) throw new Error(`${url} -> ${r.status}`)
@@ -129,6 +148,8 @@ export const api = {
   rl: () => j<RlData>('/api/rl/comparison'),
   adapters: () => j<AdapterData>('/api/adapters'),
   reroutingOpportunities: () => j<ReroutingData>('/api/rerouting/opportunities'),
+  simTick: (atS: number) => j<SimTickData>(`/api/sim/tick?at_s=${Math.round(atS)}`, { method: 'POST' }),
+  sectionBrief: (id: string) => j<SectionBrief>(`/api/sections/${encodeURIComponent(id)}/brief`),
 }
 
 export const hhmm = (s: number) => {

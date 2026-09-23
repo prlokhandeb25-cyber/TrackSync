@@ -9,7 +9,7 @@ import Integration from './components/Integration'
 import {
   api, DAYS, hhmm,
   type EventItem, type GapData, type MatrixData, type NetworkData,
-  type PlanData, type Task, type TrainsData,
+  type PlanData, type SectionBrief, type Task, type TrainsData,
 } from './api'
 
 type Tab = 'operations' | 'coordination' | 'plan' | 'capacity' | 'impact' | 'ai' | 'integration'
@@ -34,6 +34,8 @@ export default function App() {
   const [events, setEvents] = useState<EventItem[]>([])
   const [tab, setTab] = useState<Tab>('operations')
   const [selected, setSelected] = useState<string | null>(null)
+  const [brief, setBrief] = useState<SectionBrief | null>(null)
+  const [simWindows, setSimWindows] = useState<{ zone_ref: string; start_s: number; end_s: number }[]>([])
   const [clock, setClock] = useState(7 * 3600)
   const [playing, setPlaying] = useState(true)
   const [err, setErr] = useState<string | null>(null)
@@ -81,17 +83,52 @@ export default function App() {
     return () => { alive = false; clearInterval(id) }
   }, [net])
 
+  useEffect(() => {
+    if (!selected) { setBrief(null); return }
+    let alive = true
+    api.sectionBrief(selected).then(b => { if (alive) setBrief(b) }).catch(() => { if (alive) setBrief(null) })
+    return () => { alive = false }
+  }, [selected])
+
+  // The live Operations-page simulation: while that tab is open, a small batch of unplanned
+  // tasks is generated and gap-scheduled every few seconds (backend/planner/live_sim.py) and
+  // folded straight into the status board and the map's block overlay.
+  useEffect(() => {
+    if (tab !== 'operations') return
+    let alive = true
+    const tick = async () => {
+      try {
+        const d = await api.simTick(clockRef.current)
+        if (!alive) return
+        const lines: EventItem[] = d.results.map(r => ({
+          at_s: d.at_s,
+          text: `Simulated arrival: ${r.task.describe} — ${r.reason}.`,
+          kind: r.placed ? 'plan' : 'info',
+        }))
+        setEvents(ev => [...ev, ...lines].slice(-400))
+        const wins = d.results
+          .filter(r => r.placed && r.window)
+          .map(r => ({ zone_ref: r.window!.zone_ref, start_s: r.window!.start_s, end_s: r.window!.end_s }))
+        if (wins.length) setSimWindows(sw => [...sw, ...wins].slice(-200))
+      } catch { /* transient - the next tick retries */ }
+    }
+    const id = setInterval(tick, 7000)
+    return () => { alive = false; clearInterval(id) }
+  }, [tab])
+
   const degraded = useMemo(
     () => (net?.sections ?? []).filter(s => s.status !== 'FIT'), [net])
 
   const activeBlocks = useMemo(() => {
     const s = new Set<string>()
-    if (!plan) return s
-    for (const a of plan.assignments) {
+    if (plan) for (const a of plan.assignments) {
       if (a.start_s <= clock && clock < a.start_s + 3600) s.add(a.zone_ref)
     }
+    for (const w of simWindows) {
+      if (w.start_s <= clock && clock < w.end_s) s.add(w.zone_ref)
+    }
     return s
-  }, [plan, clock])
+  }, [plan, clock, simWindows])
 
   const selectedSection = net?.sections.find(s => s.id === selected) ?? null
   const selectedTasks = tasks.filter(t => t.zone === selected)
@@ -191,6 +228,18 @@ export default function App() {
                     <span className="sub">{selectedSection.line_code}</span>
                   </div>
                   <div className="panel-body">
+                    {brief && (
+                      <div className="reason" style={{ margin: '0 0 14px', borderLeftColor: 'var(--accent)' }}>
+                        {brief.summary}
+                        {brief.next_gap && (
+                          <div className="muted" style={{ marginTop: 7, fontSize: 11.5 }}>
+                            Next available gap: {brief.next_gap.start_hhmm}–{brief.next_gap.end_hhmm}
+                            {' '}({brief.next_gap.usable_min} min usable,{' '}
+                            {brief.next_gap.gap_type.replace(/_/g, ' ').toLowerCase()})
+                          </div>
+                        )}
+                      </div>
+                    )}
                     <div className="kv"><span className="k">Status</span>
                       <span className={`status s-${selectedSection.status}`}>
                         {selectedSection.status.replace(/_/g, ' ').toLowerCase()}</span></div>
