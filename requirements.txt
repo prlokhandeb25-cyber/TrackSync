@@ -1,24 +1,13 @@
-# P0/P1 — data pipeline, validation, API
-fastapi==0.115.6
-uvicorn[standard]==0.34.0
-pydantic==2.10.4
-pandas==2.2.3
-pyarrow==18.1.0
-numpy==2.2.1
-networkx==3.4.2
-pyyaml==6.0.2
-requests==2.32.3
-python-dateutil==2.9.0.post0
-
-# P4 — CP-SAT planner
-ortools==9.11.4210
-
-# P7 — offline RL (CPU wheel; see CLAUDE.md "Environment")
-# torch installed separately at P7:
-#   .venv\Scripts\python.exe -m pip install torch --index-url https://download.pytorch.org/whl/cpu
-
-# P9 — charts
-matplotlib==3.10.0
-
-# tests
-pytest==8.3.4
+fastapi>=0.100.0
+uvicorn>=0.22.0
+pydantic>=2.0.0
+ortools>=9.6.0
+torch>=2.0.0
+pandas>=2.0.0
+pyarrow>=12.0.0
+numpy>=1.24.0
+networkx>=3.0
+pytest>=7.0.0
+websockets>=11.0
+pyyaml>=6.0
+matplotlib>=3.7.0

@@ -1,118 +1,215 @@
-# Central Railway — Mumbai CSMT → Kalyan → Karjat
-#
-# Station coordinates are REAL, taken from the public stations.json dataset
-# (github.com/anandology/railways). Section lengths are derived at ingest time from these
-# coordinates (haversine x route factor, ASSUMPTIONS A-010) rather than hand-entered.
-#
-# Adding a corridor = adding a file like this one. No code changes. (SPEC §4)
+corridor_id: "central_main_line"
+name: "Mumbai Central Railway Main Line & Karjat Branch"
+description: "CSMT to Kalyan main line and Kalyan to Karjat outer branch"
 
-corridor_id: central_line
-name: Central Line (CSMT – Kalyan – Karjat)
-line_code: CR
-zone: CR
-division: Mumbai
-route_factor: 1.15          # great-circle -> route distance (A-010)
+megablock_window:
+  day_of_week: "Sunday"
+  start_time: "10:30"
+  end_time: "15:30"
 
-# Sunday extended maintenance window. Default for CR Mumbai suburban; verified against the
-# timetable during validation (real megablocks show as a measurable thinning of services).
-megablock:
-  day_of_week: SUN
-  start: "10:30"
-  end: "15:30"
-
-defaults:
-  tracks: [UP_SLOW, DN_SLOW, UP_FAST, DN_FAST]   # CSMT-Kalyan main: separate fast/slow pairs
-  line_speed_kmph: 100
-  # Track selection by train class. Suburban EMUs use the slow pair, mail/express and freight
-  # the fast pair - this is how the corridor is actually worked, and it is why locals and
-  # expresses do not conflict on the main line.
-  track_policy:
-    SUBURBAN_LOCAL: [UP_SLOW, DN_SLOW]
-    INTERCITY:      [UP_FAST, DN_FAST]
-    FREIGHT_MAIL:   [UP_SLOW, DN_SLOW]   # freight runs the slow pair, at night
-
-# Ordered station sequence. `tier` is NOT set here — it is derived from observed train
-# frequency at ingest time (SPEC §8.1). The `expect_tier` field is a sanity check only:
-# validation warns if the derived tier disagrees, but the derived value always wins.
 stations:
-  - {code: CSTM, name: Mumbai CSMT,      lat: 18.944481, lon: 72.836903, platforms: 18, junction: true,  expect_tier: TIER_1}
-  - {code: BY,   name: Byculla,          lat: 18.976950, lon: 72.833211, platforms: 4,  junction: false, expect_tier: TIER_2}
-  - {code: DR,   name: Dadar,            lat: 19.017179, lon: 72.842972, platforms: 8,  junction: true,  expect_tier: TIER_1}
-  - {code: MTN,  name: Matunga,          lat: 19.027347, lon: 72.849842, platforms: 4,  junction: false, expect_tier: TIER_2}
-  - {code: SIN,  name: Sion,             lat: 19.047725, lon: 72.864262, platforms: 4,  junction: false, expect_tier: TIER_2}
-  - {code: CLA,  name: Kurla Jn,         lat: 19.065221, lon: 72.879375, platforms: 8,  junction: true,  expect_tier: TIER_1}
-  - {code: GC,   name: Ghatkopar,        lat: 19.085985, lon: 72.908591, platforms: 4,  junction: false, expect_tier: TIER_2}
-  - {code: TNA,  name: Thane,            lat: 19.185757, lon: 72.975417, platforms: 10, junction: true,  expect_tier: TIER_1}
-  - {code: DI,   name: Dombivli,         lat: 19.218218, lon: 73.086900, platforms: 4,  junction: false, expect_tier: TIER_2}
-  - {code: KYN,  name: Kalyan Jn,        lat: 19.234716, lon: 73.129740, platforms: 8,  junction: true,  expect_tier: TIER_1}
-  - {code: ABH,  name: Ambernath,        lat: 19.210382, lon: 73.184756, platforms: 4,  junction: false, expect_tier: TIER_2}
-  - {code: BUD,  name: Badlapur,         lat: 19.166388, lon: 73.239050, platforms: 4,  junction: false, expect_tier: TIER_2}
-  - {code: VGI,  name: Vangani,          lat: 19.094299, lon: 73.300967, platforms: 2,  junction: false, expect_tier: TIER_3}
-  - {code: SHLU, name: Shelu,            lat: 19.062985, lon: 73.317386, platforms: 2,  junction: false, expect_tier: TIER_3}
-  - {code: NRL,  name: Neral Jn,         lat: 19.027113, lon: 73.318955, platforms: 3,  junction: true,  expect_tier: TIER_3}
-  - {code: BVS,  name: Bhivpuri Road,    lat: 18.970655, lon: 73.331324, platforms: 2,  junction: false, expect_tier: TIER_3}
-  - {code: KJT,  name: Karjat Jn,        lat: 18.911158, lon: 73.320691, platforms: 6,  junction: true,  expect_tier: TIER_2}
+  - id: "CSMT"
+    name: "Chhatrapati Shivaji Maharaj Terminus"
+    code: "CSMT"
+    lat: 18.9400
+    lon: 72.8353
+    is_junction: true
+    platforms: 18
+  - id: "BYC"
+    name: "Byculla"
+    code: "BYC"
+    lat: 18.9744
+    lon: 72.8324
+    is_junction: false
+    platforms: 4
+  - id: "DR"
+    name: "Dadar"
+    code: "DR"
+    lat: 19.0178
+    lon: 72.8478
+    is_junction: true
+    platforms: 8
+  - id: "CLA"
+    name: "Kurla"
+    code: "CLA"
+    lat: 19.0650
+    lon: 72.8794
+    is_junction: true
+    platforms: 8
+  - id: "GC"
+    name: "Ghatkopar"
+    code: "GC"
+    lat: 19.0864
+    lon: 72.9081
+    is_junction: false
+    platforms: 4
+  - id: "TNA"
+    name: "Thane"
+    code: "TNA"
+    lat: 19.1860
+    lon: 72.9759
+    is_junction: true
+    platforms: 10
+  - id: "DI"
+    name: "Dombivli"
+    code: "DI"
+    lat: 19.2184
+    lon: 73.0867
+    is_junction: false
+    platforms: 5
+  - id: "KYN"
+    name: "Kalyan"
+    code: "KYN"
+    lat: 19.2354
+    lon: 73.1306
+    is_junction: true
+    platforms: 8
+  - id: "ABH"
+    name: "Ambernath"
+    code: "ABH"
+    lat: 19.1994
+    lon: 73.1950
+    is_junction: false
+    platforms: 3
+  - id: "BUD"
+    name: "Badlapur"
+    code: "BUD"
+    lat: 19.1656
+    lon: 73.2325
+    is_junction: false
+    platforms: 3
+  - id: "VGI"
+    name: "Vangani"
+    code: "VGI"
+    lat: 19.1123
+    lon: 73.2845
+    is_junction: false
+    platforms: 2
+  - id: "SHLU"
+    name: "Shelu"
+    code: "SHLU"
+    lat: 19.0765
+    lon: 73.3102
+    is_junction: false
+    platforms: 2
+  - id: "NRL"
+    name: "Neral"
+    code: "NRL"
+    lat: 19.0300
+    lon: 73.3180
+    is_junction: true
+    platforms: 3
+  - id: "BVS"
+    name: "Bhivpuri Road"
+    code: "BVS"
+    lat: 18.9760
+    lon: 73.3150
+    is_junction: false
+    platforms: 2
+  - id: "KJT"
+    name: "Karjat"
+    code: "KJT"
+    lat: 18.9100
+    lon: 73.3300
+    is_junction: true
+    platforms: 3
 
-# Sections are generated between consecutive stations above. Overrides only where reality
-# differs from the defaults.
-section_overrides:
-  CSTM-BY:  {line_speed_kmph: 90}
-  DR-MTN:   {line_speed_kmph: 90}
-  MTN-SIN:  {line_speed_kmph: 90}
-  SIN-CLA:  {line_speed_kmph: 90}
-  KYN-ABH:  {line_speed_kmph: 100, tracks: [UP, DN]}
-  ABH-BUD:  {tracks: [UP, DN]}
-  BUD-VGI:  {tracks: [UP, DN]}
-  VGI-SHLU: {tracks: [UP, DN]}
-  SHLU-NRL: {tracks: [UP, DN]}
-  NRL-BVS:  {line_speed_kmph: 100, tracks: [UP, DN]}
-  BVS-KJT:  {line_speed_kmph: 100, tracks: [UP, DN]}
-
-# Synthetic suburban local layer (A-007). No public source carries Mumbai suburban EMU
-# timetables; the national schedule dataset contains mail/express only. Structure below
-# matches published Central Railway suburban operating practice.
-suburban:
-  enabled: true
-  services_per_day: 1240
-  first_up: "03:55"
-  last_down: "00:45"
-  peak_windows: [["07:00", "11:00"], ["17:00", "21:00"]]
-  peak_headway_min: [3, 5]
-  offpeak_headway_min: [8, 15]
-  dwell_s: 25
-  # Not every local runs the full length; these are the turn-back patterns actually operated.
-  patterns:
-    - {from: CSTM, to: KYN,  share: 0.46}
-    - {from: CSTM, to: TNA,  share: 0.22}
-    - {from: CSTM, to: DI,   share: 0.10}
-    - {from: CSTM, to: ABH,  share: 0.08}
-    - {from: CSTM, to: BUD,  share: 0.06}
-    - {from: CSTM, to: KJT,  share: 0.08}
-
-# Real long-distance layer: pulled from the public schedules dataset by corridor filtering.
-long_distance:
-  enabled: true
-  source: data/raw/schedules.json
-  min_corridor_stations: 4      # a train must touch >=4 corridor stations to count as ours
-  freight_share: 0.25           # freight paths are not in the public dataset; synthesised
-                                # alongside the real passenger paths (A-008)
-  freight_band: ["00:30", "04:30"]   # freight is pathed in the night band only. A 40 km/h
-                                     # freight cannot share a fast line with a 90 km/h express
-                                     # over 100+ km without looping; real freight runs the slow
-                                     # lines overnight when the locals have stopped.
-
-# Department section allotments issued by the control office (SPEC §7.2 R0).
-# Synthetic — in deployment this comes from the divisional control office.
-allotments:
-  # Issued weekly by the divisional control office. Synthetic here - in deployment this comes
-  # from the control office roster. They deliberately differ: a department may only work inside
-  # its own allotment (rule R0), so identical lists would make that rule unenforceable.
-  PWI:
-    [CSTM-BY, BY-DR, DR-MTN, MTN-SIN, SIN-CLA, CLA-GC, GC-TNA, TNA-DI, DI-KYN,
-     KYN-ABH, ABH-BUD, BUD-VGI, VGI-SHLU, SHLU-NRL, NRL-BVS, BVS-KJT]
-  OWD:
-    [CSTM-BY, BY-DR, DR-MTN, MTN-SIN, SIN-CLA, CLA-GC, GC-TNA, TNA-DI, DI-KYN,
-     KYN-ABH, ABH-BUD, BUD-VGI, VGI-SHLU, NRL-BVS, BVS-KJT]          # SHLU-NRL not allotted
-  S_AND_T:
-    [CSTM-BY, BY-DR, DR-MTN, MTN-SIN, SIN-CLA, CLA-GC, GC-TNA, TNA-DI, DI-KYN,
-     KYN-ABH, ABH-BUD, BUD-VGI, VGI-SHLU, SHLU-NRL]                  # ghat sections not allotted
+sections:
+  - id: "SEC_CSMT_BYC"
+    from_station: "CSMT"
+    to_station: "BYC"
+    length_km: 4.0
+    line_speed_kmph: 80
+    tracks: ["UP", "DN"]
+    alternate_section_ids: []
+  - id: "SEC_BYC_DR"
+    from_station: "BYC"
+    to_station: "DR"
+    length_km: 5.0
+    line_speed_kmph: 80
+    tracks: ["UP", "DN"]
+    alternate_section_ids: []
+  - id: "SEC_DR_CLA"
+    from_station: "DR"
+    to_station: "CLA"
+    length_km: 6.0
+    line_speed_kmph: 100
+    tracks: ["UP", "DN"]
+    alternate_section_ids: []
+  - id: "SEC_CLA_GC"
+    from_station: "CLA"
+    to_station: "GC"
+    length_km: 4.0
+    line_speed_kmph: 100
+    tracks: ["UP", "DN"]
+    alternate_section_ids: []
+  - id: "SEC_GC_TNA"
+    from_station: "GC"
+    to_station: "TNA"
+    length_km: 14.0
+    line_speed_kmph: 105
+    tracks: ["UP", "DN"]
+    alternate_section_ids: []
+  - id: "SEC_TNA_DI"
+    from_station: "TNA"
+    to_station: "DI"
+    length_km: 15.0
+    line_speed_kmph: 105
+    tracks: ["UP", "DN"]
+    alternate_section_ids: []
+  - id: "SEC_DI_KYN"
+    from_station: "DI"
+    to_station: "KYN"
+    length_km: 6.0
+    line_speed_kmph: 100
+    tracks: ["UP", "DN"]
+    alternate_section_ids: []
+  - id: "SEC_KYN_ABH"
+    from_station: "KYN"
+    to_station: "ABH"
+    length_km: 7.0
+    line_speed_kmph: 90
+    tracks: ["UP", "DN"]
+    alternate_section_ids: []
+  - id: "SEC_ABH_BUD"
+    from_station: "ABH"
+    to_station: "BUD"
+    length_km: 7.0
+    line_speed_kmph: 90
+    tracks: ["UP", "DN"]
+    alternate_section_ids: []
+  - id: "SEC_BUD_VGI"
+    from_station: "BUD"
+    to_station: "VGI"
+    length_km: 11.0
+    line_speed_kmph: 90
+    tracks: ["UP", "DN"]
+    alternate_section_ids: []
+  - id: "SEC_VGI_SHLU"
+    from_station: "VGI"
+    to_station: "SHLU"
+    length_km: 4.0
+    line_speed_kmph: 90
+    tracks: ["UP", "DN"]
+    alternate_section_ids: []
+  - id: "SEC_SHLU_NRL"
+    from_station: "SHLU"
+    to_station: "NRL"
+    length_km: 5.0
+    line_speed_kmph: 90
+    tracks: ["UP", "DN"]
+    alternate_section_ids: []
+  - id: "SEC_NRL_BVS"
+    from_station: "NRL"
+    to_station: "BVS"
+    length_km: 6.0
+    line_speed_kmph: 85
+    tracks: ["UP", "DN"]
+    alternate_section_ids: []
+  - id: "SEC_BVS_KJT"
+    from_station: "BVS"
+    to_station: "KJT"
+    length_km: 8.0
+    line_speed_kmph: 85
+    tracks: ["UP", "DN"]
+    alternate_section_ids: []

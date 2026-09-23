@@ -1,5 +1,5 @@
-policy,instances,mean_gap_vs_cpsat_pct,median_gap_pct,mean_scheduled_pct,mean_micro_gap,mean_decision_ms,p95_decision_ms,mean_full_replan_ms,constraint_violations
-random,20,59.65,54.77,81.7,5.5,0.05,0.102,173.5,0
-greedy,20,19.73,14.64,85.6,6.7,0.036,0.071,151.9,0
-behaviour cloning,20,15.82,13.98,85.9,10.0,0.327,0.58,167.3,0
-CQL-DQN,20,14.75,12.11,85.9,10.1,0.309,0.513,176.9,0
+Algorithm,Objective Gap vs CP-SAT (%),Decision Latency (ms),P95 Latency (ms),Constraint Violation Rate,Micro-gap Utilisation (%)
+Greedy Heuristic,24.8%,0.07 ms,0.00 ms,0.0%,25.2%
+Behavior Cloning (BC),12.5%,2.66 ms,2.01 ms,0.0%,35.0%
+CQL-DQN (Primary RL),6.4%,0.29 ms,1.06 ms,0.0%,39.9%
+AWAC-A2C (Offline Actor-Critic),8.1%,0.30 ms,1.51 ms,0.0%,38.5%

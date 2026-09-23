@@ -1,162 +1,100 @@
-"""Synthetic maintenance task generation.
-
-<!-- serves: J1, J4 -->
-
-Maintenance task data has no public source, so it is generated here. The structure is what
-matters and it is not arbitrary: tasks are drawn from real categories of departmental work,
-respect the control office's allotments, and are weighted toward sections that are already
-SICK or under restriction — which is how a real backlog behaves.
-
-In deployment these tasks arrive from the systems that already hold them:
-PWI from TMS, S&T from SMMS, OWD from TDMS (SPEC §16).
-"""
-
-from __future__ import annotations
-
 import random
+from typing import List, Dict
+from backend.domain.network import NetworkGraph
+from backend.domain.task import Task, TaskCategory, Department, WorkZoneType
 
-from backend.config import load_config
-from backend.domain.compatibility import is_allotted
-from backend.domain.fsm import StatusRegistry
-from backend.domain.models import TrackStatus, WorkZoneKind
-from backend.domain.network import Network
-from backend.domain.task import (
-    TASK_TYPES,
-    Department,
-    Task,
-    TaskCategory,
-    TaskType,
-    WorkZone,
-)
-
-# Degraded sections attract follow-up attention; SICK ones attract the most.
-STATUS_WEIGHT = {
-    TrackStatus.FIT: 1.0,
-    TrackStatus.CAUTION_ORDER: 4.0,
-    TrackStatus.STOP_AND_START: 6.0,
-    TrackStatus.SICK: 8.0,
-}
-
-
-def _candidate_zones(net: Network, tt: TaskType) -> list[WorkZone]:
-    """Zones this task type could legally occupy, respecting R0 allotment."""
-    zones: list[WorkZone] = []
-    for sid in net.sections:
-        z = WorkZone(kind=WorkZoneKind.SECTION, ref=sid)
-        if is_allotted(net, tt.department, z):
-            zones.append(z)
-    # Point machines, interlocking and OHE at stations are station-node work by nature.
-    if tt.code in ("SNT_POINT_MACHINE", "SNT_INTERLOCK", "SNT_CABLE_RELAY",
-                   "OWD_INSULATOR", "OWD_MAST", "PWI_POINTS"):
-        for code in net.order:
-            z = WorkZone(kind=WorkZoneKind.STATION_NODE, ref=code)
-            if is_allotted(net, tt.department, z):
-                zones.append(z)
-    return zones
-
-
-def generate_tasks(
-    net: Network,
-    n: int,
-    rng: random.Random,
-    registry: StatusRegistry | None = None,
-    category: TaskCategory = TaskCategory.PLANNED,
-    released_s: int = 0,
-    id_prefix: str = "T",
-) -> list[Task]:
-    cfg = load_config()
-    due_h = int(cfg.get_path("tasks.planned_due_hours", 168))
-    tasks: list[Task] = []
-
-    for i in range(n):
-        tt = rng.choice(TASK_TYPES)
-        zones = _candidate_zones(net, tt)
-        if not zones:
-            continue
-        if registry is not None:
-            weights = [STATUS_WEIGHT[registry.get(z.ref)] for z in zones]
-            zone = rng.choices(zones, weights=weights, k=1)[0]
-        else:
-            zone = rng.choice(zones)
-
-        duration = rng.randint(tt.min_duration_min, tt.max_duration_min)
-        # Priority skews high for safety-critical categories and restricted sections.
-        base_priority = rng.choices([1, 2, 3, 4, 5], weights=[6, 16, 40, 26, 12], k=1)[0]
-        if registry is not None and registry.get(zone.ref) in (
-            TrackStatus.STOP_AND_START, TrackStatus.CAUTION_ORDER
-        ):
-            base_priority = max(1, base_priority - 1)
-
-        tasks.append(
-            Task(
-                id=f"{id_prefix}-{i:04d}",
-                task_type=tt.code,
-                department=tt.department,
-                zone=zone,
-                duration_min=duration,
-                priority=base_priority,
-                category=category,
-                requires_power_block=tt.requires_power_block,
-                requires_traffic_block=tt.requires_traffic_block,
-                released_s=released_s,
-                due_by_s=released_s + due_h * 3600,
-            )
-        )
-    return tasks
-
-
-def generate_demand_task(net: Network, rng: random.Random, at_s: int,
-                         zone: WorkZone | None = None, tid: str = "D-0001") -> Task:
-    """A defect discovered during execution, which was not in the weekly plan.
-
-    Demand tasks are the live case for the RL dispatcher: they arrive mid-schedule and have to
-    be fitted properly rather than appended to the end of the queue.
+class TaskGenerator:
     """
-    cfg = load_config()
-    tt = rng.choice([t for t in TASK_TYPES if t.min_duration_min <= 60])
-    if zone is None:
-        zones = _candidate_zones(net, tt)
-        zone = rng.choice(zones)
-    return Task(
-        id=tid,
-        task_type=tt.code,
-        department=tt.department,
-        zone=zone,
-        duration_min=rng.randint(tt.min_duration_min, min(tt.max_duration_min, 90)),
-        priority=rng.choices([1, 2, 3], weights=[35, 45, 20], k=1)[0],
-        category=TaskCategory.DEMAND,
-        requires_power_block=tt.requires_power_block,
-        requires_traffic_block=tt.requires_traffic_block,
-        released_s=at_s,
-        due_by_s=at_s + int(cfg.get_path("tasks.demand_due_hours", 24)) * 3600,
-    )
-
-
-def seed_sick_sections(net: Network, registry: StatusRegistry, tasks: list[Task],
-                       at_s: int = 0) -> None:
-    """Mark zones SICK where a DEFECT was found - not merely where work is planned.
-
-    SICK means a defect has been identified and the section needs attention. Routine
-    preventive work - tamping on a cycle, a lamp change, scheduled ballast screening - is
-    maintenance on a healthy section, and calling that "sick" would both overstate how much of
-    the corridor is degraded and wash the map amber, hiding the sections that genuinely are.
-
-    Defect-driven work is taken to be the urgent end of the pool (priority 1-2) plus the
-    fault-named task types. ASSUMPTIONS A-023.
+    Generates realistic maintenance tasks for PWI, OWD, and S&T departments.
     """
-    from backend.domain.fsm import Event
 
-    fault_types = {"SNT_TRACK_CIRCUIT", "SNT_AXLE_COUNTER", "PWI_JOINT",
-                   "PWI_GAUGE", "OWD_DROPPER", "OWD_INSULATOR"}
-
-    # Calibrated against the corridor: this puts roughly a quarter of sections in a defect
-    # state at any time. A looser rule ("priority<=2 OR fault type") marked 62% of the
-    # corridor sick, which is neither realistic nor readable on a map.
-    defect_zones = {
-        t.zone.ref for t in tasks
-        if t.priority == 1 or (t.task_type in fault_types and t.priority <= 2)
+    TASK_TYPES = {
+        Department.PWI: [
+            ("rail_weld_renewal", 180, True, False, 1),
+            ("tamping", 120, True, False, 2),
+            ("ballast_screening", 240, True, False, 2),
+            ("fishplate_joint_attention", 45, True, False, 3),
+            ("points_crossings_attention", 90, True, False, 2),
+            ("gauge_correction", 60, True, False, 3)
+        ],
+        Department.OWD: [
+            ("ohe_tension_adjustment", 60, True, True, 2),
+            ("insulator_replacement", 45, True, True, 3),
+            ("dropper_jumper_repair", 30, True, True, 3),
+            ("cantilever_attention", 90, True, True, 2),
+            ("power_block_inspection", 120, True, True, 1)
+        ],
+        Department.S_AND_T: [
+            ("point_machine_servicing", 45, True, False, 2),
+            ("track_circuit_fault", 30, True, False, 1),
+            ("signal_lamp_led_replacement", 20, False, False, 3),
+            ("axle_counter_calibration", 40, True, False, 2),
+            ("relay_room_interlocking_test", 60, False, False, 2)
+        ]
     }
-    for zone_ref in defect_zones:
-        if registry.get(zone_ref) is TrackStatus.FIT:
-            registry.apply(zone_ref, Event.DEFECT_REPORTED, at_s, TrackStatus.SICK,
-                           note="defect identified by department inspection")
+
+    @staticmethod
+    def generate_weekly_planned_tasks(
+        network: NetworkGraph,
+        num_tasks: int = 40,
+        seed: int = 42
+    ) -> List[Task]:
+        random.seed(seed)
+        tasks: List[Task] = []
+        sections = list(network.sections.keys())
+        stations = list(network.stations.keys())
+
+        for i in range(num_tasks):
+            dept = random.choice([Department.PWI, Department.OWD, Department.S_AND_T])
+            task_type, duration, req_tr, req_pw, prio = random.choice(TaskGenerator.TASK_TYPES[dept])
+
+            # 80% section work, 20% station node work
+            if random.random() < 0.8:
+                sec_id = random.choice(sections)
+                w_type = WorkZoneType.SECTION
+                w_id = sec_id
+            else:
+                sec_id = random.choice(sections)
+                w_type = WorkZoneType.STATION_NODE
+                w_id = random.choice(stations)
+
+            tasks.append(Task(
+                id=f"TASK_PLN_{i+1:03d}",
+                department=dept,
+                task_type=task_type,
+                section_id=sec_id,
+                work_zone_type=w_type,
+                work_zone_id=w_id,
+                duration_min=duration,
+                priority=prio,
+                category=TaskCategory.PLANNED,
+                requires_power_block=req_pw,
+                requires_traffic_block=req_tr,
+                released_at_min=0,
+                due_by_min=10080
+            ))
+
+        return tasks
+
+    @staticmethod
+    def generate_demand_task(
+        section_id: str,
+        department: Department = Department.S_AND_T,
+        current_time_min: int = 420
+    ) -> Task:
+        """Generates an unplanned DEMAND task for mid-schedule reactive injection."""
+        return Task(
+            id=f"TASK_DEM_{random.randint(1000, 9999)}",
+            department=department,
+            task_type="unplanned_defect_attention",
+            section_id=section_id,
+            work_zone_type=WorkZoneType.SECTION,
+            work_zone_id=section_id,
+            duration_min=35,
+            priority=1,
+            category=TaskCategory.DEMAND,
+            requires_power_block=(department == Department.OWD),
+            requires_traffic_block=True,
+            released_at_min=current_time_min,
+            due_by_min=current_time_min + 360
+        )

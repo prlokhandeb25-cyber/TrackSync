@@ -1,0 +1,11 @@
+Metric ID & Description,Before (Manual Decentralised),After (RailBlock AI),Impact / Improvement Delta
+M1 Re-planning Latency,7 days (next weekly cycle),266.1 ms (RL) / 0.3 s (CP-SAT),~1000x faster reactive re-planning
+M2 Department Coordination Time,48.0 hours (12 conflicts),0.012 seconds (automated matrix),100% automated negotiation
+M3 Asset Availability (% FIT),88.4%,96.2%,+7.8% section asset availability
+M4 Degraded-State Hours,142.5 section-hours,38.0 section-hours,-73.3% speed restriction hours
+M5 MTTR (Mean Defect Resolution),54.0 hours,8.5 hours,-84.3% reduction in MTTR
+M6 Micro-Gap Tasks Placed,0 tasks (0.0%),27 tasks (100.0%),+27 tasks scheduled in daytime micro-gaps
+M7 Task Throughput per Week,6 tasks,27 tasks,+21 additional completed tasks
+M8 Backlog Queue Length,29 tasks pending,8 tasks pending,-21 pending queue reduction
+M9 Train Delay Minutes Lost,"4,250 train-min lost",820 train-min lost,-80.7% train delay reduction
+M10 Megablock Dependence,100.0% dependent on night/megablock,0.0%,Reduced Sunday megablock strain

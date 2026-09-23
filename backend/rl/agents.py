@@ -24,47 +24,9 @@ import torch
 import torch.nn.functional as F
 
 from backend.rl.dataset import Batch, OfflineDataset
-from backend.rl.mdp import N_GAP_CHOICES, GapChoice, noop_index
 from backend.rl.nets import PolicyNet, QNet, apply_mask, masked_log_softmax
-
-
-class Policy:
-    name = "policy"
-
-    def act(self, state: np.ndarray, mask: np.ndarray) -> int:
-        raise NotImplementedError
-
-
-class GreedyPolicy(Policy):
-    """Earliest feasible window, highest priority first.
-
-    The task slots are already ranked by (priority, age, due date), so 'highest priority
-    first' is just the lowest legal slot. Preferring EARLIEST within that slot is the naive
-    choice a dispatcher without a model would make.
-    """
-
-    name = "greedy"
-
-    def act(self, state: np.ndarray, mask: np.ndarray) -> int:
-        legal = np.flatnonzero(mask)
-        legal = legal[legal != noop_index()]
-        if legal.size == 0:
-            return noop_index()
-        best_slot = legal[0] // N_GAP_CHOICES
-        same = legal[legal // N_GAP_CHOICES == best_slot]
-        prefer = best_slot * N_GAP_CHOICES + int(GapChoice.EARLIEST)
-        return int(prefer if prefer in same else same[0])
-
-
-class RandomPolicy(Policy):
-    name = "random"
-
-    def __init__(self, seed: int = 0):
-        self.rng = np.random.default_rng(seed)
-
-    def act(self, state: np.ndarray, mask: np.ndarray) -> int:
-        legal = np.flatnonzero(mask)
-        return int(self.rng.choice(legal)) if legal.size else noop_index()
+# Greedy and random live in policies.py so they can be used without torch present.
+from backend.rl.policies import GreedyPolicy, Policy, RandomPolicy  # noqa: F401
 
 
 class TorchPolicy(Policy):

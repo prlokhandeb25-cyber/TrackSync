@@ -1,0 +1,20 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    { "type": "Feature", "properties": { "id": "CSMT", "name": "CSMT", "tier": "TIER_1" }, "geometry": { "type": "Point", "coordinates": [72.8353, 18.9400] } },
+    { "type": "Feature", "properties": { "id": "BYC", "name": "Byculla", "tier": "TIER_2" }, "geometry": { "type": "Point", "coordinates": [72.8324, 18.9744] } },
+    { "type": "Feature", "properties": { "id": "DR", "name": "Dadar", "tier": "TIER_1" }, "geometry": { "type": "Point", "coordinates": [72.8478, 19.0178] } },
+    { "type": "Feature", "properties": { "id": "CLA", "name": "Kurla", "tier": "TIER_1" }, "geometry": { "type": "Point", "coordinates": [72.8794, 19.0650] } },
+    { "type": "Feature", "properties": { "id": "GC", "name": "Ghatkopar", "tier": "TIER_2" }, "geometry": { "type": "Point", "coordinates": [72.9081, 19.0864] } },
+    { "type": "Feature", "properties": { "id": "TNA", "name": "Thane", "tier": "TIER_1" }, "geometry": { "type": "Point", "coordinates": [72.9759, 19.1860] } },
+    { "type": "Feature", "properties": { "id": "DI", "name": "Dombivli", "tier": "TIER_2" }, "geometry": { "type": "Point", "coordinates": [73.0867, 19.2184] } },
+    { "type": "Feature", "properties": { "id": "KYN", "name": "Kalyan", "tier": "TIER_1" }, "geometry": { "type": "Point", "coordinates": [73.1306, 19.2354] } },
+    { "type": "Feature", "properties": { "id": "ABH", "name": "Ambernath", "tier": "TIER_2" }, "geometry": { "type": "Point", "coordinates": [73.1950, 19.1994] } },
+    { "type": "Feature", "properties": { "id": "BUD", "name": "Badlapur", "tier": "TIER_2" }, "geometry": { "type": "Point", "coordinates": [73.2325, 19.1656] } },
+    { "type": "Feature", "properties": { "id": "VGI", "name": "Vangani", "tier": "TIER_3" }, "geometry": { "type": "Point", "coordinates": [73.2845, 19.1123] } },
+    { "type": "Feature", "properties": { "id": "SHLU", "name": "Shelu", "tier": "TIER_3" }, "geometry": { "type": "Point", "coordinates": [73.3102, 19.0765] } },
+    { "type": "Feature", "properties": { "id": "NRL", "name": "Neral", "tier": "TIER_3" }, "geometry": { "type": "Point", "coordinates": [73.3180, 19.0300] } },
+    { "type": "Feature", "properties": { "id": "BVS", "name": "Bhivpuri Road", "tier": "TIER_3" }, "geometry": { "type": "Point", "coordinates": [73.3150, 18.9760] } },
+    { "type": "Feature", "properties": { "id": "KJT", "name": "Karjat", "tier": "TIER_2" }, "geometry": { "type": "Point", "coordinates": [73.3300, 18.9100] } }
+  ]
+}

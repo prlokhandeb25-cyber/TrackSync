@@ -1,201 +1,101 @@
-"""Network graph construction from a corridor YAML.
-
-<!-- serves: J3 -->
-
-Contains no corridor-specific names or special cases. Everything comes from the config file.
-"""
-
-from __future__ import annotations
-
-from dataclasses import dataclass, field
-
+from enum import Enum
+from typing import List, Optional, Tuple, Dict
+from pydantic import BaseModel, Field
 import networkx as nx
 
-from backend.config import load_network_config
-from backend.domain.models import Section, Station, StationTier, haversine_km
+class StationTier(str, Enum):
+    TIER_1 = "TIER_1"  # Top quantile frequency (CSMT, Dadar, Thane, Kalyan)
+    TIER_2 = "TIER_2"  # Middle quantile frequency (Dombivli, Ambernath)
+    TIER_3 = "TIER_3"  # Bottom quantile frequency (Neral, Bhivpuri Road)
 
+class TrackStatus(str, Enum):
+    FIT = "FIT"                          # Normal operation at line speed
+    SICK = "SICK"                        # Defect reported, TSR enforced (e.g. 30 km/h)
+    CAUTION_ORDER = "CAUTION_ORDER"      # Work done, operate at reduced speed
+    STOP_AND_START = "STOP_AND_START"    # Work done, stop-and-start penalty enforced
 
-@dataclass
-class Network:
-    corridor_id: str
+class Station(BaseModel):
+    id: str
     name: str
-    stations: dict[str, Station]
-    sections: dict[str, Section]
-    order: list[str]  # station codes in corridor sequence
-    graph: nx.MultiGraph = field(default_factory=nx.MultiGraph)
-    megablock: dict = field(default_factory=dict)
-    line_code: str = ""
-    corridors: list[str] = field(default_factory=list)
-    per_corridor: dict = field(default_factory=dict)   # corridor_id -> its own config blob
-    suburban: dict = field(default_factory=dict)
-    track_policy: dict[str, list[str]] = field(default_factory=dict)
-    long_distance: dict = field(default_factory=dict)
-    allotments: dict[str, list[str]] = field(default_factory=dict)
+    code: str
+    lat: float
+    lon: float
+    is_junction: bool = False
+    platforms: int = 2
+    tier: StationTier = StationTier.TIER_2
 
-    def section_between(self, a: str, b: str) -> Section | None:
-        return self.sections.get(f"{a}-{b}") or self.sections.get(f"{b}-{a}")
+class Section(BaseModel):
+    id: str
+    from_station: str
+    to_station: str
+    length_km: float
+    line_speed_kmph: float
+    tracks: List[str] = Field(default_factory=lambda: ["UP", "DN"])
+    alternate_section_ids: List[str] = Field(default_factory=list)
+    status: TrackStatus = TrackStatus.FIT
+    status_effective_speed: Optional[float] = None
 
-    def path_sections(self, a: str, b: str) -> list[Section]:
-        """Ordered sections traversed going from station a to station b along the corridor."""
-        ia, ib = self.order.index(a), self.order.index(b)
-        step = 1 if ib > ia else -1
-        out = []
-        for i in range(ia, ib, step):
-            sec = self.section_between(self.order[i], self.order[i + step])
-            if sec:
-                out.append(sec)
-        return out
+class NetworkGraph:
+    """Pure in-memory multigraph representation of the railway network."""
+    def __init__(self):
+        self.graph = nx.MultiGraph()
+        self.stations: Dict[str, Station] = {}
+        self.sections: Dict[str, Section] = {}
 
-    def adjacent_zones(self, zone_a: str, zone_b: str) -> bool:
-        """Do two work zones share an endpoint without geometrically overlapping?
+    def add_station(self, station: Station):
+        self.stations[station.id] = station
+        self.graph.add_node(station.id, data=station)
 
-        Used by compatibility rule R2 in P2. A SECTION and a STATION_NODE at one of its
-        endpoints are adjacent, not overlapping — this is the Matunga-Dadar / Matunga case.
+    def add_section(self, section: Section):
+        self.sections[section.id] = section
+        self.graph.add_edge(
+            section.from_station,
+            section.to_station,
+            key=section.id,
+            weight=section.length_km,
+            data=section
+        )
+
+    def get_k_shortest_paths(self, origin: str, destination: str, k: int = 3) -> List[List[str]]:
+        """Computes k shortest station paths between origin and destination."""
+        try:
+            generator = nx.shortest_simple_paths(self.graph, origin, destination, weight="weight")
+            paths = []
+            for path in generator:
+                paths.append(path)
+                if len(paths) >= k:
+                    break
+            return paths
+        except (nx.NetworkXNoPath, nx.NodeNotFound):
+            return []
+
+    def are_adjacent_zones(self, zone1: Tuple[str, str], zone2: Tuple[str, str]) -> bool:
         """
-        ends = lambda z: set(z.split("-")) if "-" in z else {z}
-        ea, eb = ends(zone_a), ends(zone_b)
-        if zone_a == zone_b:
-            return False  # same zone: overlapping, not adjacent
-        if "-" in zone_a and "-" in zone_b:
-            return bool(ea & eb)  # two sections sharing a station
-        return bool(ea & eb)  # section + station node at its endpoint
+        Determines if two work zones are adjacent.
+        A work zone is either a ('SECTION', section_id) or ('STATION_NODE', station_id).
+        Adjacent = share an endpoint node but do not geometrically overlap.
+        """
+        type1, id1 = zone1
+        type2, id2 = zone2
 
+        if type1 == type2 and id1 == id2:
+            return False  # Same zone, not adjacent
 
-def build_network(corridor: str) -> Network:
-    cfg = load_network_config(corridor)
-    route_factor = float(cfg.get("route_factor", 1.15))
-    defaults = cfg.get("defaults", {})
-    default_speed = float(defaults.get("line_speed_kmph", 100))
-    default_tracks = list(defaults.get("tracks", ["UP", "DN"]))
-    overrides = cfg.get("section_overrides", {}) or {}
-
-    stations: dict[str, Station] = {}
-    order: list[str] = []
-    for s in cfg["stations"]:
-        st = Station(
-            code=s["code"],
-            name=s["name"],
-            lat=float(s["lat"]),
-            lon=float(s["lon"]),
-            corridor_id=cfg["corridor_id"],
-            platforms=int(s.get("platforms", 2)),
-            is_junction=bool(s.get("junction", False)),
-            expect_tier=StationTier(s["expect_tier"]) if s.get("expect_tier") else None,
-            line_code=cfg.get("line_code", ""),
-            lines=[cfg.get("line_code", "")],
-            coord_src=str(s.get("coord_src", "s")),
-        )
-        stations[st.code] = st
-        order.append(st.code)
-
-    sections: dict[str, Section] = {}
-    for a, b in zip(order, order[1:]):
-        sid = f"{a}-{b}"
-        sa, sb = stations[a], stations[b]
-        km = haversine_km(sa.lat, sa.lon, sb.lat, sb.lon) * route_factor
-        ov = overrides.get(sid, {}) or {}
-        sections[sid] = Section(
-            id=sid,
-            from_station=a,
-            to_station=b,
-            corridor_id=cfg["corridor_id"],
-            length_km=round(km, 3),
-            line_speed_kmph=float(ov.get("line_speed_kmph", default_speed)),
-            tracks=list(ov.get("tracks", default_tracks)),
-            geometry=[(sa.lat, sa.lon), (sb.lat, sb.lon)],
-            line_code=cfg.get("line_code", ""),
-        )
-
-    g = nx.MultiGraph()
-    for code, st in stations.items():
-        g.add_node(code, **{"name": st.name, "lat": st.lat, "lon": st.lon})
-    for sec in sections.values():
-        g.add_edge(sec.from_station, sec.to_station, key=sec.id, length_km=sec.length_km)
-
-    return Network(
-        corridor_id=cfg["corridor_id"],
-        name=cfg["name"],
-        stations=stations,
-        sections=sections,
-        order=order,
-        graph=g,
-        megablock=cfg.get("megablock", {}) or {},
-        line_code=cfg.get("line_code", ""),
-        corridors=[cfg["corridor_id"]],
-        per_corridor={cfg["corridor_id"]: cfg},
-        track_policy=(defaults.get("track_policy") or {}),
-        suburban=cfg.get("suburban", {}) or {},
-        long_distance=cfg.get("long_distance", {}) or {},
-        allotments=cfg.get("allotments", {}) or {},
-    )
-
-
-def merge_networks(nets: list[Network], name: str = "Mumbai Suburban Network") -> Network:
-    """Knit several corridors into one network.
-
-    Stations are merged by code, which is exactly what creates the interchanges: CSMT belongs
-    to both Central and Harbour, Thane to Central and Trans-Harbour, Vashi to Harbour and
-    Trans-Harbour. Merging on the code means maintenance at an interchange is automatically
-    visible to every line that touches it, instead of each corridor holding a private copy
-    that can drift.
-
-    Nothing here is corridor-specific. Adding a line is adding a YAML file to config/network
-    and a name to config.yaml - which is the scalability claim, made literal.
-    """
-    if len(nets) == 1:
-        return nets[0]
-
-    stations: dict[str, Station] = {}
-    sections: dict[str, Section] = {}
-    order: list[str] = []
-    allotments: dict[str, list[str]] = {}
-    per_corridor: dict = {}
-    corridors: list[str] = []
-
-    for n in nets:
-        corridors.append(n.corridor_id)
-        per_corridor.update(n.per_corridor)
-        for code, st in n.stations.items():
-            if code in stations:
-                existing = stations[code]
-                for ln in st.lines:
-                    if ln and ln not in existing.lines:
-                        existing.lines.append(ln)
-                existing.is_junction = True      # shared by two corridors: an interchange
-                existing.platforms = max(existing.platforms, st.platforms)
-            else:
-                stations[code] = st
-                order.append(code)
-        for sid, sec in n.sections.items():
-            sections.setdefault(sid, sec)
-        for dept, secs in n.allotments.items():
-            allotments.setdefault(dept, [])
-            allotments[dept].extend(s for s in secs if s not in allotments[dept])
-
-    g = nx.MultiGraph()
-    for code, st in stations.items():
-        g.add_node(code, name=st.name, lat=st.lat, lon=st.lon)
-    for sec in sections.values():
-        g.add_edge(sec.from_station, sec.to_station, key=sec.id, length_km=sec.length_km)
-
-    merged = Network(
-        corridor_id="mumbai",
-        name=name,
-        stations=stations,
-        sections=sections,
-        order=order,
-        graph=g,
-        megablock=nets[0].megablock,
-        line_code="ALL",
-        corridors=corridors,
-        per_corridor=per_corridor,
-        track_policy=nets[0].track_policy,
-        suburban={},
-        long_distance={},
-        allotments=allotments,
-    )
-    return merged
-
-
-def build_networks(corridors: list[str]) -> Network:
-    return merge_networks([build_network(c) for c in corridors])
+        if type1 == "SECTION" and type2 == "STATION_NODE":
+            sec = self.sections.get(id1)
+            if sec and (sec.from_station == id2 or sec.to_station == id2):
+                return True
+        elif type1 == "STATION_NODE" and type2 == "SECTION":
+            sec = self.sections.get(id2)
+            if sec and (sec.from_station == id1 or sec.to_station == id1):
+                return True
+        elif type1 == "SECTION" and type2 == "SECTION":
+            sec1 = self.sections.get(id1)
+            sec2 = self.sections.get(id2)
+            if sec1 and sec2:
+                nodes1 = {sec1.from_station, sec1.to_station}
+                nodes2 = {sec2.from_station, sec2.to_station}
+                # Adjacent if they share exactly 1 station node
+                if len(nodes1.intersection(nodes2)) == 1:
+                    return True
+        return False

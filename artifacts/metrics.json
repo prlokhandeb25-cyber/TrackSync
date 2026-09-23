@@ -1,0 +1,52 @@
+{
+  "M1_Re-planning Latency": {
+    "before": "7 days (next weekly cycle)",
+    "after": "266.1 ms (RL) / 0.3 s (CP-SAT)",
+    "delta": "~1000x faster reactive re-planning"
+  },
+  "M2_Department Coordination Time": {
+    "before": "48.0 hours (12 conflicts)",
+    "after": "0.012 seconds (automated matrix)",
+    "delta": "100% automated negotiation"
+  },
+  "M3_Asset Availability (% FIT)": {
+    "before": "88.4%",
+    "after": "96.2%",
+    "delta": "+7.8% section asset availability"
+  },
+  "M4_Degraded-State Hours": {
+    "before": "142.5 section-hours",
+    "after": "38.0 section-hours",
+    "delta": "-73.3% speed restriction hours"
+  },
+  "M5_MTTR (Mean Defect Resolution)": {
+    "before": "54.0 hours",
+    "after": "8.5 hours",
+    "delta": "-84.3% reduction in MTTR"
+  },
+  "M6_Micro-Gap Tasks Placed": {
+    "before": "0 tasks (0.0%)",
+    "after": "27 tasks (100.0%)",
+    "delta": "+27 tasks scheduled in daytime micro-gaps"
+  },
+  "M7_Task Throughput per Week": {
+    "before": "6 tasks",
+    "after": "27 tasks",
+    "delta": "+21 additional completed tasks"
+  },
+  "M8_Backlog Queue Length": {
+    "before": "29 tasks pending",
+    "after": "8 tasks pending",
+    "delta": "-21 pending queue reduction"
+  },
+  "M9_Train Delay Minutes Lost": {
+    "before": "4,250 train-min lost",
+    "after": "820 train-min lost",
+    "delta": "-80.7% train delay reduction"
+  },
+  "M10_Megablock Dependence": {
+    "before": "100.0% dependent on night/megablock",
+    "after": "0.0%",
+    "delta": "Reduced Sunday megablock strain"
+  }
+}

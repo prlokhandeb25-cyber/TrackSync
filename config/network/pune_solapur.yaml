@@ -1,0 +1,75 @@
+corridor_id: "pune_solapur"
+name: "Pune - Solapur Main Line"
+description: "Intercity and freight corridor in Central Railway division"
+
+megablock_window:
+  day_of_week: "Sunday"
+  start_time: "11:00"
+  end_time: "16:00"
+
+stations:
+  - id: "PUNE"
+    name: "Pune Junction"
+    code: "PUNE"
+    lat: 18.5289
+    lon: 73.8744
+    is_junction: true
+    platforms: 6
+  - id: "URI"
+    name: "Uruli"
+    code: "URI"
+    lat: 18.4754
+    lon: 74.1284
+    is_junction: false
+    platforms: 3
+  - id: "DD"
+    name: "Daund Junction"
+    code: "DD"
+    lat: 18.4619
+    lon: 74.5855
+    is_junction: true
+    platforms: 6
+  - id: "KWV"
+    name: "Kurduvadi Junction"
+    code: "KWV"
+    lat: 18.0872
+    lon: 75.4336
+    is_junction: true
+    platforms: 4
+  - id: "SUR"
+    name: "Solapur Junction"
+    code: "SUR"
+    lat: 17.6599
+    lon: 75.9064
+    is_junction: true
+    platforms: 5
+
+sections:
+  - id: "SEC_PUNE_URI"
+    from_station: "PUNE"
+    to_station: "URI"
+    length_km: 29.0
+    line_speed_kmph: 110
+    tracks: ["UP", "DN"]
+    alternate_section_ids: []
+  - id: "SEC_URI_DD"
+    from_station: "URI"
+    to_station: "DD"
+    length_km: 46.0
+    line_speed_kmph: 110
+    tracks: ["UP", "DN"]
+    alternate_section_ids: []
+  - id: "SEC_DD_KWV"
+    from_station: "DD"
+    to_station: "KWV"
+    length_km: 108.0
+    line_speed_kmph: 110
+    tracks: ["UP", "DN"]
+    alternate_section_ids: []
+  - id: "SEC_KWV_SUR"
+    from_station: "KWV"
+    to_station: "SUR"
+    length_km: 79.0
+    line_speed_kmph: 110
+    tracks: ["UP", "DN"]
+    alternate_section_ids: []

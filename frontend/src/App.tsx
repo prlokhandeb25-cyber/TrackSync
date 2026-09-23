@@ -1,303 +1,217 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import MapView from './components/MapView'
-import CompatMatrix from './components/CompatMatrix'
-import {
-  api, DAYS, hhmm,
-  type EventItem, type GapData, type MatrixData, type NetworkData,
-  type PlanData, type Task, type TrainsData,
-} from './api'
-
-type Tab = 'operations' | 'compatibility' | 'plan' | 'capacity'
+import React, { useState, useEffect } from 'react'
+import { MapComponent } from './components/Map'
+import { StatusBoard } from './components/StatusBoard'
+import { CompatibilityMatrixView } from './components/CompatibilityMatrix'
+import { TaskPool } from './components/TaskPool'
+import { DemandInjection } from './components/DemandInjection'
+import { RLComparison } from './components/RLComparison'
+import { ImpactTab } from './components/ImpactTab'
 
 export default function App() {
-  const [net, setNet] = useState<NetworkData | null>(null)
-  const [tasks, setTasks] = useState<Task[]>([])
-  const [mat, setMat] = useState<MatrixData | null>(null)
-  const [gaps, setGaps] = useState<GapData | null>(null)
-  const [plan, setPlan] = useState<PlanData | null>(null)
-  const [trains, setTrains] = useState<TrainsData | null>(null)
-  const [events, setEvents] = useState<EventItem[]>([])
-  const [tab, setTab] = useState<Tab>('operations')
-  const [selected, setSelected] = useState<string | null>(null)
-  const [clock, setClock] = useState(6 * 3600)
-  const [playing, setPlaying] = useState(true)
-  const [err, setErr] = useState<string | null>(null)
-  const raf = useRef<number>(0)
+  const [activeTab, setActiveTab] = useState<'map' | 'matrix' | 'demand' | 'rl' | 'impact'>('map')
+  const [simState, setSimState] = useState<any>({
+    sim_time_str: 'Mon 08:30',
+    is_running: false,
+    speed_multiplier: 1.0,
+    sections: [],
+    train_positions: [],
+    active_tasks: [],
+    recent_events: []
+  })
+  const [matrixData, setMatrixData] = useState<any>({ matrix: {}, active_tasks: [] })
+  const [impactData, setImpactData] = useState<any>({})
+  const [rlData, setRlData] = useState<any[]>([])
 
+  // WebSocket connection for live sim streaming
   useEffect(() => {
-    Promise.all([api.network(), api.tasks(), api.matrix(18), api.gaps(), api.plan(), api.events()])
-      .then(([n, t, m, g, p, e]) => {
-        setNet(n); setTasks(t.tasks); setMat(m); setGaps(g); setPlan(p); setEvents(e.events)
-      })
-      .catch(e => setErr(String(e)))
+    const ws = new WebSocket(`ws://${window.location.host}/ws/state`)
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data)
+        setSimState(data)
+      } catch (e) {
+        console.error(e)
+      }
+    }
+    return () => ws.close()
   }, [])
 
-  // Simulated clock. 1 real second = 6 simulated minutes.
+  // Fetch initial API REST endpoints
   useEffect(() => {
-    if (!playing) return
-    let last = performance.now()
-    const tick = (now: number) => {
-      const dt = (now - last) / 1000; last = now
-      setClock(c => (c + dt * 360) % (7 * 86400))
-      raf.current = requestAnimationFrame(tick)
-    }
-    raf.current = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(raf.current)
-  }, [playing])
+    fetch('/api/compatibility/matrix')
+      .then(res => res.json())
+      .then(data => setMatrixData(data))
+      .catch(err => console.error(err))
 
-  // Train positions are polled on ONE long-lived interval that reads the clock from a ref.
-  // Making the effect depend on the clock instead re-subscribes several times a second, and
-  // each cleanup invalidates the in-flight request before it resolves - so nothing ever lands.
-  const clockRef = useRef(clock)
-  clockRef.current = clock
-  useEffect(() => {
-    if (!net) return
-    let alive = true
-    let busy = false
-    const pull = async () => {
-      if (busy) return            // don't stack requests if one is slow
-      busy = true
-      try {
-        const d = await api.trains(clockRef.current)
-        if (alive) setTrains(d)
-      } catch { /* transient - the next tick retries */ } finally { busy = false }
-    }
-    void pull()
-    const id = setInterval(pull, 1000)
-    return () => { alive = false; clearInterval(id) }
-  }, [net])
+    fetch('/api/metrics/impact')
+      .then(res => res.json())
+      .then(data => setImpactData(data.metrics || {}))
+      .catch(err => console.error(err))
 
-  const sick = useMemo(
-    () => (net?.sections ?? []).filter(s => s.status !== 'FIT'), [net])
+    fetch('/api/rl/comparison')
+      .then(res => res.json())
+      .then(data => setRlData(data.rows || []))
+      .catch(err => console.error(err))
+  }, [])
 
-  if (err) return <div className="loading">Could not reach the API: {err}</div>
-  if (!net || !gaps || !plan) return <div className="loading">Loading corridor…</div>
+  const handleSimControl = (action: string, speed?: number) => {
+    fetch('/api/sim/control', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action, speed_multiplier: speed || 1.0 })
+    })
+      .then(res => res.json())
+      .then(data => setSimState(data))
+      .catch(err => console.error(err))
+  }
 
-  const day = Math.floor(clock / 86400)
+  const handleDemandInject = async (sectionId: string, department: string) => {
+    const res = await fetch('/api/tasks/demand', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ section_id: sectionId, department })
+    })
+    const data = await res.json()
+    // Refresh compatibility matrix
+    fetch('/api/compatibility/matrix').then(r => r.json()).then(d => setMatrixData(d))
+    return data
+  }
 
   return (
-    <div className="app">
-      <header className="header">
-        <div className="brand">
-          RailBlock AI
-          <span>{net.name}</span>
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
+      {/* Top Header */}
+      <header className="bg-slate-900 border-b border-slate-800 px-6 py-3 flex flex-col sm:flex-row items-center justify-between gap-4 sticky top-0 z-50">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-600 to-purple-500 flex items-center justify-center font-bold text-white shadow-lg">
+            RB
+          </div>
+          <div>
+            <h1 className="text-base font-bold text-white tracking-wide">RailBlock AI</h1>
+            <p className="text-xs text-slate-400">Automatic Block Planning for Indian Railways</p>
+          </div>
         </div>
-        <div className="header-stats">
-          <div className="hstat">
-            <div className="v">{trains?.total_active ?? '—'}</div>
-            <div className="k">Trains running</div>
+
+        {/* Live Controls & Sim Status Header */}
+        <div className="flex items-center gap-4 text-xs">
+          <div className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 flex items-center gap-2">
+            <span className="text-slate-400">Sim Clock:</span>
+            <span className="font-mono font-bold text-indigo-400">{simState.sim_time_str}</span>
           </div>
-          <div className="hstat">
-            <div className="v">{sick.length}</div>
-            <div className="k">Sections not fit</div>
-          </div>
-          <div className="hstat">
-            <div className="v">{tasks.filter(t => !t.completed).length}</div>
-            <div className="k">Open jobs</div>
-          </div>
-          <div className="hstat">
-            <div className="v">{DAYS[day]} {hhmm(clock)}</div>
-            <div className="k">Simulated clock</div>
+
+          <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-lg border border-slate-800">
+            <button
+              onClick={() => handleSimControl(simState.is_running ? 'pause' : 'play')}
+              className={`px-3 py-1 rounded font-semibold transition-all ${simState.is_running ? 'bg-amber-600 text-white' : 'bg-emerald-600 text-white'}`}
+            >
+              {simState.is_running ? 'Pause Sim' : 'Play Sim'}
+            </button>
+            <button
+              onClick={() => handleSimControl('speed', 4.0)}
+              className="px-2 py-1 rounded text-slate-400 hover:text-white transition-all font-mono"
+            >
+              4x
+            </button>
+            <button
+              onClick={() => handleSimControl('speed', 16.0)}
+              className="px-2 py-1 rounded text-slate-400 hover:text-white transition-all font-mono"
+            >
+              16x
+            </button>
           </div>
         </div>
       </header>
 
-      <nav className="tabs">
-        {(['operations', 'compatibility', 'plan', 'capacity'] as Tab[]).map(t => (
-          <button key={t} className={`tab ${tab === t ? 'on' : ''}`} onClick={() => setTab(t)}>
-            {t === 'operations' ? 'Operations'
-              : t === 'compatibility' ? 'Department coordination'
-                : t === 'plan' ? 'Weekly block plan' : 'Corridor capacity'}
-          </button>
-        ))}
-        <button className="tab" style={{ marginLeft: 'auto' }} onClick={() => setPlaying(p => !p)}>
-          {playing ? 'Pause' : 'Play'}
+      {/* Navigation Tabs */}
+      <div className="bg-slate-900/60 border-b border-slate-800 px-6 py-2 flex items-center gap-2 overflow-x-auto text-xs">
+        <button
+          onClick={() => setActiveTab('map')}
+          className={`px-4 py-2 rounded-lg font-medium transition-all ${activeTab === 'map' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'}`}
+        >
+          Live Corridor Map & Events
         </button>
-      </nav>
+        <button
+          onClick={() => setActiveTab('matrix')}
+          className={`px-4 py-2 rounded-lg font-medium transition-all ${activeTab === 'matrix' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'}`}
+        >
+          Department Compatibility Matrix
+        </button>
+        <button
+          onClick={() => setActiveTab('demand')}
+          className={`px-4 py-2 rounded-lg font-medium transition-all ${activeTab === 'demand' ? 'bg-rose-600 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'}`}
+        >
+          ⚡ Demand Defect Injection Demo
+        </button>
+        <button
+          onClick={() => setActiveTab('rl')}
+          className={`px-4 py-2 rounded-lg font-medium transition-all ${activeTab === 'rl' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'}`}
+        >
+          Offline RL Benchmarks
+        </button>
+        <button
+          onClick={() => setActiveTab('impact')}
+          className={`px-4 py-2 rounded-lg font-medium transition-all ${activeTab === 'impact' ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'}`}
+        >
+          Before/After Impact (J5)
+        </button>
+      </div>
 
-      <main className="main">
-        {tab === 'operations' && (
-          <div className="grid map-layout">
-            <div className="panel">
-              <div className="panel-head">
-                <h2>Corridor</h2>
-                <span className="sub">
-                  {selected ? selected : `${net.stations.length} stations · ${net.sections.length} sections`}
-                </span>
-              </div>
-              <div className="panel-body flush">
-                <MapView
-                  net={net}
-                  trains={trains?.trains ?? []}
-                  totalActive={trains?.total_active ?? 0}
-                  truncated={trains?.truncated ?? 0}
-                  clock={`${DAYS[day]} ${hhmm(clock)}`}
-                  selected={selected}
-                  onSelect={setSelected}
-                />
-              </div>
-            </div>
+      {/* Main Content Body */}
+      <main className="flex-1 p-6 space-y-6 max-w-7xl w-full mx-auto">
+        {activeTab === 'map' && (
+          <div className="space-y-6">
+            <MapComponent
+              stations={simState.stations.length ? simState.stations : [
+                { id: "CSMT", name: "CSMT", lat: 18.9400, lon: 72.8353, tier: "TIER_1" },
+                { id: "BYC", name: "Byculla", lat: 18.9744, lon: 72.8324, tier: "TIER_2" },
+                { id: "DR", name: "Dadar", lat: 19.0178, lon: 72.8478, tier: "TIER_1" },
+                { id: "CLA", name: "Kurla", lat: 19.0650, lon: 72.8794, tier: "TIER_1" },
+                { id: "GC", name: "Ghatkopar", lat: 19.0864, lon: 72.9081, tier: "TIER_2" },
+                { id: "TNA", name: "Thane", lat: 19.1860, lon: 72.9759, tier: "TIER_1" },
+                { id: "DI", name: "Dombivli", lat: 19.2184, lon: 73.0867, tier: "TIER_2" },
+                { id: "KYN", name: "Kalyan", lat: 19.2354, lon: 73.1306, tier: "TIER_1" },
+                { id: "ABH", name: "Ambernath", lat: 19.1994, lon: 73.1950, tier: "TIER_2" },
+                { id: "BUD", name: "Badlapur", lat: 19.1656, lon: 73.2325, tier: "TIER_2" },
+                { id: "VGI", name: "Vangani", lat: 19.1123, lon: 73.2845, tier: "TIER_3" },
+                { id: "SHLU", name: "Shelu", lat: 19.0765, lon: 73.3102, tier: "TIER_3" },
+                { id: "NRL", name: "Neral", lat: 19.0300, lon: 73.3180, tier: "TIER_3" },
+                { id: "BVS", name: "Bhivpuri Road", lat: 18.9760, lon: 73.3150, tier: "TIER_3" },
+                { id: "KJT", name: "Karjat", lat: 18.9100, lon: 73.3300, tier: "TIER_2" }
+              ]}
+              sections={simState.sections}
+              trainPositions={simState.train_positions}
+            />
 
-            <div className="panel">
-              <div className="panel-head">
-                <h2>Status board</h2>
-                <span className="sub">plain language</span>
-              </div>
-              <div className="panel-body flush board">
-                {events.length === 0 && (
-                  <div className="ev muted">Nothing has happened yet this week.</div>
-                )}
-                {[...events].reverse().map((e, i) => (
-                  <div key={i} className={`ev ${e.kind}`}>
-                    <span className="t">{DAYS[Math.floor(e.at_s / 86400)]} {hhmm(e.at_s)}</span>
-                    {e.text}
-                  </div>
-                ))}
-                {sick.slice(0, 6).map(s => (
-                  <div key={s.id} className="ev">
-                    <span className="t">now</span>
-                    <b>{s.id}</b> is <span className={`status s-${s.status}`}>
-                      {s.status.replace(/_/g, ' ').toLowerCase()}</span>.
-                    {s.status === 'CAUTION_ORDER' && (
-                      <span className="aside">
-                        Trains pass at reduced speed until a follow-up job clears it.
-                      </span>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {tab === 'compatibility' && mat && <CompatMatrix data={mat} />}
-
-        {tab === 'plan' && (
-          <div className="grid two">
-            <div className="panel">
-              <div className="panel-head">
-                <h2>CP-SAT weekly plan</h2>
-                <span className="sub">{plan.status.toLowerCase()} · {plan.gap_pct}% gap · {plan.wall_s}s</span>
-              </div>
-              <div className="panel-body">
-                <div className="tiles">
-                  <div className="tile">
-                    <div className="v">{plan.n_scheduled}<span className="muted" style={{ fontSize: 15 }}>/{plan.n_tasks}</span></div>
-                    <div className="k">Jobs placed</div>
-                  </div>
-                  <div className="tile">
-                    <div className="v" style={{ color: 'var(--accent)' }}>{plan.micro_gap_count}</div>
-                    <div className="k">Into gaps between trains</div>
-                    <div className="note">Work that would otherwise wait for a night block or a megablock.</div>
-                  </div>
-                  <div className="tile">
-                    <div className="v">{plan.n_unscheduled}</div>
-                    <div className="k">No window long enough</div>
-                    <div className="note">These need a window to be created by rerouting.</div>
-                  </div>
-                </div>
-                <div style={{ marginTop: 18 }}>
-                  <div className="k muted" style={{ fontSize: 11.5 }}>BLOCKS PER DAY</div>
-                  <div className="week">
-                    {DAYS.map(d => {
-                      const n = plan.by_day[d] ?? 0
-                      const max = Math.max(1, ...Object.values(plan.by_day))
-                      return (
-                        <div key={d}>
-                          <i style={{ height: `${(n / max) * 52}px` }} />
-                          <span>{d}</span>
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="panel">
-              <div className="panel-head"><h2>Task pool</h2><span className="sub">{tasks.length} jobs</span></div>
-              <div className="panel-body flush scroll">
-                <table>
-                  <thead>
-                    <tr><th>Dept</th><th>Job</th><th>Where</th><th className="num">Min</th><th>When</th></tr>
-                  </thead>
-                  <tbody>
-                    {tasks.map(t => (
-                      <tr key={t.id}>
-                        <td><span className="badge dept">{t.department}</span></td>
-                        <td>
-                          {t.label}
-                          {t.category === 'DEMAND' && <span className="badge demand" style={{ marginLeft: 6 }}>unplanned</span>}
-                        </td>
-                        <td className="mono">{t.zone}</td>
-                        <td className="num">{t.duration_min}</td>
-                        <td>
-                          {t.scheduled
-                            ? <>{t.day} {t.start_hhmm}{t.gap_type === 'MICRO_GAP' &&
-                                <span className="badge micro" style={{ marginLeft: 6 }}>micro-gap</span>}</>
-                            : <span className="muted">unplanned</span>}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <StatusBoard events={simState.recent_events} />
+              <TaskPool tasks={simState.active_tasks} />
             </div>
           </div>
         )}
 
-        {tab === 'capacity' && (
-          <div className="grid two">
-            <div className="panel">
-              <div className="panel-head"><h2>Where maintenance can go</h2><span className="sub">one week</span></div>
-              <div className="panel-body">
-                <div className="tiles">
-                  {(['NIGHT_WINDOW', 'MEGABLOCK', 'MICRO_GAP'] as const).map(k => (
-                    <div className="tile" key={k}>
-                      <div className="v">{gaps.counts[k] ?? 0}</div>
-                      <div className="k">{k === 'NIGHT_WINDOW' ? 'Night windows'
-                        : k === 'MEGABLOCK' ? 'Megablock windows' : 'Gaps between trains'}</div>
-                      <div className="note">{gaps.usable_hours[k] ?? 0} usable hours</div>
-                    </div>
-                  ))}
-                </div>
-                <div className="tile" style={{ marginTop: 14 }}>
-                  <div className="v">{gaps.usable_pct_of_raw}%</div>
-                  <div className="k">of raw gap time is actually workable</div>
-                  <div className="bar"><i style={{ width: `${gaps.usable_pct_of_raw}%` }} /></div>
-                  <div className="note">
-                    A gap is not working time. Every block costs {gaps.block_setup_min} min to
-                    protect and {gaps.block_release_min} min to hand back, so a 40-minute gap
-                    yields about 15 minutes of work. Planning against raw gaps would overstate
-                    capacity across the whole corridor.
-                  </div>
-                </div>
-              </div>
-            </div>
+        {activeTab === 'matrix' && (
+          <CompatibilityMatrixView
+            matrix={matrixData.matrix}
+            tasks={matrixData.active_tasks || []}
+          />
+        )}
 
-            <div className="panel">
-              <div className="panel-head"><h2>Night windows, derived per section</h2>
-                <span className="sub">not hardcoded</span></div>
-              <div className="panel-body flush scroll">
-                <table>
-                  <thead><tr><th>Section / track</th><th>Low-traffic window</th></tr></thead>
-                  <tbody>
-                    {Object.entries(gaps.night_windows).map(([k, [a, b]]) => (
-                      <tr key={k}><td className="mono">{k}</td><td className="mono">{a} – {b}</td></tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <div className="reason" style={{ borderLeftColor: 'var(--accent)' }}>
-                Each window is read from the last and first train on that track, so it differs
-                section by section rather than assuming a single corridor-wide night. The Sunday
-                megablock is corroborated too: traffic in the configured window measures{' '}
-                <b>{gaps.megablock_observed_reduction}% below a weekday</b>.
-              </div>
-            </div>
-          </div>
+        {activeTab === 'demand' && (
+          <DemandInjection onInject={handleDemandInject} />
+        )}
+
+        {activeTab === 'rl' && (
+          <RLComparison rows={rlData} />
+        )}
+
+        {activeTab === 'impact' && (
+          <ImpactTab metrics={impactData} />
         )}
       </main>
+
+      {/* Bottom Footer */}
+      <footer className="border-t border-slate-800 px-6 py-3 text-center text-xs text-slate-500">
+        RailBlock AI — Smart India Hackathon Prototype · Powered by OR-Tools CP-SAT & Offline RL (CQL-DQN)
+      </footer>
     </div>
   )
 }

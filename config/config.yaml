@@ -1,117 +1,50 @@
-# RailBlock AI — global configuration
-# Every invented number here has a row in ASSUMPTIONS.md. Keep them in sync.
+# Master Configuration for RailBlock AI
+seed: 42
 
-seed: 20260923
+# Time Budgets & Solver Settings
+cpsat:
+  max_time_in_seconds: 60
+  expert_gen_time_in_seconds: 10
+  num_search_workers: 8
+  random_seed: 42
 
-corridors:                # config/network/<name>.yaml ; add a file = add a corridor (SPEC §4)
-  - central_line
-  - western_line
-  - harbour_line
-  - trans_harbour
-
-data:
-  sourcing_time_cap_min: 90        # SPEC §3.2 hard cap, then synthetic fallback
-  mode: auto                       # auto | real | synthetic
-  raw_dir: data/raw
-  processed_dir: data/processed
-  service_date: "2026-09-21"       # a Monday — planned tasks are finalised Mondays (SPEC §5.4)
-  week_days: 7
-
-validation:
-  min_headway_s: 120               # V5
-  min_dwell_s: 20                  # V3
-  max_dwell_s: 1200                # V3
-  min_implied_speed_kmph: 15       # V4
-  runtime_warn_pct: 0.5            # V4 verdict threshold, as a share of hops
-  max_calibrated_speed_kmph: 130   # ceiling when raising a limit from evidence
-  max_services_per_day_warn: 2000
-  min_services_per_day: 200        # V7
-  occupancy_tolerance_min: 1       # V10
-  residual_warn_pct: 0.5           # V5: residual sub-headway events below this
-                                   # share of traversals are WARN, not FAIL (A-011)
-  block_on_fail: true              # API and demo.py refuse to run on FAIL (SPEC §3.4)
-
-delays:                            # SPEC §3.6 — synthetic fallback distributions
-  enabled: true
-  suburban:   {dist: gamma, mean_min: 2.5,  shape: 1.6, p_gt_10min: 0.04}
-  intercity:  {dist: gamma, mean_min: 12.0, shape: 1.2, p_gt_10min: 0.35}
-  freight:    {dist: gamma, mean_min: 35.0, shape: 0.9, p_gt_10min: 0.62}
-  peak_multiplier: 1.6
-  peak_windows: [["07:00", "11:00"], ["17:00", "21:00"]]
-
-track_status:                      # SPEC §5.2
-  sick_speed_kmph: 30
-  caution_speed_kmph: 30
-  stop_and_start_penalty_s: 240
-
-gaps:                              # SPEC §6.3
+# Gap Engine Overhead & Buffers
+gaps:
+  headway_buffer_s: 120
   block_setup_min: 15
   block_release_min: 10
   power_block_extra_min: 10
   min_usable_gap_min: 20
-  headway_buffer_s: 120
 
-station_tiers:                     # SPEC §8.1 — quantile-derived, not hardcoded
-  tier1_quantile: 0.80
-  tier3_quantile: 0.35
-  max_window_min_tier1: 45
-  max_window_min_tier2: 120
-  max_window_min_tier3: 240
-  max_concurrent_blocks_tier1: 1
-  max_concurrent_blocks_tier2: 2
-  max_concurrent_blocks_tier3: 2
+# Objective Weights (w1 to w7)
+objective_weights:
+  w1_train_minutes_lost: 10.0
+  w2_unscheduled_task_penalty: 50.0
+  w3_degraded_status_section_hours: 15.0
+  w4_rerouted_train_delay: 5.0
+  w5_single_line_working_minutes: 8.0
+  w6_iwp_usage: 20.0
+  w7_micro_gap_utilisation_bonus: 30.0
 
-rerouting:                         # SPEC §9
-  k_alternate_paths: 3
-  max_delay_min:
-    INTERCITY: 30
-    FREIGHT_MAIL: 90
-    SUBURBAN_LOCAL: 0              # never rerouted — enforced by assertion, not by this number
+# Operational Resource Caps & Constraints
+resources:
+  iwp_quota_per_day: 2
   max_single_line_min: 180
   max_concurrent_single_line_sections: 2
+  gang_capacity_per_dept: 2
 
-tasks:
-  planned_due_hours: 168           # planned work is due within the week it is issued
-  demand_due_hours: 24             # unplanned defects are due inside a day
-  followup_due_hours: 72           # a restricted section must be cleared within 3 days
+# Station Tier Sizing Parameters
+station_tiers:
+  tier1_max_window_min: 45
+  tier3_max_window_min: 180
 
-departments:
-  gangs_per_department: 2          # concurrent work gangs per department per corridor
-  iwp_quota_per_day: 2             # Integrated Work Permission daily quota (SPEC §7.2 R1)
+# Track Status Speeds & Penalties
+track_status:
+  fit_speed_kmph: 100
+  sick_speed_kmph: 30
+  caution_speed_kmph: 30
+  stop_and_start_penalty_s: 240
 
-planner:                           # SPEC §10
-  max_blocks_per_day: 8            # blocks the division can protect and supervise in a day
-  solve_time_s_demo: 60
-  solve_time_s_instance: 10
-  num_search_workers: 8
-  weights:
-    w1_train_minutes_lost: 1.0     # primary operational cost
-    w2_unscheduled_task: 100.0     # per priority-point, per task left unplanned.
-                                   # MUST exceed w3 x horizon_days (6 x 7 = 42), otherwise
-                                   # scheduling late costs more than never scheduling and the
-                                   # solver rationally abandons work it could have done.
-    w3_degraded_status_hours: 6.0  # CAUTION_ORDER / STOP_AND_START section-hours
-    w4_rerouted_train_delay: 0.8
-    w5_single_line_minutes: 0.5
-    w6_iwp_usage: 25.0             # administratively expensive; use sparingly
-    w7_micro_gap_bonus: 15.0       # deliberate: we want micro-gap usage (SPEC §10.3)
-
-rl:                                # SPEC §11-§12
-  n_instances: 500
-  min_instances: 200
-  horizon_hours: 24
-  max_tasks_in_state: 20
-  max_windows_in_state: 12
-  hidden_dim: 256
-  lr: 3.0e-4
-  batch_size: 256
-  grad_steps: 60000
-  cql_alpha: 5.0
-  split: {train: 0.70, val: 0.15, test: 0.15}
-
-metrics:                           # SPEC §15.1 — baseline model parameters
-  manual_coordination_hours_per_conflict: 4.0
-  manual_replan_wait_days: 7
-
+# Government System Adapters Mode
 adapters:
-  mode: mock                       # mock | live
+  mode: "mock" # options: mock | live
