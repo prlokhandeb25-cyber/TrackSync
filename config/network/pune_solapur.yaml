@@ -1,0 +1,87 @@
+# Central Railway — Pune → Solapur
+#
+# This corridor exists to prove the scalability claim, and it is deliberately unlike the
+# Mumbai lines: a long-distance two-track route with sparse traffic, no suburban layer at all,
+# and stations tens of kilometres apart rather than two. If the planner, the gap engine and
+# the RL dispatcher all work here without a line of code changing, "adding a zone is adding
+# config" is a demonstrated fact rather than an architectural aspiration.
+#
+# Every coordinate here is from the public stations dataset (coord_src: d) - a long-distance
+# route calls only at stations that mail and express trains serve, so unlike the Mumbai
+# suburban lines none had to be supplied by us.
+#
+# tests/test_scalability.py runs the full pipeline on this file.
+
+corridor_id: pune_solapur
+name: Pune – Solapur
+line_code: PS
+zone: CR
+division: Solapur
+route_factor: 1.10
+
+megablock:
+  day_of_week: SUN
+  start: "09:00"
+  end: "14:00"
+
+defaults:
+  tracks: [UP, DN]
+  line_speed_kmph: 110
+  track_policy:
+    SUBURBAN_LOCAL: [UP, DN]
+    INTERCITY:      [UP, DN]
+    FREIGHT_MAIL:   [UP, DN]
+
+stations:
+  - {code: PUNE, name: Pune Jn,      lat: 18.529378, lon: 73.873086, platforms: 6, junction: true,  coord_src: d, expect_tier: TIER_1}
+  - {code: GPR,  name: Ghorpuri,     lat: 18.527821, lon: 73.893448, platforms: 2, junction: false, coord_src: d, expect_tier: TIER_3}
+  - {code: HDP,  name: Hadapsar,     lat: 18.526887, lon: 73.927844, platforms: 2, junction: false, coord_src: d, expect_tier: TIER_3}
+  - {code: URI,  name: Uruli,        lat: 18.494237, lon: 74.136820, platforms: 2, junction: false, coord_src: d, expect_tier: TIER_3}
+  - {code: KDG,  name: Kedgaon,      lat: 18.482085, lon: 74.376373, platforms: 2, junction: false, coord_src: d, expect_tier: TIER_3}
+  - {code: DD,   name: Daund Jn,     lat: 18.463547, lon: 74.578622, platforms: 5, junction: true,  coord_src: d, expect_tier: TIER_2}
+  - {code: BGVN, name: Bhigwan,      lat: 18.317256, lon: 74.775042, platforms: 3, junction: false, coord_src: d, expect_tier: TIER_3}
+  - {code: WSB,  name: Washimbe,     lat: 18.284021, lon: 75.003799, platforms: 2, junction: false, coord_src: d, expect_tier: TIER_3}
+  - {code: PPJ,  name: Pophlaj,      lat: 18.292242, lon: 75.117846, platforms: 2, junction: false, coord_src: d, expect_tier: TIER_3}
+  - {code: JEUR, name: Jeur,         lat: 18.260933, lon: 75.162471, platforms: 3, junction: false, coord_src: d, expect_tier: TIER_3}
+  - {code: KEM,  name: Kem,          lat: 18.177509, lon: 75.274626, platforms: 2, junction: false, coord_src: d, expect_tier: TIER_3}
+  - {code: KWV,  name: Kurduvadi Jn, lat: 18.091348, lon: 75.417118, platforms: 4, junction: true,  coord_src: d, expect_tier: TIER_2}
+  - {code: MA,   name: Madha,        lat: 18.029712, lon: 75.546507, platforms: 2, junction: false, coord_src: d, expect_tier: TIER_3}
+  - {code: MO,   name: Mohol,        lat: 17.805205, lon: 75.675995, platforms: 3, junction: false, coord_src: d, expect_tier: TIER_3}
+  - {code: MVE,  name: Mundhewadi,   lat: 17.741765, lon: 75.706548, platforms: 2, junction: false, coord_src: d, expect_tier: TIER_3}
+  - {code: SUR,  name: Solapur Jn,   lat: 17.664496, lon: 75.893401, platforms: 5, junction: true,  coord_src: d, expect_tier: TIER_2}
+
+section_overrides:
+  PUNE-GPR: {line_speed_kmph: 60}    # the Pune yard throat
+  GPR-HDP:  {line_speed_kmph: 80}
+
+# No suburban layer at all on this route. The pipeline has to cope with a corridor whose
+# traffic is entirely long-distance, which is exactly the case a Mumbai-shaped assumption
+# would break on.
+suburban:
+  enabled: false
+  services_per_day: 0
+  first_up: "05:00"
+  last_down: "23:00"
+  peak_windows: []
+  peak_headway_min: [30, 60]
+  offpeak_headway_min: [60, 120]
+  dwell_s: 60
+  patterns: []
+
+long_distance:
+  enabled: true
+  source: data/raw/schedules.json
+  min_corridor_stations: 3
+  freight_share: 0.55          # a heavy freight route
+  freight_band: ["22:00", "05:00"]
+
+allotments:
+  PWI:
+    [PUNE-GPR, GPR-HDP, HDP-URI, URI-KDG, KDG-DD, DD-BGVN, BGVN-WSB, WSB-PPJ, PPJ-JEUR,
+     JEUR-KEM, KEM-KWV, KWV-MA, MA-MO, MO-MVE, MVE-SUR]
+  OWD:
+    [PUNE-GPR, GPR-HDP, HDP-URI, URI-KDG, KDG-DD, DD-BGVN, BGVN-WSB, WSB-PPJ, PPJ-JEUR,
+     JEUR-KEM, KEM-KWV, KWV-MA, MA-MO]
+  S_AND_T:
+    [PUNE-GPR, GPR-HDP, HDP-URI, URI-KDG, KDG-DD, DD-BGVN, BGVN-WSB, WSB-PPJ, PPJ-JEUR,
+     JEUR-KEM, KEM-KWV, KWV-MA, MA-MO, MO-MVE, MVE-SUR]

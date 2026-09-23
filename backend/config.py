@@ -41,20 +41,31 @@ def load_config(path: Path | None = None) -> Config:
 
 
 def seed_everything(seed: int | None = None) -> int:
-    """Seed random and numpy. torch is seeded in backend/rl once it is installed (P7)."""
+    """Seed random and numpy. Deliberately does NOT touch torch — see seed_torch below."""
     if seed is None:
         seed = int(load_config()["seed"])
     random.seed(seed)
     np.random.seed(seed % (2**32 - 1))
-    # Torch seeding is best-effort. It is absent before P7, and on Windows it can also fail
-    # to initialise its DLLs under memory pressure. Neither should be able to take down the
-    # data pipeline, which does not need torch at all.
-    try:
-        import torch
+    return seed
 
-        torch.manual_seed(seed)
-    except Exception:  # noqa: BLE001 - deliberately broad; torch is optional here
-        pass
+
+def seed_torch(seed: int | None = None) -> int:
+    """Seed torch. Call this from RL code only, never from the shared pipeline.
+
+    This used to live inside seed_everything, guarded by try/except. That guard was useless:
+    on a memory-constrained Windows box torch's DLL initialisation does not raise a Python
+    exception, it takes an ACCESS VIOLATION at the native level, which no `except` can catch.
+    Every ingest, validation and planning run was therefore importing torch and quietly
+    gambling on a hard crash, for a framework none of them use.
+
+    Keeping torch out of the shared import path is the actual fix. RL modules already import
+    it directly and seed it in their training loops, so nothing that needs the seed loses it.
+    """
+    if seed is None:
+        seed = int(load_config()["seed"])
+    import torch
+
+    torch.manual_seed(seed)
     return seed
 
 

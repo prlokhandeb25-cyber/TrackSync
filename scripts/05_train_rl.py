@@ -10,7 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import torch  # noqa: E402
 
-from backend.config import REPO_ROOT, load_config, seed_everything  # noqa: E402
+from backend.config import REPO_ROOT, load_config, seed_everything, seed_torch  # noqa: E402
 from backend.rl.agents import train_bc, train_cql_dqn  # noqa: E402
 from backend.rl.dataset import OfflineDataset  # noqa: E402
 
@@ -19,6 +19,7 @@ OUT = REPO_ROOT / "artifacts" / "models"
 
 def main() -> int:
     seed = seed_everything()
+    seed_torch(seed)   # torch is seeded here, where it is actually used
     cfg = load_config()["rl"]
     OUT.mkdir(parents=True, exist_ok=True)
 
