@@ -158,12 +158,12 @@ def gaps() -> dict:
 def plan_cpsat() -> dict:
     w = ensure_world()
     t0 = time.time()
-    from backend.api.state import reroute_cache
+    from backend.api.state import get_pax, reroute_cache
     from backend.planner.creation_plan import solve_with_creation
 
     natural, res, created = solve_with_creation(
         w.net, w.tasks, w.windows, occupancy_by_section(), reroute_cache(),
-        time_limit_s=load_config()["planner"]["solve_time_s_demo"])
+        time_limit_s=load_config()["planner"]["solve_time_s_demo"], pax=get_pax())
     STATE.plan_natural = natural
     STATE.plan = res
     from backend.api.state import creation_summary
@@ -269,7 +269,7 @@ def sim_tick(at_s: int = 0) -> dict:
             "plan" if placement.placed else "info",
         )
         results.append({
-            "task": {"id": t.id, "describe": t.describe(), "zone": t.zone.ref,
+            "task": {"id": t.id, "describe": t.describe(), "zone": t.zone.ref, "label": t.label,
                      "department": t.department.value, "duration_min": t.duration_min,
                      "priority": t.priority},
             "placed": placement.placed,
@@ -411,9 +411,15 @@ def _active_blocks(at_s: int) -> list[tuple[str, int, int]]:
     out: list[tuple[str, int, int]] = []
     if STATE.plan:
         for a in STATE.plan.assignments:
+            if a.task_id in STATE.overrides:
+                continue   # pushed aside by a sudden task: its new slot is added below
             if a.zone_ref in w.net.sections and a.start_s <= at_s < a.end_s:
                 out.append((a.zone_ref, a.start_s, a.end_s))
-    for p in list(STATE.live_sim.placed) + list(STATE.user_placements.values()):
+    for o in STATE.overrides.values():
+        if o and o["zone_ref"] in w.net.sections and o["start_s"] <= at_s < o["end_s"]:
+            out.append((o["zone_ref"], o["start_s"], o["end_s"]))
+    for p in (list(STATE.live_sim.placed) + list(STATE.user_placements.values())
+              + list(STATE.sudden_state.placed)):
         if p.placed and p.window is not None and p.window.zone_ref in w.net.sections:
             if p.start_s is not None and p.start_s <= at_s < p.end_s:
                 out.append((p.window.zone_ref, p.start_s, p.end_s))
@@ -675,7 +681,7 @@ def do_reset() -> dict:
 def chat(payload: dict) -> dict:
     """Grounded question answering over live state. No language model is involved."""
     w = ensure_world()
-    a = chat_answer(str(payload.get("q", "")), w, STATE.plan)
+    a = chat_answer(str(payload.get("q", "")), w, STATE.plan, int(payload.get("at_s", 0) or 0))
     return a.to_dict()
 
 

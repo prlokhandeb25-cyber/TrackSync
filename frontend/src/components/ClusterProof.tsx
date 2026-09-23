@@ -6,8 +6,8 @@ import { api, type ClusterTrace } from '../api'
    stop at the cut line (config clustering.cut_km): what hangs below it together is one group -
    jobs close enough to share a protected block. */
 
-const PALETTE = ['#22d3ee', '#a3e635', '#facc15', '#fb7185', '#f472b6',
-                 '#818cf8', '#2dd4bf', '#fdba74', '#c4b5fd', '#86efac']
+const PALETTE = ['#0284c7', '#65a30d', '#d97706', '#dc2626', '#c026d3',
+                 '#4f46e5', '#0d9488', '#ea580c', '#7c3aed', '#16a34a']
 const W = 640, H = 230, PADL = 34, PADB = 34
 
 export default function ClusterProof() {
@@ -49,14 +49,12 @@ export default function ClusterProof() {
   return (
     <div className="panel">
       <div className="panel-head">
-        <h2>Step 2 — how jobs were grouped</h2>
+        <h2>2 · Grouping the jobs</h2>
         <span className="sub">{d.points.length} jobs → {big.length} shared groups</span>
       </div>
       <div className="panel-body">
         <p className="explain">
-          Each job starts alone. The <b>two closest</b> join, then the next closest, and so on — the height of every
-          join is how far apart (km) the groups are. Joining stops at <b>{d.cut_km} km</b> (dashed line): jobs that end
-          up together are near enough to share one protected block. That is <b>average-linkage hierarchical clustering</b>.
+          Closest jobs join first. Joins stop at <b>{d.cut_km} km</b> (dashed): jobs still together can share one block.
         </p>
         <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img" aria-label="Dendrogram of job groups">
           {[0, 0.25, 0.5, 0.75, 1].map(f => {

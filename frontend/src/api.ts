@@ -56,12 +56,14 @@ export interface TrainsData { at_s: number; trains: TrainDot[]; total_active: nu
 
 export interface EventItem { at_s: number; text: string; kind: string }
 
+export interface ChatAction { label: string; section: string | null; start_s: number }
 export interface ChatAnswer {
   text: string
   facts: { k: string; v: string }[]
   trace: string[]
   intent: string
   suggestions: string[]
+  action?: ChatAction | null
 }
 
 export interface ImpactMetric {
@@ -108,7 +110,7 @@ export interface ReroutingOpportunity {
 export interface ReroutingData { unscheduled_total: number; opportunities: ReroutingOpportunity[] }
 
 export interface SimTickTask {
-  id: string; describe: string; zone: string; department: string
+  id: string; describe: string; label?: string; zone: string; department: string
   duration_min: number; priority: number
 }
 export interface SimTickWindow {
@@ -131,6 +133,7 @@ export interface SectionBrief {
 export interface RerouteView {
   train_id: string; train_name: string; train_class: string
   sections: string[]; added_delay_min: number; within_limit: boolean
+  enter_s?: number; exit_s?: number; track?: string
 }
 export interface RerouteBlock {
   section_id: string; start_s: number; end_s: number
@@ -174,8 +177,8 @@ export const api = {
   trains: (at: number) => j<TrainsData>(`/api/trains?at_s=${Math.round(at)}`),
   events: () => j<{ events: EventItem[] }>('/api/events'),
   injectDemand: () => j<DemandReplanResult>('/api/tasks/demand', { method: 'POST' }),
-  chat: (q: string) => j<ChatAnswer>('/api/chat', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ q }),
+  chat: (q: string, atS = 0) => j<ChatAnswer>('/api/chat', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ q, at_s: Math.round(atS) }),
   }),
   impact: (hoursPerConflict?: number, waitDays?: number) => j<ImpactData>(
     `/api/metrics/impact${hoursPerConflict !== undefined ? `?hours_per_conflict=${hoursPerConflict}&wait_days=${waitDays}` : ''}`),
@@ -202,6 +205,13 @@ export const api = {
   creationSummary: () => j<CreationSummary>('/api/creation/summary'),
   scheduleWeek: () => j<WeekSchedule>('/api/schedule/week'),
   scheduleMonth: () => j<MonthSchedule>('/api/schedule/month'),
+  suddenInject: (b: SuddenBody) => j<SuddenResult>('/api/sudden/inject', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b),
+  }),
+  suddenLog: () => j<{ log: SuddenResult[]; n: number }>('/api/sudden/log'),
+  suddenMetrics: () => j<SuddenMetrics>('/api/sudden/metrics'),
+  suddenClear: () => j<{ cleared: number }>('/api/sudden/clear', { method: 'POST' }),
+  paxExperiment: () => j<PaxExperiment>('/api/pax/experiment'),
   buildMonth: (force = false) => j<{ status: string }>(`/api/schedule/month/build?force=${force}`, { method: 'POST' }),
 }
 
@@ -266,7 +276,7 @@ export interface SubmitResult {
 export interface GapRow {
   prev: { train_id: string; class: string; enter_s: number; exit_s: number }
   next: { train_id: string; class: string; enter_s: number; exit_s: number }
-  gap_min: number; after_buffers_min: number; usable_min: number; keep: boolean
+  gap_min: number; after_buffers_min: number; usable_min: number; keep: boolean; reliability_pct: number
   reason: string; creation: CreationOptionView | null
 }
 export interface GapTrace {
@@ -346,4 +356,47 @@ export interface ScoreCardData {
     jobs_placed_manual: number; jobs_placed_ours: number
   }
   limits: string[]
+}
+
+
+// ---------------------------------------------------------------- sudden tasks and passengers
+
+export interface SuddenBody {
+  level: 'low' | 'medium' | 'high' | 'critical'
+  zone_ref?: string | null; department?: string | null; duration_min?: number | null
+  description?: string; at_s: number
+}
+export interface SuddenMoved {
+  task_id: string; label: string; department: string; priority: number; zone: string
+  from: { start_s: number; end_s: number; hhmm: string }
+  to: { start_s: number; end_s: number; hhmm: string } | null
+}
+export interface SuddenResult {
+  id: string; priority: number; level: string
+  task: { label: string; department: string; zone: string; duration_min: number; describe: string }
+  at_s: number; placed: boolean; method: 'gap' | 'created' | 'bumped' | 'late' | 'none'
+  window: { section_id: string; zone_ref: string; track: string; start_s: number; end_s: number
+            gap_type: string; hhmm: string; created_by: string | null } | null
+  response_ms: number; deadline_s: number | null; deadline_hhmm: string | null; margin_min: number | null
+  exposure: { passengers: number; trains: number; trains_per_hour: number; span_min: number } | null
+  created: { lever: string; lever_label: string; note: string; delay_min: number; pax_delay: number } | null
+  bumped: SuddenMoved[]
+  reroutes: { diverted: number; added_delay_min: number; trains: { id: string; delay: number }[]
+              locals: number; track_swap: { blocked_track: string; swap_to_track: string } | null } | null
+  steps: string[]; reason: string; plan_resolve_s: number | null; network_tph: number
+}
+export interface SuddenMetrics {
+  n: number; placed?: number; in_time?: number
+  by_method?: Record<string, number>; by_level?: Record<string, { n: number; placed: number }>
+  median_ms?: number; max_ms?: number; plan_resolve_ms?: number | null; speedup_x?: number | null
+  bumped_total?: number; replaced_total?: number; deferred_total?: number; trains_diverted?: number
+  pax_within_reach?: number; site_tph?: number | null; network_tph?: number
+  created_delay_train_min?: number; manual_wait_days?: number
+}
+export interface PaxRun { placed: number; passengers: number; mean_tph: number; mean_wait_h: number; in_peak: number }
+export interface PaxExperiment {
+  manual: PaxRun
+  jobs: number; network_tph: number; passengers_saved_pct: number; how: string
+  aware: { placed: number; passengers: number; mean_tph: number; mean_wait_h: number; in_peak: number }
+  unaware: { placed: number; passengers: number; mean_tph: number; mean_wait_h: number; in_peak: number }
 }

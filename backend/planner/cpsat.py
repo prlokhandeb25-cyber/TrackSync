@@ -66,6 +66,7 @@ class PlanResult:
     n_tasks: int = 0
     n_windows_considered: int = 0
     integrated_pairs: int = 0       # compatible cross-department neighbours placed in one shared block
+    pax_exposed: int = 0            # passenger-hours within reach of the placed jobs (heuristic, A-040)
 
     @property
     def micro_gap_count(self) -> int:
@@ -86,7 +87,7 @@ class PlanResult:
             "micro_gap_count": self.micro_gap_count, "iwp_used": self.iwp_used,
             "relaxations": self.relaxations,
             "n_windows_considered": self.n_windows_considered,
-            "integrated_pairs": self.integrated_pairs,
+            "integrated_pairs": self.integrated_pairs, "pax_exposed": self.pax_exposed,
             "assignments": [a.__dict__ for a in self.assignments],
             "unscheduled": self.unscheduled,
             "rejected": self.rejected,
@@ -146,6 +147,7 @@ def build_and_solve(
     horizon_days: int = 7,
     relax: list[str] | None = None,
     log: bool = False,
+    pax=None,
 ) -> PlanResult:
     cfg = load_config()
     w = cfg["planner"]["weights"]
@@ -331,6 +333,7 @@ def build_and_solve(
 
     # ---- Objective (SPEC §10.3)
     terms = []
+    w9 = float(w.get("w9_pax_exposure", 0))
     for t in live:
         pw = (6 - t.priority)  # priority 1 -> weight 5
         # Leaving work unplanned is the dominant cost, weighted by priority and age.
@@ -344,6 +347,15 @@ def build_and_solve(
             if cw.created_by:
                 # a created window is not free: it costs the trains it delays or diverts
                 terms.append(int(w["w1_train_minutes_lost"] * cw.delay_cost_min * 4) * x[(t.id, cw.id)])
+            if pax is not None and w9 > 0:
+                # Prefer quiet places and times: the more passengers within reach of the window,
+                # the dearer it is. Scaled per 1,000 passenger-hours so it stays a tie-breaker
+                # beside the unscheduled / lateness / micro-gap terms rather than overriding them.
+                ex = pax.exposure(cw.section_id, cw.start_s, cw.end_s)
+                per_hour = ex.passengers * 60.0 / ex.span_min      # people within reach, per hour
+                cost = int(round(w9 * per_hour * (t.duration_min / 60.0) / 1000.0))
+                if cost:
+                    terms.append(cost * x[(t.id, cw.id)])
 
     if integ_lits:
         terms.append(-int(w8) * sum(integ_lits))
@@ -406,6 +418,9 @@ def build_and_solve(
 
     result.iwp_used = sum(solver.Value(l) for l in unique_iwp) if unique_iwp else 0
     result.integrated_pairs = sum(solver.Value(l) for l in integ_lits)
+    if pax is not None:
+        result.pax_exposed = sum(pax.job_exposure(a.section_id, a.start_s, a.end_s)
+                                 for a in result.assignments)   # same yardstick as the live scheduler
     return result
 
 
@@ -422,10 +437,11 @@ RELAXATION_LADDER = [
 
 
 def solve_with_relaxation(net: Network, tasks: list[Task], windows: list[CandidateWindow],
-                          time_limit_s: float | None = None, horizon_days: int = 7) -> PlanResult:
+                          time_limit_s: float | None = None, horizon_days: int = 7,
+                          pax=None) -> PlanResult:
     last: PlanResult | None = None
     for relax in RELAXATION_LADDER:
-        res = build_and_solve(net, tasks, windows, time_limit_s, horizon_days, relax=relax)
+        res = build_and_solve(net, tasks, windows, time_limit_s, horizon_days, relax=relax, pax=pax)
         if res.status in ("OPTIMAL", "FEASIBLE"):
             return res
         last = res

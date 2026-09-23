@@ -20,7 +20,7 @@ export default function ReroutePanel({ blocks }: { blocks: RerouteBlock[] }) {
             <span className="muted"> closed</span>
             {b.reroutes.map(r => (
               <div key={r.train_id} style={{ marginTop: 4 }}>
-                <span style={{ color: '#22e5ff' }}>●</span> {r.train_name || r.train_id}
+                <span style={{ color: '#0891b2' }}>●</span> {r.train_name || r.train_id}
                 <span className="muted"> via {r.sections.length} other sections · {r.added_delay_min >= 0.5 ? `+${r.added_delay_min} min` : 'no added time'}
                   {r.within_limit ? '' : ' (over limit)'}</span>
               </div>

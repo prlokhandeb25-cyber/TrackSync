@@ -54,10 +54,11 @@ class Answer:
     trace: list[str] = field(default_factory=list)
     intent: str = "unknown"
     suggestions: list[str] = field(default_factory=list)
+    action: dict | None = None      # e.g. {"label": "Show on map", "section": "DR-MTN", "start_s": 90000}
 
     def to_dict(self) -> dict:
         return {"text": self.text, "facts": self.facts, "trace": self.trace,
-                "intent": self.intent, "suggestions": self.suggestions}
+                "intent": self.intent, "suggestions": self.suggestions, "action": self.action}
 
 
 @dataclass
@@ -409,20 +410,20 @@ def _h_creation(q: str, e: Entities, world) -> Answer:
 
 def _h_help(q: str, e: Entities, world) -> Answer:
     return Answer(
-        "I'm RailMitra. I read the live plan and answer from it — there is no language model here, so every "
-        "number I give you comes straight out of the same objects the map and the solver use. "
-        "Try asking about a section's status, why a department can or cannot work somewhere, "
-        "when the next window is, or how the learned dispatcher compares with the solver.",
+        "I'm RailMitra. I answer from the live plan and I can test hypotheticals: I run the real gap finder, "
+        "rule engine, passenger model and rerouting search on a copy of the schedule, so nothing I say is made "
+        "up and nothing I try changes the plan. Ask what would happen, where a job fits, whether two kinds of "
+        "work can share a place, or who is working where.",
         [], [], "help",
         suggestions=[
-            "what is the status of NRL-BVS?",
-            "why can't S&T work on NRL-BVS?",
-            "when is the next window at Dadar?",
-            "how many gaps between trains are there?",
-            "show me the department conflicts",
-            "how does the RL dispatcher compare with CP-SAT?",
+            "what if a 60 minute PWI job at Dadar to Matunga?",
+            "what if Dadar to Matunga is closed at 14:00 for an hour?",
+            "can OHE insulator work and tamping happen together at Kurla?",
+            "best time for a 45 minute S&T job on Thane to Mulund",
+            "how busy is Thane at 9am?",
+            "who is working on Kurla tomorrow?",
+            "how many sudden tasks were handled?",
             "how are jobs grouped?",
-            "what did gap creation open?",
         ])
 
 
@@ -449,10 +450,16 @@ INTENTS: list[tuple[str, re.Pattern, Callable]] = [
 ]
 
 
-def answer(question: str, world, plan=None) -> Answer:
+def answer(question: str, world, plan=None, at_s: int = 0) -> Answer:
     q = (question or "").strip()
     if not q:
         return _h_help(q, Entities(), world)
+
+    # Live analysis and hypotheticals first: they run the real planner machinery on copies.
+    from backend.chat.whatif import route as whatif_route
+    live = whatif_route(q, world, int(at_s or 0))
+    if live is not None:
+        return live
 
     e = _extract(q, world)
     for name, pattern, handler in INTENTS:

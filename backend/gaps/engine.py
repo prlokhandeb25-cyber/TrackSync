@@ -58,6 +58,33 @@ def min_raw_gap_min() -> int:
     return max(int(cfg["min_usable_gap_min"]), overhead + int(cfg.get("min_workable_min", 15)))
 
 
+def _late_risk(prev_class, start_s: int) -> float:
+    """P(the train before the gap is >10 min late), so the window would open late.
+
+    Straight from the configured delay model (`delays.*.p_gt_10min`, scaled up in the peaks). A
+    gap that follows a freight or a long-distance train is a less dependable start than one that
+    follows a suburban local, and the scheduler can see that.
+    """
+    if prev_class is None:
+        return 0.0
+    cfg = load_config()["delays"]
+    key = {"SUBURBAN_LOCAL": "suburban", "INTERCITY": "intercity", "FREIGHT_MAIL": "freight"}.get(
+        getattr(prev_class, "value", str(prev_class)), "suburban")
+    p = float(cfg[key]["p_gt_10min"])
+    tod = time_of_day(start_s)
+    for a, b in cfg.get("peak_windows", []):
+        if (hhmmss_to_s(a) or 0) <= tod < (hhmmss_to_s(b) or 0):
+            p *= float(cfg.get("peak_multiplier", 1.0))
+            break
+    return min(0.95, p)
+
+
+def _to_grid(start_s: int, end_s: int) -> tuple[int, int]:
+    """Blocks are granted in whole steps (5 min by default): start rounds up, end rounds down."""
+    g = int(load_config()["gaps"].get("block_grid_min", 5)) * 60
+    return -(-start_s // g) * g, (end_s // g) * g
+
+
 def _clip_to_night_band(start_s: int, end_s: int) -> tuple[int, int] | None:
     """Clip a gap to the night band it sits in.
 
@@ -113,6 +140,9 @@ class CandidateWindow:
     created_by: str | None = None
     delay_cost_min: float = 0.0
     created_note: str = ""
+    # Chance the train before the gap runs more than 10 minutes late and eats into the start of the
+    # window (0 for a night window with no train before it). From the delay model, A-041.
+    late_risk: float = 0.0
 
     @property
     def raw_min(self) -> int:
@@ -164,6 +194,8 @@ class CandidateWindow:
             "prev_train_id": self.prev_train_id, "next_train_id": self.next_train_id,
             "created_by": self.created_by, "delay_cost_min": self.delay_cost_min,
             "created_note": self.created_note,
+            "late_risk": round(self.late_risk, 3),
+            "reliability_pct": round(100 * (1 - self.late_risk)),
         }
 
 
@@ -202,6 +234,8 @@ def find_gaps(net: Network, occ: list[SectionOccupancy], horizon_days: int = 7) 
     cfg = load_config()["gaps"]
     min_usable = min_raw_gap_min()
     buffer_s = int(cfg["headway_buffer_s"])
+    # the gang has to be clear of the track before the next train, with room to spare
+    lookout_s = max(buffer_s, int(cfg.get("lookout_min", 5)) * 60)
 
     report = GapReport()
     grouped = group_by_track(occ)
@@ -221,17 +255,22 @@ def find_gaps(net: Network, occ: list[SectionOccupancy], horizon_days: int = 7) 
             # Raw gaps: between the exit of one movement and the entry of the next, with the
             # headway buffer removed from both ends so the window is genuinely free.
             raw: list[tuple[int, int, str | None, str | None]] = []
+            prev_cls: dict[int, object] = {}   # raw-gap index -> class of the train before it
             if not todays:
                 raw.append((day_lo, day_hi, None, None))
             else:
                 if todays[0].enter_s - day_lo > 0:
-                    raw.append((day_lo, todays[0].enter_s - buffer_s, None, todays[0].train_id))
+                    raw.append((day_lo, todays[0].enter_s - lookout_s, None, todays[0].train_id))
                 for a, b in zip(todays, todays[1:]):
-                    start, end = a.exit_s + buffer_s, b.enter_s - buffer_s
+                    start, end = a.exit_s + buffer_s, b.enter_s - lookout_s
                     if end > start:
+                        prev_cls[len(raw)] = a.train_class
                         raw.append((start, end, a.train_id, b.train_id))
                 if day_hi - todays[-1].exit_s > 0:
+                    prev_cls[len(raw)] = todays[-1].train_class
                     raw.append((todays[-1].exit_s + buffer_s, day_hi, todays[-1].train_id, None))
+            # blocks are asked for and granted on a 5-minute grid
+            raw = [(*_to_grid(s_, e_), p_, n_) for (s_, e_, p_, n_) in raw]
 
             # The night window is the longest gap whose midpoint sits in the night band.
             night_idx = None
@@ -299,6 +338,7 @@ def find_gaps(net: Network, occ: list[SectionOccupancy], horizon_days: int = 7) 
                             prev_train_id=prev_id,
                             next_train_id=next_id,
                             trains_within_60min_after=following,
+                            late_risk=_late_risk(prev_cls.get(i), a),
                         )
                     )
 

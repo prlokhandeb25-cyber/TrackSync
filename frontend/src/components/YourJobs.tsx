@@ -6,8 +6,8 @@ import { api, type ScoredTask } from '../api'
    rerouted trains appear on the map straight away instead of hours of simulated time later. */
 
 export default function YourJobs({ tick, onWatch, onWindows }: {
-  tick: number; onWatch: (startS: number, section: string) => void
-  onWindows: (w: { zone_ref: string; start_s: number; end_s: number }[]) => void
+  tick: number; onWatch: (t: ScoredTask) => void
+  onWindows: (w: { zone_ref: string; start_s: number; end_s: number; id: string; dept: string; label: string }[]) => void
 }) {
   const [rows, setRows] = useState<ScoredTask[]>([])
   useEffect(() => {
@@ -15,7 +15,8 @@ export default function YourJobs({ tick, onWatch, onWindows }: {
       const mine = d.tasks.filter(t => t.source === 'USER')
       setRows(mine)
       onWindows(mine.filter(t => t.schedule).map(t => ({
-        zone_ref: t.schedule!.section_id, start_s: t.schedule!.start_s, end_s: t.schedule!.end_s })))
+        zone_ref: t.schedule!.section_id, start_s: t.schedule!.start_s, end_s: t.schedule!.end_s,
+        id: t.id, dept: t.department, label: t.description || t.label })))
     }).catch(() => undefined)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tick])
@@ -38,7 +39,7 @@ export default function YourJobs({ tick, onWatch, onWindows }: {
                 {t.schedule.integrated_with.length > 0 && <span className="tag good"> shares a block</span>}
                 {t.schedule.created && <span className="tag warn"> gap created</span>}
                 <div><button className="action" style={{ marginTop: 7 }}
-                             onClick={() => onWatch(Math.max(0, t.schedule!.start_s - 300), t.schedule!.section_id)}>
+                             onClick={() => onWatch(t)}>
                   ▶ Watch it on the map
                 </button></div>
               </div>

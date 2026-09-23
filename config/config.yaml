@@ -51,6 +51,8 @@ gaps:                              # SPEC §6.3
   min_usable_gap_min: 20
   min_workable_min: 15             # every window must leave at least this much real work time
   headway_buffer_s: 120
+  lookout_min: 5                   # the gang must be clear of the track this long before the next train
+  block_grid_min: 5                # blocks are granted in whole 5-minute steps (A-041)
 
 station_tiers:                     # SPEC §8.1 — quantile-derived, not hardcoded
   tier1_quantile: 0.80
@@ -97,6 +99,7 @@ planner:                           # SPEC §10
     w6_iwp_usage: 25.0             # administratively expensive; use sparingly
     w7_micro_gap_bonus: 15.0       # deliberate: we want micro-gap usage (SPEC §10.3)
     w8_integrated_block: 6.0       # reward per compatible cross-department pair sharing a block
+    w9_pax_exposure: 1.0           # cost per 1,000 passenger-hours within reach of a job (A-040)
 
 rl:                                # SPEC §11-§12
   n_instances: 500
@@ -128,3 +131,15 @@ gap_creation:                      # backend/gaps/creation.py (ASSUMPTIONS A-032
   single_line_max_hold_min: 8      # longest a train may wait when a section runs single-line
   single_line_max_total_min: 60    # train-minutes single-line working may cost for one window
   max_reroutes_per_gap: 4          # long-distance/freight trains that may be diverted for one gap
+
+pax:                               # backend/domain/pax.py (ASSUMPTIONS A-040)
+  peak_pax_local: 3000             # people on one suburban train at the busiest hour
+  peak_pax_intercity: 1000
+  margin_min: 30                   # services this close before/after a job count as within reach
+  score_per_1000: 1.0              # live scheduler: one hour of waiting == this many thousand people
+
+sudden:                            # backend/planner/sudden.py (ASSUMPTIONS A-042)
+  due_hours: {1: 2, 2: 6, 3: 24, 5: 72}   # by priority: critical, high, medium, low
+  max_bumped: 2                    # planned jobs one sudden task may push aside
+  emergency_max_train_min: 3000    # train-minutes a critical fault's emergency block may cost (P1; P2 gets two thirds)
+  emergency_lead_min: 10           # time to get a gang and protection to site

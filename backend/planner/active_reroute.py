@@ -74,6 +74,8 @@ def plan_block_reroutes(net: Network, week_by_id: dict[str, Train],
             "train_id": train.id, "train_name": train.name, "train_class": best.train_class,
             "sections": best.sections, "added_delay_min": best.added_delay_min,
             "within_limit": best.within_limit,
+            # when the train was due through the closed section, so the map can walk it round the detour
+            "enter_s": o.enter_s, "exit_s": o.exit_s, "track": o.track,
         })
 
     swap = track_swap_opportunity(net, section, out.locals_in_window / max(1.0, (end_s - start_s) / 3600))

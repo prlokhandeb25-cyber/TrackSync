@@ -20,7 +20,7 @@ from pydantic import BaseModel
 from backend.api.routes import DAY_S, DAYS, _cluster_pool
 from backend.api.state import (
     STATE, creation_summary, ensure_interval_index, ensure_plan, ensure_world, make_creator,
-    occupancy_by_section, reroute_cache,
+    get_pax, occupancy_by_section, reroute_cache, week_by_id,
 )
 from backend.config import load_config
 from backend.domain.compatibility import check_allotment
@@ -461,6 +461,16 @@ def schedule_week() -> dict:
     pool, clusters, scores, cluster_of = _scored_pool()
     by_id = {t.id: t for t in w.tasks}
     entries = _entries(plan, by_id, cluster_of)
+    # jobs a sudden task pushed aside: show their NEW slot (or none, if deferred)
+    moved = []
+    for e in entries:
+        if e["task_id"] in STATE.overrides:
+            o = STATE.overrides[e["task_id"]]
+            if o:
+                moved.append({**e, "start_s": o["start_s"], "end_s": o["end_s"], "section_id": o["section_id"],
+                              "zone": o["zone_ref"], "track": o["track"], "gap_type": o["gap_type"],
+                              "tag": "moved"})
+    entries = [e for e in entries if e["task_id"] not in STATE.overrides] + moved
     placed_ids = {e["task_id"] for e in entries}
 
     # jobs raised by a user are scheduled live, not by the weekly solve: show them in the week too
@@ -478,11 +488,24 @@ def schedule_week() -> dict:
                 "created": bool(p.created), "tag": "",
             })
             placed_ids.add(tid)
+    # sudden tasks were never in the planned pool; they are booked live, and belong in the week too
+    for sp in STATE.sudden_state.placed:
+        if sp.placed and sp.task.id not in placed_ids:
+            t = sp.task
+            entries.append({
+                "task_id": t.id, "label": t.label, "description": t.description,
+                "department": t.department.value, "zone": t.zone.ref, "section_id": sp.window.section_id,
+                "track": sp.window.track, "start_s": sp.start_s, "end_s": sp.end_s,
+                "gap_type": sp.window.gap_type.value, "source": "SUDDEN", "priority": t.priority,
+                "cluster": None, "created": bool(sp.created), "tag": "sudden",
+            })
+            placed_ids.add(t.id)
     entries.sort(key=lambda e: e["start_s"])
 
     unplaced = [{"task_id": t.id, "label": t.label, "department": t.department.value,
                  "zone": t.zone.ref, "duration_min": t.duration_min,
-                 "reason": STATE.user_unplaced.get(t.id, "no window long enough this week")}
+                 "reason": STATE.user_unplaced.get(t.id, "pushed aside by a sudden task, no slot left"
+                                  if t.id in STATE.overrides else "no window long enough this week")}
                 for t in w.tasks if t.id not in placed_ids]
     nat = STATE.plan_natural
     by_day = {DAYS[i]: sum(1 for e in entries if (e["start_s"] // DAY_S) % 7 == i) for i in range(7)}
@@ -535,7 +558,8 @@ def _build_month() -> None:
             for t in carried:
                 t.scheduled_start_s = t.scheduled_end_s = None
             tasks = new + carried
-            natural, res, created = solve_with_creation(w.net, tasks, w.windows, occ, rc, limit)
+            natural, res, created = solve_with_creation(w.net, tasks, w.windows, occ, rc, limit,
+                                                        pax=get_pax())
             tby = {t.id: t for t in tasks}
             off = (k - 1) * 7 * DAY_S
             ek = _entries(res, tby, {}, off, f"W{k}")

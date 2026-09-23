@@ -23,20 +23,16 @@ export default function RerouteAdvisor() {
   return (
     <div className="panel" style={{ marginTop: 16 }}>
       <div className="panel-head">
-        <h2>Could a window be created for the unplaced work?</h2>
-        <span className="sub">{d.unscheduled_total} jobs have no window long enough</span>
+        <h2>Unplaced work · can a window be made?</h2>
+        <span className="sub">{d.unscheduled_total} jobs</span>
       </div>
       <div className="lede">
-        Intercity and freight trains have a fixed origin and destination but not a fixed route,
-        so they can be <b>rerouted</b> to free a corridor. Suburban locals serve fixed stations
-        and are never rerouted — their only lever is running <b>single-line working</b> on their
-        own track pair. Every figure below came from a real path search or track check just now.
+        Long-distance trains can be <b>rerouted</b>. Suburban locals never are; they run <b>single-line</b> on their own track pair.
       </div>
       <div className="panel-body flush scroll" style={{ maxHeight: 320 }}>
         {d.opportunities.length === 0 && (
           <div className="panel-body muted">
-            No lever found for the remaining work — it needs a window longer than either
-            rerouting or a track swap can create here.
+            No lever found: these jobs need a longer window than rerouting or a track swap can make.
           </div>
         )}
         {d.opportunities.map(o => (

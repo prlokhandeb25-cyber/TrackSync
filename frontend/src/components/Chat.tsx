@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { api, type ChatAnswer } from '../api'
+import type { FocusReq } from './NetworkMap'
 
 /* The assistant reads live state and answers from it. No language model is involved, which is
    the point: every figure it quotes is read from the same objects the planner and the map use,
@@ -9,10 +10,10 @@ export function MitraIcon() {
   return (
     <svg viewBox="0 0 32 32" fill="none" aria-hidden="true">
       <rect x="6" y="4" width="20" height="21" rx="6" fill="#fff" />
-      <rect x="9" y="8" width="14" height="8" rx="2.5" fill="#1b2a4a" />
+      <rect x="9" y="8" width="14" height="8" rx="2.5" fill="#0e2a47" />
       <circle cx="13" cy="12" r="1.7" fill="#7dd3fc" />
       <circle cx="19" cy="12" r="1.7" fill="#7dd3fc" />
-      <path d="M13 19.2c1.7 1.6 4.3 1.6 6 0" stroke="#5b9dff" strokeWidth="1.8" strokeLinecap="round" />
+      <path d="M13 19.2c1.7 1.6 4.3 1.6 6 0" stroke="#e8912d" strokeWidth="1.8" strokeLinecap="round" />
       <circle cx="11" cy="22" r="1.3" fill="#f59e0b" />
       <circle cx="21" cy="22" r="1.3" fill="#f59e0b" />
       <path d="M9 27l-2 2.5M23 27l2 2.5" stroke="#fff" strokeWidth="2" strokeLinecap="round" />
@@ -26,19 +27,18 @@ interface Turn { role: 'user' | 'bot'; text: string; answer?: ChatAnswer }
 
 const OPENING: Turn = {
   role: 'bot',
-  text: "Namaste! I'm RailMitra. Ask me about the network and I'll answer from the live plan. I'm not "
-    + "a language model — every number I give you is read out of the same objects the solver and the "
-    + "map use, so I can't make one up. The line under each answer shows what I read.",
+  text: "Namaste! I'm RailMitra. Ask me what would happen — a job, a closure, two kinds of work sharing a "
+    + "place — and I run the real gap finder, rule engine and passenger model on a copy of the schedule. "
+    + "No language model, and nothing I try changes the plan. The line under each answer shows what I read.",
 }
 
 const STARTERS = [
-  'Which sections are not fit?',
+  'What if a 60 minute PWI job at Dadar to Matunga?',
+  'What if Dadar to Matunga is closed at 14:00 for an hour?',
+  'Can OHE insulator work and tamping happen together at Kurla?',
+  'Best time for a 45 minute S&T job at Thane',
+  'How busy is Thane at 9am?',
   "Why can't S&T work on NRL-BVS?",
-  'Show me the department conflicts',
-  'How many gaps between trains are there?',
-  'How are jobs grouped?',
-  'What did gap creation open?',
-  'How does the RL dispatcher compare with CP-SAT?',
 ]
 
 function render(text: string) {
@@ -50,7 +50,10 @@ function render(text: string) {
       : <span key={i}>{p}</span>)
 }
 
-export default function Chat() {
+export default function Chat({ atS = 0, onShow }: {
+  atS?: number
+  onShow?: (section: string, startS?: number, extra?: Partial<FocusReq>) => void
+}) {
   const [turns, setTurns] = useState<Turn[]>([OPENING])
   const [q, setQ] = useState('')
   const [busy, setBusy] = useState(false)
@@ -67,7 +70,7 @@ export default function Chat() {
     setQ('')
     setBusy(true)
     try {
-      const a = await api.chat(question)
+      const a = await api.chat(question, atS)
       setTurns(t => [...t, { role: 'bot', text: a.text, answer: a }])
     } catch {
       setTurns(t => [...t, { role: 'bot', text: 'I could not reach the planner just then.' }])
@@ -88,7 +91,7 @@ export default function Chat() {
         <div>
           <h2>RailMitra</h2>
           <span className="sub" style={{ marginLeft: 0, textAlign: 'left', display: 'block' }}>
-            your railway planning assistant · live data, no LLM
+            live analysis · no LLM
           </span>
         </div>
       </div>
@@ -107,6 +110,10 @@ export default function Chat() {
                         <span key={k} className="chip">{f.k} <b>{f.v}</b></span>
                       ))}
                     </div>
+                  ) : null}
+                  {t.answer?.action?.section && onShow ? (
+                    <button className="action chat-go" onClick={() => onShow(t.answer!.action!.section!, t.answer!.action!.start_s, {
+                      label: 'What-if slot', id: undefined })}>{t.answer.action.label} →</button>
                   ) : null}
                   {t.answer?.trace?.length ? (
                     <div className="trace">read: {t.answer.trace.join(' · ')}</div>
@@ -128,7 +135,7 @@ export default function Chat() {
 
       <form className="chat-input" onSubmit={e => { e.preventDefault(); ask(q) }}>
         <input value={q} onChange={e => setQ(e.target.value)}
-               placeholder="Ask RailMitra… e.g. how are jobs grouped?" disabled={busy} />
+               placeholder="Ask, or try a what-if…" disabled={busy} />
         <button className="action primary" type="submit" disabled={busy || !q.trim()}>Ask</button>
       </form>
     </div>

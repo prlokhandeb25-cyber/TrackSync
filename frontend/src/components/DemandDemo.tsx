@@ -65,7 +65,7 @@ export default function DemandDemo() {
                 <div className="bar" style={{ height: 10 }}>
                   <i style={{
                     width: `${Math.min(100, (result.cpsat.latency_ms / maxMs) * 100)}%`,
-                    background: 'linear-gradient(90deg, #47566b, #2f3a4a)',
+                    background: 'var(--text-mute)',
                   }} />
                 </div>
               </div>
@@ -77,7 +77,7 @@ export default function DemandDemo() {
                 <div className="bar" style={{ height: 10 }}>
                   <i style={{
                     width: `${Math.max(1.5, (result.rl.latency_ms / maxMs) * 100)}%`,
-                    background: 'linear-gradient(90deg, var(--fit), #2a9d6a)',
+                    background: 'var(--fit)',
                   }} />
                 </div>
               </div>

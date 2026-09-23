@@ -12,7 +12,7 @@ const DAY = 86400
 
 const GAP_COLOR: Record<string, string> = {
   MICRO_GAP: 'var(--accent)',
-  NIGHT_WINDOW: '#8b7cf6',
+  NIGHT_WINDOW: 'var(--block)',
   MEGABLOCK: 'var(--fit)',
 }
 
@@ -39,7 +39,7 @@ export default function GapStrip({ tracks, nowS }: { tracks: TimelineTrack[]; no
               ))}
               {t.trains.map((s, k) => (
                 <line key={k} x1={x(s)} x2={x(s)} y1={y + 1.5} y2={y + ROW - 1.5}
-                      stroke="#fff" strokeOpacity={0.4} strokeWidth={0.6} />
+                      stroke="var(--text)" strokeOpacity={0.4} strokeWidth={0.6} />
               ))}
             </g>
           )
@@ -54,9 +54,9 @@ export default function GapStrip({ tracks, nowS }: { tracks: TimelineTrack[]; no
       </svg>
       <div className="legend" style={{ padding: '6px 0 0', border: 'none', gap: '4px 12px' }}>
         <span><i style={{ background: 'var(--accent)' }} />gap between trains</span>
-        <span><i style={{ background: '#8b7cf6' }} />night</span>
+        <span><i style={{ background: 'var(--block)' }} />night</span>
         <span><i style={{ background: 'var(--fit)' }} />megablock</span>
-        <span><i style={{ background: '#fff', opacity: 0.5, width: 2 }} />train</span>
+        <span><i style={{ background: 'var(--text)', opacity: 0.5, width: 2 }} />train</span>
       </div>
     </div>
   )

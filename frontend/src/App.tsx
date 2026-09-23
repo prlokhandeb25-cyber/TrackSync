@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import NetworkMap from './components/NetworkMap'
+import NetworkMap, { type BlockInfo, type FocusReq } from './components/NetworkMap'
+import SuddenPanel from './components/SuddenPanel'
 import Coordination from './components/Coordination'
 import WeeklyPlan from './components/WeeklyPlan'
 import Chat, { MitraIcon } from './components/Chat'
 import Impact from './components/Impact'
 import AlgoLab from './components/AlgoLab'
-import Integration from './components/Integration'
+// import Integration from './components/Integration'   // IR integration tab: commented out
 import ProofStrip from './components/ProofStrip'
 import YourJobs from './components/YourJobs'
 import JobClusters, { type Halo } from './components/JobClusters'
@@ -14,19 +15,33 @@ import ReroutePanel from './components/ReroutePanel'
 import {
   api, DAYS, hhmm,
   type EventItem, type GapData, type MatrixData, type NetworkData,
-  type PlanData, type RerouteBlock, type SectionBrief, type Task, type TrainsData,
+  type PlanData, type RerouteBlock, type SectionBrief, type SuddenResult, type Task, type TrainsData,
 } from './api'
 
-type Tab = 'operations' | 'coordination' | 'plan' | 'capacity' | 'impact' | 'ai' | 'integration'
+// 'capacity' (Corridor capacity) and 'integration' (IR integration) are commented out of the tab bar.
+type Tab = 'operations' | 'coordination' | 'plan' | 'impact' | 'ai'
 
 const TAB_LABEL: Record<Tab, string> = {
   operations: 'Operations',
   coordination: 'Department coordination',
   plan: 'Weekly block plan',
-  capacity: 'Corridor capacity',
+  // capacity: 'Corridor capacity',
   impact: 'Before / after',
   ai: 'AI dispatcher',
-  integration: 'IR integration',
+  // integration: 'IR integration',
+}
+
+type Win = { zone_ref: string; start_s: number; end_s: number; id?: string; dept?: string; label?: string;
+             urgent?: boolean; level?: string }
+const PROTECT_S = 15 * 60      // protection goes up before the work starts ...
+const HANDBACK_S = 10 * 60     // ... and comes down after it ends
+
+const initialTheme = (): 'light' | 'dark' => {
+  try {
+    const t = localStorage.getItem('rb-theme')
+    if (t === 'light' || t === 'dark') return t
+  } catch { /* storage can be blocked */ }
+  return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
 }
 
 export default function App() {
@@ -40,8 +55,13 @@ export default function App() {
   const [tab, setTab] = useState<Tab>('operations')
   const [selected, setSelected] = useState<string | null>(null)
   const [brief, setBrief] = useState<SectionBrief | null>(null)
-  const [userWindows, setUserWindows] = useState<{ zone_ref: string; start_s: number; end_s: number }[]>([])
-  const [simWindows, setSimWindows] = useState<{ zone_ref: string; start_s: number; end_s: number }[]>([])
+  const [userWindows, setUserWindows] = useState<Win[]>([])
+  const [simWindows, setSimWindows] = useState<Win[]>([])
+  const [suddenWins, setSuddenWins] = useState<Win[]>([])
+  const [movedIds, setMovedIds] = useState<Set<string>>(new Set())
+  const [movedWins, setMovedWins] = useState<Win[]>([])
+  const [focus, setFocus] = useState<FocusReq | null>(null)
+  const [theme, setTheme] = useState<'light' | 'dark'>(initialTheme)
   const [clock, setClock] = useState(7 * 3600)
   const [speed, setSpeed] = useState(1)
   const [tick, setTick] = useState(0)
@@ -51,6 +71,11 @@ export default function App() {
   const [playing, setPlaying] = useState(true)
   const [err, setErr] = useState<string | null>(null)
   const raf = useRef<number>(0)
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme
+    try { localStorage.setItem('rb-theme', theme) } catch { /* storage can be blocked */ }
+  }, [theme])
 
   useEffect(() => {
     Promise.all([api.network(), api.tasks(), api.matrix(20), api.gaps(), api.plan(), api.events()])
@@ -137,7 +162,8 @@ export default function App() {
         setEvents(ev => [...ev, ...lines].slice(-400))
         const wins = d.results
           .filter(r => r.placed && r.window)
-          .map(r => ({ zone_ref: r.window!.zone_ref, start_s: r.window!.start_s, end_s: r.window!.end_s }))
+          .map(r => ({ zone_ref: r.window!.zone_ref, start_s: r.window!.start_s, end_s: r.window!.end_s,
+                       id: r.task.id, dept: r.task.department, label: r.task.label ?? r.task.describe }))
         if (wins.length) setSimWindows(sw => [...sw, ...wins].slice(-200))
         setTick(t => t + 1)
       } catch { /* transient - the next tick retries */ }
@@ -149,16 +175,74 @@ export default function App() {
   const degraded = useMemo(
     () => (net?.sections ?? []).filter(s => s.status !== 'FIT'), [net])
 
-  const activeBlocks = useMemo(() => {
-    const s = new Set<string>()
+  const tasksById = useMemo(() => Object.fromEntries(tasks.map(t => [t.id, t])) as Record<string, Task>, [tasks])
+
+  // Every job whose work site is on the map right now (including the protection set-up and the
+  // hand-back around it), from every source: the weekly plan, the live simulation, the jobs you
+  // raised, sudden tasks, and planned jobs a sudden task pushed to a new time.
+  const blockInfo = useMemo(() => {
+    const out: Record<string, BlockInfo> = {}
+    const put = (w: Win) => {
+      if (clock < w.start_s - PROTECT_S || clock >= w.end_s + HANDBACK_S) return
+      const prev = out[w.zone_ref]
+      if (prev && (prev.urgent || !w.urgent)) return
+      out[w.zone_ref] = { section: w.zone_ref, startS: w.start_s, endS: w.end_s, dept: w.dept, label: w.label,
+                          id: w.id, urgent: w.urgent, level: w.level }
+    }
+    for (const w of suddenWins) put(w)
+    for (const w of movedWins) put(w)
     if (plan) for (const a of plan.assignments) {
-      if (a.start_s <= clock && clock < a.start_s + 3600) s.add(a.zone_ref)
+      if (movedIds.has(a.task_id)) continue
+      const t = tasksById[a.task_id]
+      put({ zone_ref: a.zone_ref, start_s: a.start_s, end_s: (a as { end_s?: number }).end_s ?? a.start_s + 3600,
+            id: a.task_id, dept: t?.department, label: t?.label })
     }
-    for (const w of [...simWindows, ...userWindows]) {
-      if (w.start_s <= clock && clock < w.end_s) s.add(w.zone_ref)
+    for (const w of [...simWindows, ...userWindows]) put(w)
+    return out
+  }, [plan, clock, simWindows, userWindows, suddenWins, movedWins, movedIds, tasksById])
+  const activeBlocks = useMemo(() => new Set(Object.keys(blockInfo)), [blockInfo])
+
+  // Fly the map to a job and say where and when it happens; start the clock a little before it.
+  const showJob = (section: string, startS?: number, extra: Partial<FocusReq> = {}) => {
+    setSelected(section); setTab('operations')
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+    if (startS !== undefined) {
+      // a little before the protection goes up, at real-time-ish pace so the work can be watched
+      setClock(Math.max(0, startS - PROTECT_S - 90)); setSpeed(1); setPlaying(true)
     }
-    return s
-  }, [plan, clock, simWindows, userWindows])
+    setFocus({ key: Date.now(), section, startS: startS ?? clockRef.current, ...extra })
+  }
+
+  const onSudden = (r: SuddenResult) => {
+    if (r.placed && r.window) {
+      const w = r.window
+      setSuddenWins(ws => [...ws.filter(x => x.id !== r.id), {
+        zone_ref: w.zone_ref, start_s: w.start_s, end_s: w.end_s, id: r.id, dept: r.task.department,
+        label: r.task.label, urgent: r.priority <= 2, level: r.level }])
+    }
+    if (r.bumped.length) {
+      setMovedIds(ids => new Set([...ids, ...r.bumped.map(b => b.task_id)]))
+      setSimWindows(ws => ws.filter(x => !r.bumped.some(b => b.task_id === x.id)))
+      setMovedWins(ws => [
+        ...ws.filter(x => !r.bumped.some(b => b.task_id === x.id)),
+        ...r.bumped.filter(b => b.to).map(b => ({
+          zone_ref: b.zone, start_s: b.to!.start_s, end_s: b.to!.end_s, id: b.task_id, dept: b.department, label: b.label })),
+      ])
+    }
+    setEvents(ev => [...ev, {
+      at_s: r.at_s, kind: 'demand',
+      text: `Sudden ${r.level.toLowerCase()}: ${r.task.describe} — ${r.window ? `${r.window.hhmm} on ${r.window.section_id}` : 'no slot yet'}`
+        + (r.bumped.length ? `; moved ${r.bumped.length} lower-priority job(s)` : '') + ` (${Math.round(r.response_ms)} ms).`,
+    }].slice(-400))
+    setTick(t => t + 1)
+    if (r.placed && r.window) watchSudden(r)
+  }
+  const onSuddenClear = () => { setSuddenWins([]); setMovedIds(new Set()); setMovedWins([]); setTick(t => t + 1) }
+  const watchSudden = (r: SuddenResult) => {
+    if (!r.window) return
+    showJob(r.window.zone_ref, r.window.start_s, {
+      endS: r.window.end_s, label: r.task.label, dept: r.task.department, track: r.window.track, id: r.id })
+  }
 
   const selectedSection = net?.sections.find(s => s.id === selected) ?? null
   const selectedTasks = tasks.filter(t => t.zone === selected)
@@ -180,11 +264,9 @@ export default function App() {
   return (
     <div className="app">
       <header className="header">
-        <div className="logo">
-          <svg viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2"
-               strokeLinecap="round" strokeLinejoin="round">
-            <rect x="4" y="3" width="16" height="13" rx="2.5" />
-            <path d="M4 11h16M8 20l-2 2M16 20l2 2M9 16h.01M15 16h.01" />
+        <div className="logo" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+            <path d="M7 3l-3 18M17 3l3 18M5.6 9h12.8M4.8 15h14.4" />
           </svg>
         </div>
         <div className="brand">
@@ -211,6 +293,19 @@ export default function App() {
             <div className="k">Sim clock</div>
           </div>
         </div>
+        <button className="theme-toggle" onClick={() => setTheme(t => (t === 'dark' ? 'light' : 'dark'))}
+                title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+                aria-label="Toggle light and dark mode">
+          {theme === 'dark' ? (
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
+            </svg>
+          ) : (
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" />
+            </svg>
+          )}
+        </button>
       </header>
 
       <nav className="tabs">
@@ -250,11 +345,15 @@ export default function App() {
                   totalActive={trains?.total_active ?? 0}
                   truncated={trains?.truncated ?? 0}
                   clock={`${DAYS[day]} ${hhmm(clock)}`}
+                  clockS={clock}
                   selected={selected}
                   onSelect={setSelected}
                   blocks={activeBlocks}
+                  blockInfo={blockInfo}
                   halos={halos}
                   reroutes={rerouteBlocks}
+                  focus={focus}
+                  onClearFocus={() => setFocus(null)}
                 />
               </div>
             </div>
@@ -263,7 +362,12 @@ export default function App() {
             </div>
 
             <div style={{ display: 'grid', gap: 16, alignContent: 'start' }}>
-              <YourJobs tick={tick} onWindows={setUserWindows} onWatch={(start, sec) => { setClock(start); setSelected(sec); setPlaying(true) }} />
+              <SuddenPanel net={net} clock={clock} tick={tick} onResult={onSudden} onWatch={watchSudden}
+                           onClear={onSuddenClear} />
+              <YourJobs tick={tick} onWindows={setUserWindows}
+                        onWatch={t => t.schedule && showJob(t.schedule.section_id, t.schedule.start_s, {
+                          endS: t.schedule.end_s, label: t.description || t.label, dept: t.department,
+                          track: t.schedule.track, id: t.id })} />
               <ReroutePanel blocks={rerouteBlocks} />
 
               {selectedSection && (
@@ -363,15 +467,12 @@ export default function App() {
         )}
 
         {tab === 'coordination' && (
-          <Coordination mat={mat} clock={clock}
-                        onShow={(id, startS) => {
-                          setSelected(id); setTab('operations')
-                          if (startS !== undefined) { setClock(Math.max(0, startS - 300)); setPlaying(true) }
-                        }} />
+          <Coordination mat={mat} clock={clock} onShow={showJob} />
         )}
 
         {tab === 'plan' && <WeeklyPlan />}
 
+        {/* Corridor capacity tab: commented out
         {tab === 'capacity' && (
           <div className="grid two">
             <div className="panel">
@@ -427,13 +528,14 @@ export default function App() {
             </div>
           </div>
         )}
+        */}
 
         {tab === 'impact' && <Impact />}
         {tab === 'ai' && <AlgoLab />}
-        {tab === 'integration' && <Integration />}
+        {/* {tab === 'integration' && <Integration />}   IR integration tab: commented out */}
       </main>
 
-      <div className={`chat-drawer ${chatOpen ? '' : 'closed'}`}><Chat /></div>
+      <div className={`chat-drawer ${chatOpen ? '' : 'closed'}`}><Chat atS={clock} onShow={showJob} /></div>
       <div className="mitra-dock">
         {!chatOpen && <span className="mitra-label">Ask <b>RailMitra</b></span>}
         <button className="chat-fab" onClick={() => setChatOpen(o => !o)}

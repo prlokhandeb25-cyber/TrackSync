@@ -21,6 +21,7 @@ from backend.planner.cpsat import PlanResult, solve_with_relaxation
 from backend.planner.creation_plan import solve_with_creation
 from backend.planner.interval_index import IntervalWindowIndex, build_interval_index
 from backend.gaps.creation import RerouteCache, options_for_task
+from backend.domain.pax import PaxModel
 from backend.planner.live_sim import LiveSimPlacement, LiveSimState
 
 _LOCK = threading.Lock()
@@ -46,6 +47,14 @@ class AppState:
     occ_by_section: dict | None = None
     plan_natural: PlanResult | None = None      # weekly plan before any gap creation
     creation_used: list = field(default_factory=list)
+    pax: PaxModel | None = None
+    week_by_id: dict | None = None
+    # sudden tasks: never in the planned pool; their own bookings, log, and the planned/simulated
+    # jobs they displaced (task id -> new slot, or None if it could not be re-placed)
+    sudden_state: LiveSimState = field(default_factory=LiveSimState)
+    sudden_seq: int = 0
+    sudden_log: list = field(default_factory=list)
+    overrides: dict = field(default_factory=dict)
 
     def log(self, at_s: int, text: str, kind: str = "info") -> None:
         self.event_log.append({"at_s": at_s, "text": text, "kind": kind})
@@ -95,13 +104,13 @@ def ensure_plan() -> PlanResult:
     world = ensure_world()
     # Built BEFORE taking the lock: these helpers call ensure_world(), which takes the same
     # (non-reentrant) lock, so calling them while holding it deadlocks the whole API.
-    occ, rc = occupancy_by_section(), reroute_cache()
+    occ, rc, pax = occupancy_by_section(), reroute_cache(), get_pax()
     with _LOCK:
         if STATE.plan is not None:
             return STATE.plan
         natural, res, created = solve_with_creation(
             world.net, world.tasks, world.windows, occ, rc,
-            time_limit_s=load_config()["planner"]["solve_time_s_demo"],
+            time_limit_s=load_config()["planner"]["solve_time_s_demo"], pax=pax,
         )
         STATE.plan_natural = natural
         STATE.plan = res
@@ -139,6 +148,21 @@ def reroute_cache() -> RerouteCache:
     return STATE.reroute_cache
 
 
+def get_pax() -> PaxModel:
+    """Trains per hour and passengers per section, built once from the week's occupancy."""
+    occ = occupancy_by_section()
+    if STATE.pax is None:
+        STATE.pax = PaxModel(occ)
+    return STATE.pax
+
+
+def week_by_id() -> dict:
+    world = ensure_world()
+    if STATE.week_by_id is None:
+        STATE.week_by_id = {t.id: t for t in world.week}
+    return STATE.week_by_id
+
+
 def make_creator():
     """A function the scheduler calls when no natural gap fits: priced ways to open one."""
     world = ensure_world()
@@ -146,8 +170,11 @@ def make_creator():
     rc = reroute_cache()
 
     def creator(task, from_s):
+        # critical and high-priority faults may disrupt more trains than routine work (A-042)
+        stretch = {1: 3.0, 2: 2.0}.get(task.priority, 1.0)
         return options_for_task(world.net, task, occ.get(task.zone.ref, []), rc,
-                                from_s=from_s, horizon_days=2, deadline_s=task.due_by_s)
+                                from_s=from_s, horizon_days=2, deadline_s=task.due_by_s,
+                                stretch=stretch)
     return creator
 
 
@@ -182,3 +209,7 @@ def reset() -> None:
         STATE.user_unplaced = {}
         STATE.plan_natural = None
         STATE.creation_used = []
+        STATE.sudden_state = LiveSimState()
+        STATE.sudden_seq = 0
+        STATE.sudden_log = []
+        STATE.overrides = {}

@@ -10,9 +10,9 @@ import RlPanel from './RlPanel'
      4  check who may share      5  give the groups a time
 */
 
-const PALETTE = ['#22d3ee', '#a3e635', '#facc15', '#fb7185', '#f472b6',
-                 '#818cf8', '#2dd4bf', '#fdba74', '#c4b5fd', '#86efac']
-const DEPT_COLOR: Record<string, string> = { PWI: '#4a8fe7', OWD: '#e0894a', S_AND_T: '#3fc8a4' }
+const PALETTE = ['#0284c7', '#65a30d', '#d97706', '#dc2626', '#c026d3',
+                 '#4f46e5', '#0d9488', '#ea580c', '#7c3aed', '#16a34a']
+const DEPT_COLOR: Record<string, string> = { PWI: 'var(--d-pwi)', OWD: 'var(--d-owd)', S_AND_T: 'var(--d-snt)' }
 const DEPT_SHORT: Record<string, string> = { PWI: 'PWI', OWD: 'OWD', S_AND_T: 'S&T' }
 const STAGES = ['Find the gaps', 'Open near misses', 'Group the jobs', 'Check the rules', 'Give it a time']
 
@@ -29,7 +29,7 @@ function Anatomy({ gapMin, buffer, overhead, need }: { gapMin: number; buffer: n
   let x = 0
   const bars: { w: number; c: string; label: string }[] = []
   bars.push({ w: seg(safety), c: '#64748b', label: `${safety.toFixed(0)} safety` })
-  bars.push({ w: seg(setup), c: '#8b7cf6', label: `${setup.toFixed(0)} set-up + hand-back` })
+  bars.push({ w: seg(setup), c: 'var(--block)', label: `${setup.toFixed(0)} set-up + hand-back` })
   bars.push({ w: seg(work), c: work >= need ? 'var(--fit)' : 'var(--sick)', label: `${work.toFixed(0)} to work` })
   return (
     <svg viewBox={`0 0 ${W} 44`} width="100%" role="img" aria-label="A gap divided into safety, set-up and work time">
@@ -120,7 +120,7 @@ export default function AlgoLab() {
                 <rect x={tx(r.prev.exit_s)} y={10} width={Math.max(1.5, tx(r.next.enter_s) - tx(r.prev.exit_s))} height={26} rx={3}
                       fill={r.keep ? 'var(--fit)' : r.creation ? 'var(--sick)' : '#64748b'}
                       opacity={cur1 ? 1 : 0.38} className={cur1 ? 'gap-in' : ''} />
-                <line x1={tx(r.next.enter_s)} x2={tx(r.next.enter_s)} y1={8} y2={38} stroke="#fff" strokeOpacity={0.75} strokeWidth={1} />
+                <line x1={tx(r.next.enter_s)} x2={tx(r.next.enter_s)} y1={8} y2={38} stroke="var(--text)" strokeOpacity={0.75} strokeWidth={1} />
               </g>
             )
           })}
@@ -181,7 +181,7 @@ export default function AlgoLab() {
         })}
         {last && lastA >= 0 && (
           <line x1={sx(pts[lastA].x_km)} y1={sy(pts[lastA].y_km)} x2={sx(pts[lastB].x_km)} y2={sy(pts[lastB].y_km)}
-                stroke="#fff" strokeWidth={2} strokeDasharray="4 3" />
+                stroke="var(--text)" strokeWidth={2} strokeDasharray="4 3" />
         )}
         {pts.map((p, i) => {
           const g = groups.get(find(i))!
@@ -218,7 +218,7 @@ export default function AlgoLab() {
               <rect x={92} y={y + 3} width={SW - 100} height={18} rx={4} fill="var(--line-soft)" />
               {on && r.placed && (
                 <rect className="gap-in" x={px(r.start_s!)} y={y + 3} width={Math.max(3, px(r.end_s!) - px(r.start_s!))} height={18} rx={4}
-                      fill={DEPT_COLOR[r.department]} stroke={r.created ? 'var(--sick)' : '#fff'}
+                      fill={DEPT_COLOR[r.department]} stroke={r.created ? 'var(--sick)' : 'var(--panel)'}
                       strokeWidth={r.created ? 2 : r.integrated_with.length ? 1.6 : 0} strokeDasharray={r.created ? '4 3' : undefined} />
               )}
               {on && !r.placed && <text x={100} y={y + 16} fontSize={10} fill="var(--stopstart)">no gap available in time</text>}

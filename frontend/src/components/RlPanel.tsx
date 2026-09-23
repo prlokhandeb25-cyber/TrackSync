@@ -127,8 +127,8 @@ export default function RlPanel() {
                   <i style={{
                     width: `${(r.mean_gap_vs_cpsat_pct / worst) * 100}%`,
                     background: r.policy === best.policy
-                      ? 'linear-gradient(90deg, var(--fit), #2a9d6a)'
-                      : 'linear-gradient(90deg, #47566b, #2f3a4a)',
+                      ? 'var(--fit)'
+                      : 'var(--text-mute)',
                   }} />
                 </div>
               </div>

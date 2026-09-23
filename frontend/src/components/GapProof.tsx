@@ -35,7 +35,7 @@ export default function GapProof() {
   return (
     <div className="panel">
       <div className="panel-head">
-        <h2>Step 1 — how the train gaps were found</h2>
+        <h2>1 · Finding the gaps</h2>
         <span className="sub">{d.n_trains} trains on this track today</span>
       </div>
 
@@ -53,11 +53,10 @@ export default function GapProof() {
         </div>
 
         <p className="explain">
-          A gap between two trains is not working time. Take off <b>{d.buffer_min} min</b> of safety at each end,
-          then <b>{d.overhead_min} min</b> to set up and hand back the line — what is left must be at least{' '}
-          <b>{d.min_workable_min} min</b>. Between {hhmm(d.hour_from * 3600)} and {hhmm(d.hour_to * 3600)} the engine
-          checked <b>{d.rows.length}</b> gaps: <b style={{ color: 'var(--fit)' }}>{d.kept} kept</b>,{' '}
-          {d.dropped} dropped, of which <b style={{ color: 'var(--sick)' }}>{d.near_misses} were near misses</b>.
+          Gap − <b>{d.buffer_min} min</b> safety − <b>{d.overhead_min} min</b> set-up = work time. Keep if ≥{' '}
+          <b>{d.min_workable_min} min</b>. Checked <b>{d.rows.length}</b> gaps
+          ({hhmm(d.hour_from * 3600)}–{hhmm(d.hour_to * 3600)}): <b style={{ color: 'var(--fit)' }}>{d.kept} kept</b>,{' '}
+          <b style={{ color: 'var(--sick)' }}>{d.near_misses} near misses</b>.
         </p>
 
         <svg viewBox={`0 0 ${W} 74`} width="100%" role="img" aria-label="Trains and gaps on the track">
@@ -65,7 +64,7 @@ export default function GapProof() {
           {d.windows.map(w => (
             <rect key={w.id} className="gap-in" x={x(Math.max(w.start_s, t0))} y={8}
                   width={Math.max(2, x(Math.min(w.end_s, t1)) - x(Math.max(w.start_s, t0)))} height={26} rx={3}
-                  fill={w.gap_type === 'MICRO_GAP' ? 'var(--accent)' : w.gap_type === 'NIGHT_WINDOW' ? '#8b7cf6' : 'var(--fit)'} opacity={0.9} />
+                  fill={w.gap_type === 'MICRO_GAP' ? 'var(--accent)' : w.gap_type === 'NIGHT_WINDOW' ? 'var(--block)' : 'var(--fit)'} opacity={0.9} />
           ))}
           {d.rows.filter(r => !r.keep && r.creation).map((r, i) => (
             <rect key={`c${i}`} x={x(r.creation!.start_s)} y={8}
@@ -74,7 +73,7 @@ export default function GapProof() {
           ))}
           {d.rows.map((r, i) => (
             <line key={i} x1={x(r.next.enter_s)} x2={x(r.next.enter_s)} y1={10} y2={32}
-                  stroke="#fff" strokeOpacity={0.5} strokeWidth={0.8} />
+                  stroke="var(--text)" strokeOpacity={0.5} strokeWidth={0.8} />
           ))}
           {[0, 1, 2, 3, 4].map(k => {
             const s = t0 + (k * (t1 - t0)) / 4
@@ -82,9 +81,9 @@ export default function GapProof() {
                          textAnchor={k === 0 ? 'start' : k === 4 ? 'end' : 'middle'}>{hhmm(s)}</text>
           })}
           <g fontSize={10} fill="var(--text-dim)">
-            <rect x={8} y={62} width={10} height={8} rx={2} fill="var(--accent)" /><text x={22} y={69.5}>usable gap</text>
-            <rect x={110} y={62} width={10} height={8} rx={2} fill="none" stroke="var(--sick)" strokeDasharray="3 2" /><text x={124} y={69.5}>near miss, opened by a small change</text>
-            <line x1={330} x2={330} y1={61} y2={71} stroke="#fff" strokeOpacity={0.6} /><text x={336} y={69.5}>a train passing</text>
+            <rect x={8} y={62} width={10} height={8} rx={2} fill="var(--accent)" /><text x={22} y={69.5}>usable</text>
+            <rect x={70} y={62} width={10} height={8} rx={2} fill="none" stroke="var(--sick)" strokeDasharray="3 2" /><text x={84} y={69.5}>near miss (fixable)</text>
+            <line x1={200} x2={200} y1={61} y2={71} stroke="var(--text)" strokeOpacity={0.6} /><text x={206} y={69.5}>train</text>
           </g>
         </svg>
       </div>
@@ -103,7 +102,7 @@ export default function GapProof() {
                 <td className="num">{(r.after_buffers_min - d.overhead_min).toFixed(0)}</td>
                 <td className="num" style={{ fontWeight: 650, color: r.keep ? 'var(--fit)' : 'var(--text-mute)' }}>{r.usable_min}</td>
                 <td>
-                  {r.keep ? <span style={{ color: 'var(--fit)' }}>✓ kept</span>
+                  {r.keep ? <span style={{ color: 'var(--fit)' }}>✓ kept<span className="muted"> · {r.reliability_pct}% reliable</span></span>
                     : r.creation ? <span style={{ color: 'var(--sick)' }}>◐ {r.creation.note}</span>
                       : <span className="muted">✗ too short</span>}
                 </td>
@@ -115,19 +114,16 @@ export default function GapProof() {
 
       {cs && (
         <div className="panel-body">
-          <div className="k muted" style={{ fontSize: 11, marginBottom: 8 }}>
-            ACROSS THE WHOLE WEEK, EVERY TRACK — GAP CREATION
-          </div>
+          <div className="k muted" style={{ fontSize: 11, marginBottom: 8 }}>WHOLE WEEK · GAP CREATION</div>
           <div className="tiles mini">
             <div className="tile"><div className="v">{cs.survey.near_gaps.toLocaleString()}</div><div className="k">near-miss gaps</div>
-              <div className="note">just under {cs.min_workable_min} min of work</div></div>
+              <div className="note">just short of {cs.min_workable_min} min</div></div>
             <div className="tile"><div className="v" style={{ color: 'var(--fit)' }}>{cs.survey.created}</div><div className="k">opened</div>
-              <div className="note">{cs.survey.RETIME} by holding a train · {cs.survey.REROUTE} by rerouting</div></div>
-            <div className="tile"><div className="v" style={{ color: 'var(--accent)' }}>+{cs.survey.usable_hours_added}h</div><div className="k">usable hours added</div></div>
-            <div className="tile"><div className="v">{cs.survey.delay_train_min.toLocaleString()}</div><div className="k">train-minutes it costs</div>
-              <div className="note">{cs.survey.trains_held} trains held · {cs.survey.trains_rerouted} rerouted</div></div>
-            <div className="tile"><div className="v">{cs.weekly.natural_placed} → {cs.weekly.final_placed}</div><div className="k">jobs placed this week</div>
-              <div className="note">without → with gap creation</div></div>
+              <div className="note">{cs.survey.RETIME} held · {cs.survey.REROUTE} rerouted</div></div>
+            <div className="tile"><div className="v" style={{ color: 'var(--accent)' }}>+{cs.survey.usable_hours_added}h</div><div className="k">usable hours</div></div>
+            <div className="tile"><div className="v">{cs.survey.delay_train_min.toLocaleString()}</div><div className="k">train-min cost</div></div>
+            <div className="tile"><div className="v">{cs.weekly.natural_placed} → {cs.weekly.final_placed}</div><div className="k">jobs placed</div>
+              <div className="note">without → with</div></div>
           </div>
         </div>
       )}

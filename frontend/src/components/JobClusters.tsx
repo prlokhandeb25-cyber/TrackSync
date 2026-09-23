@@ -6,8 +6,8 @@ import { api, type ClustersData } from '../api'
 
 export interface Halo { zone: string; color: string; active: boolean }
 
-const PALETTE = ['#22d3ee', '#a3e635', '#facc15', '#fb7185', '#f472b6',
-                 '#818cf8', '#2dd4bf', '#fdba74', '#c4b5fd', '#86efac']
+const PALETTE = ['#0284c7', '#65a30d', '#d97706', '#dc2626', '#c026d3',
+                 '#4f46e5', '#0d9488', '#ea580c', '#7c3aed', '#16a34a']
 
 export default function JobClusters({ tick, onHalos }: { tick: number; onHalos: (h: Halo[]) => void }) {
   const [d, setD] = useState<ClustersData | null>(null)

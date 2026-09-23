@@ -35,11 +35,11 @@ def _fresh(tasks: list[Task]) -> None:
 
 
 def solve_with_creation(net: Network, tasks: list[Task], windows: list[CandidateWindow],
-                        occ_by_section: dict, rc: RerouteCache, time_limit_s: float
-                        ) -> tuple[PlanResult, PlanResult, list[CandidateWindow]]:
+                        occ_by_section: dict, rc: RerouteCache, time_limit_s: float,
+                        pax=None) -> tuple[PlanResult, PlanResult, list[CandidateWindow]]:
     """(plan on natural gaps, plan after creation, the created windows the final plan uses)."""
     _fresh(tasks)
-    natural = solve_with_relaxation(net, tasks, windows, time_limit_s=time_limit_s)
+    natural = solve_with_relaxation(net, tasks, windows, time_limit_s=time_limit_s, pax=pax)
     by_id = {t.id: t for t in tasks}
     if not natural.unscheduled:
         return natural, natural, []

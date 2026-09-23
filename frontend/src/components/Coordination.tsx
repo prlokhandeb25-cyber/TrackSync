@@ -3,17 +3,24 @@ import {
   api, type FormOptions, type MatrixData, type ScoredTask, type ScoresData, type SubmitResult,
 } from '../api'
 import CompatMatrix from './CompatMatrix'
+import type { FocusReq } from './NetworkMap'
 
 /* Department coordination: a department raises a job on the left; on the right the system scores
    how well it fits with the jobs around it, groups it with them, and gives it a time in the train
    gaps. The score is the rule engine's verdicts over the job's cross-department neighbours (see
    backend/domain/scoring.py); nothing here is decorative. */
 
-const DEPT_COLOR: Record<string, string> = { PWI: '#4a6fa5', OWD: '#a5744a', S_AND_T: '#4aa58c' }
+const DEPT_COLOR: Record<string, string> = { PWI: 'var(--d-pwi)', OWD: 'var(--d-owd)', S_AND_T: 'var(--d-snt)' }
 const DEPT_SHORT: Record<string, string> = { PWI: 'PWI', OWD: 'OWD', S_AND_T: 'S&T' }
 const VERDICT_TEXT: Record<string, string> = {
   COMPATIBLE: 'can share', REQUIRES_IWP: 'needs permit', INCOMPATIBLE: 'must be apart',
 }
+
+/** What the map needs to say about a job it flies to: what it is, where, and when. */
+const jobFocus = (t: ScoredTask): Partial<FocusReq> => ({
+  label: t.description || t.label, dept: t.department, id: t.id,
+  track: t.schedule?.track, endS: t.schedule?.end_s,
+})
 
 const scoreColor = (s: number) => (s >= 80 ? 'var(--fit)' : s >= 50 ? 'var(--sick)' : 'var(--stopstart)')
 
@@ -167,8 +174,10 @@ function TaskForm({ opts, clock, onDone }: {
 
 /* ---------------------------------------------------------------------------- the score card */
 
+type ShowFn = (section: string, startS?: number, extra?: Partial<FocusReq>) => void
+
 function ScoreCard({ t, open, onToggle, onShow }: {
-  t: ScoredTask; open: boolean; onToggle: () => void; onShow: (section: string, startS?: number) => void
+  t: ScoredTask; open: boolean; onToggle: () => void; onShow: ShowFn
 }) {
   const sc = t.score
   const s = t.schedule
@@ -228,7 +237,7 @@ function ScoreCard({ t, open, onToggle, onShow }: {
               <span className="muted">{p.reason}</span>
             </div>
           )) : <div className="muted" style={{ fontSize: 12 }}>No other department has a job near this one.</div>}
-          {s && <button className="action" style={{ marginTop: 8 }} onClick={() => onShow(s.section_id, s.start_s)}>Show on Operations map →</button>}
+          {s && <button className="action" style={{ marginTop: 8 }} onClick={() => onShow(s.section_id, s.start_s, jobFocus(t))}>Show on Operations map →</button>}
         </div>
       )}
     </div>
@@ -238,7 +247,7 @@ function ScoreCard({ t, open, onToggle, onShow }: {
 /* ------------------------------------------------------------------------------------- page */
 
 export default function Coordination({ mat, clock, onShow }: {
-  mat: MatrixData | null; clock: number; onShow: (section: string, startS?: number) => void
+  mat: MatrixData | null; clock: number; onShow: ShowFn
 }) {
   const [opts, setOpts] = useState<FormOptions | null>(null)
   const [data, setData] = useState<ScoresData | null>(null)
@@ -285,7 +294,7 @@ export default function Coordination({ mat, clock, onShow }: {
                       : <>Could not be placed: {last.task.unplaced_reason}</>}</div>
                   </div>
                   <button className="action" style={{ marginTop: 10 }}
-                          onClick={() => last.task.schedule && onShow(last.task.schedule.section_id, last.task.schedule.start_s)}>
+                          onClick={() => last.task.schedule && onShow(last.task.schedule.section_id, last.task.schedule.start_s, jobFocus(last.task))}>
                     See it on the Operations map →
                   </button>
                 </>

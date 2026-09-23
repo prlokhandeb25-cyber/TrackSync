@@ -21,7 +21,7 @@ from backend.domain.models import Section, SectionOccupancy
 from backend.gaps.creation import (
     RerouteCache, _cfg, _reroute_options, _retime_option, sequences,
 )
-from backend.gaps.engine import CandidateWindow, min_raw_gap_min
+from backend.gaps.engine import CandidateWindow, _late_risk, _to_grid, min_raw_gap_min
 
 
 def trace_track_day(section: Section, track: str, day: int, occ: list[SectionOccupancy],
@@ -29,6 +29,7 @@ def trace_track_day(section: Section, track: str, day: int, occ: list[SectionOcc
                     hour_from: float = 5.0, hour_to: float = 9.0) -> dict:
     cfg = load_config()["gaps"]
     buf = int(cfg["headway_buffer_s"])
+    look = max(buf, int(cfg.get("lookout_min", 5)) * 60)   # clear of the track this long before the next train
     overhead = int(cfg["block_setup_min"]) + int(cfg["block_release_min"])
     min_workable = int(cfg.get("min_workable_min", 15))
     need_s = min_raw_gap_min() * 60
@@ -45,7 +46,10 @@ def trace_track_day(section: Section, track: str, day: int, occ: list[SectionOcc
         gap = b.enter - a.exit
         if gap <= 0:
             continue  # two services overlap on this track: there is no gap to measure
-        after_buf = gap - 2 * buf
+        # the same arithmetic as the engine: safety at the front, a lookout margin at the back, then the
+        # 5-minute block grid (start rounds up, end rounds down)
+        g0, g1 = _to_grid(a.exit + buf, b.enter - look)
+        after_buf = max(0, g1 - g0)
         usable = after_buf / 60 - overhead
         keep = after_buf >= need_s
         row = {
@@ -55,6 +59,7 @@ def trace_track_day(section: Section, track: str, day: int, occ: list[SectionOcc
             "after_buffers_min": round(after_buf / 60, 1),
             "usable_min": round(max(0.0, usable), 1),
             "keep": keep, "creation": None,
+            "reliability_pct": round(100 * (1 - _late_risk(a.cls, a.exit))),
         }
         if keep:
             kept += 1
@@ -83,7 +88,7 @@ def trace_track_day(section: Section, track: str, day: int, occ: list[SectionOcc
     return {
         "section_id": section.id, "track": track, "day": day,
         "hour_from": hour_from, "hour_to": hour_to,
-        "buffer_min": buf / 60, "overhead_min": overhead, "min_workable_min": min_workable,
+        "buffer_min": round((buf + look) / 60, 1), "overhead_min": overhead, "min_workable_min": min_workable,
         "min_raw_min": need_s // 60,
         "n_trains": len(seq), "rows": rows,
         "kept": kept, "dropped": dropped, "near_misses": near,

@@ -5,15 +5,15 @@ import { api, DAYS, hhmm, type MonthSchedule, type PlanEntry, type WeekSchedule 
    gave it. Month: four rolling weekly cycles - each week is re-planned with the previous week's
    leftover jobs carried in, on the same repeating timetable. */
 
-const DEPT_COLOR: Record<string, string> = { PWI: '#4a8fe7', OWD: '#e0894a', S_AND_T: '#3fc8a4' }
+const DEPT_COLOR: Record<string, string> = { PWI: 'var(--d-pwi)', OWD: 'var(--d-owd)', S_AND_T: 'var(--d-snt)' }
 const DEPT_SHORT: Record<string, string> = { PWI: 'PWI', OWD: 'OWD', S_AND_T: 'S&T' }
 const DAY = 86400
 
 function tip(e: PlanEntry) {
   return `${DEPT_SHORT[e.department]} · ${e.description || e.label}\n${e.section_id} (${e.track})\n` +
     `${hhmm(e.start_s)}–${hhmm(e.end_s)} · ${e.gap_type.replace('_', ' ').toLowerCase()}` +
-    (e.created ? '\nin a gap opened by a small change to the trains' : '') +
-    (e.source === 'USER' ? '\nraised by you' : '')
+    (e.created ? '\ncreated gap' : '') +
+    (e.source === 'USER' ? '\nraised by you' : '') + (e.source === 'SUDDEN' ? '\nsudden task' : '') + (e.tag === 'moved' ? '\nmoved by a sudden task' : '')
 }
 
 function WeekGrid({ entries, dayOffset = 0 }: { entries: PlanEntry[]; dayOffset?: number }) {
@@ -40,7 +40,7 @@ function WeekGrid({ entries, dayOffset = 0 }: { entries: PlanEntry[]; dayOffset?
               {[6, 12, 18].map(h => <i key={h} style={{ top: (h / 24) * H }} />)}
               {day.map((e, i) => (
                 <div key={e.task_id + e.start_s} title={tip(e)}
-                     className={`blk ${e.created ? 'created' : ''} ${e.source === 'USER' ? 'user' : ''}`}
+                     className={`blk ${e.created ? 'created' : ''} ${e.source === 'USER' ? 'user' : ''} ${e.source === 'SUDDEN' || e.tag === 'moved' ? 'sudden' : ''}`}
                      style={{ top: ((e.start_s % DAY) / DAY) * H, height: Math.max(5, ((e.end_s - e.start_s) / DAY) * H),
                               left: `calc(${(laneOf[i] / lanes) * 100}% + 2px)`, right: 'auto',
                               width: `calc(${100 / lanes}% - 3px)`, background: DEPT_COLOR[e.department] }} />
@@ -58,8 +58,9 @@ function Legend() {
     <div className="legend" style={{ border: 'none', padding: '10px 0 0' }}>
       {Object.entries(DEPT_COLOR).map(([k, c]) => <span key={k}><i style={{ background: c }} />{DEPT_SHORT[k]}</span>)}
       <span className="sep" />
-      <span><i style={{ background: 'transparent', border: '1.5px dashed var(--sick)' }} />gap opened by a small change</span>
-      <span><i style={{ background: 'transparent', border: '1.5px solid #fff' }} />raised by you</span>
+      <span><i style={{ background: 'transparent', border: '1.5px dashed var(--sick)' }} />created gap</span>
+      <span><i style={{ background: 'transparent', border: '1.5px solid var(--text)' }} />yours</span>
+      <span><i style={{ background: 'transparent', border: '1.5px dotted var(--stopstart)' }} />sudden / moved</span>
     </div>
   )
 }
@@ -88,7 +89,7 @@ export default function ScheduleView() {
   return (
     <div className="panel">
       <div className="panel-head">
-        <h2>Step 3 — the schedule</h2>
+        <h2>3 · The schedule</h2>
         <div className="seg2" style={{ marginLeft: 'auto' }}>
           <button className={mode === 'week' ? 'on' : ''} onClick={() => setMode('week')}>Week</button>
           <button className={mode === 'month' ? 'on' : ''} onClick={() => setMode('month')}>Month</button>
@@ -104,7 +105,7 @@ export default function ScheduleView() {
             <div className="tile"><div className="v">{s!.night}</div><div className="k">in night windows</div></div>
             <div className="tile"><div className="v">{s!.megablock}</div><div className="k">in the Sunday megablock</div></div>
             <div className="tile"><div className="v" style={{ color: 'var(--sick)' }}>+{Math.max(0, s!.plan_placed - s!.natural_only_placed)}</div>
-              <div className="k">extra jobs from gap creation</div><div className="note">{s!.from_created_gaps} used a created gap</div></div>
+              <div className="k">extra from gap creation</div></div>
           </div>
           <div style={{ marginTop: 16 }}><WeekGrid entries={wk.entries} /></div>
           <Legend />
@@ -112,7 +113,7 @@ export default function ScheduleView() {
             <div className="reason" style={{ margin: '12px 0 0', borderLeftColor: 'var(--sick)' }}>
               <b>{wk.unplaced.length} job(s) still unplaced:</b>{' '}
               {wk.unplaced.slice(0, 4).map(u => `${DEPT_SHORT[u.department]} ${u.label} on ${u.zone}`).join(' · ')}
-              <div className="muted" style={{ fontSize: 11.5, marginTop: 4 }}>No window long enough even after gap creation; see the rerouting advisor below.</div>
+              
             </div>
           )}
         </div>
@@ -122,7 +123,7 @@ export default function ScheduleView() {
         <div className="panel-body">
           {(!mo || mo.status === 'running' || mo.status === 'idle') && (
             <div className="reason" style={{ margin: '0 0 14px', borderLeftColor: 'var(--accent)' }}>
-              Planning four rolling weeks… <b>{mo?.progress ?? 0} of 4</b> done. Each week is solved exactly, with last week's leftover jobs carried in.
+              Planning four weeks… <b>{mo?.progress ?? 0} of 4</b>
               <div className="bar"><i style={{ width: `${((mo?.progress ?? 0) / 4) * 100}%` }} /></div>
             </div>
           )}
