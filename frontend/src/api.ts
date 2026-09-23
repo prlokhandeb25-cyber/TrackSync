@@ -51,7 +51,7 @@ export interface PlanData {
   assignments: { task_id: string; zone_ref: string; start_s: number; gap_type: string; day: number }[]
 }
 
-export interface TrainDot { id: string; cls: string; section: string; lat: number; lon: number }
+export interface TrainDot { id: string; cls: string; section: string; track?: string; lat: number; lon: number }
 export interface TrainsData { at_s: number; trains: TrainDot[]; total_active: number; truncated: number }
 
 export interface EventItem { at_s: number; text: string; kind: string }
@@ -121,9 +121,42 @@ export interface SimTickPlacement {
 export interface SimTickData { at_s: number; results: SimTickPlacement[]; algorithm: string }
 
 export interface NextGap { start_hhmm: string; end_hhmm: string; gap_type: string; usable_min: number }
+export interface TimelineTrack { track: string; trains: number[]; gaps: [number, number, string, number][] }
 export interface SectionBrief {
   section_id: string; status: Status; summary: string
   open_task_count: number; next_gap: NextGap | null
+  timeline: TimelineTrack[]; day_start_s: number; now_s: number
+}
+
+export interface RerouteView {
+  train_id: string; train_name: string; train_class: string
+  sections: string[]; added_delay_min: number; within_limit: boolean
+}
+export interface RerouteBlock {
+  section_id: string; start_s: number; end_s: number
+  reroutes: RerouteView[]; no_path: string[]
+  track_swap: { blocked_track: string; swap_to_track: string; max_single_line_min: number } | null
+  locals_in_window: number
+}
+export interface ReroutingActive { at_s: number; blocks: RerouteBlock[]; executed: number }
+
+export interface JobCluster {
+  id: number; size: number; task_ids: string[]; zones: string[]; departments: string[]
+  total_min: number; label: string; lat: number; lon: number
+  compatible: number; requires_iwp: number; incompatible: number; cross_pairs: number
+}
+export interface ClustersData {
+  n_tasks: number; n_clusters: number; cut_km: number; method: string; clusters: JobCluster[]
+}
+
+export interface ProofData {
+  interval_tree: { queries: number; scan_ms: number; tree_ms: number; speedup_x: number; identical: boolean }
+  gaps: { total: number; micro: number; night: number; megablock: number; usable_hours: number }
+  cpsat: { status: string; gap_pct: number; placed: number; n_tasks: number; wall_s: number }
+  rl: { policy: string; gap_pct: number; speedup_x: number; instances: number } | null
+  clusters: { tasks: number; clusters: number; cross_pairs: number; compatible: number }
+  live_sim: { arrived: number; placed: number; moved_aside: number }
+  rerouting: { unplaced: number; with_lever: number; reroute_paths: number; track_swaps: number; executed: number }
 }
 
 const j = async <T,>(url: string, init?: RequestInit): Promise<T> => {
@@ -149,7 +182,11 @@ export const api = {
   adapters: () => j<AdapterData>('/api/adapters'),
   reroutingOpportunities: () => j<ReroutingData>('/api/rerouting/opportunities'),
   simTick: (atS: number) => j<SimTickData>(`/api/sim/tick?at_s=${Math.round(atS)}`, { method: 'POST' }),
-  sectionBrief: (id: string) => j<SectionBrief>(`/api/sections/${encodeURIComponent(id)}/brief`),
+  sectionBrief: (id: string, atS: number) =>
+    j<SectionBrief>(`/api/sections/${encodeURIComponent(id)}/brief?at_s=${Math.round(atS)}`),
+  clusters: () => j<ClustersData>('/api/tasks/clusters'),
+  reroutingActive: (atS: number) => j<ReroutingActive>(`/api/rerouting/active?at_s=${Math.round(atS)}`),
+  proof: () => j<ProofData>('/api/algorithms/proof'),
 }
 
 export const hhmm = (s: number) => {

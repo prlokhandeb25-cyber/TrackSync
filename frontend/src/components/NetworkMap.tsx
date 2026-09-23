@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { NetworkData, TrainDot, Station } from '../api'
+import type { Halo } from './JobClusters'
+import type { RerouteBlock } from '../api'
 
 /* Geographic SVG built from the station coordinates, with a stylized Maharashtra state
    outline behind it for context — both drawn through the SAME projection, so the network sits
@@ -44,13 +46,23 @@ const LINE_NAME: Record<string, string> = {
   CR: 'Central', WR: 'Western', HR: 'Harbour', TH: 'Trans-Harbour',
 }
 
+// Physical track order across a section, outside to inside: slow lines on the outside, fast lines
+// in the middle - the layout in the division's own system map (four abreast at the core, two on
+// the outer sections). Two-track sections are just DN | UP.
+const LANE_RANK: Record<string, number> = {
+  DN_SLOW: 0, DN_FAST: 1, UP_FAST: 2, UP_SLOW: 3, DN: 1, UP: 2,
+}
+const LANE_GAP = 3.7          // screen px between adjacent tracks
+const laneList = (tracks: string[]) =>
+  [...tracks].sort((a, b) => (LANE_RANK[a] ?? 9) - (LANE_RANK[b] ?? 9))
+
 const MIN_SCALE_FACTOR = 0.3   // relative to the network-fit view — lets you zoom out to the whole state
 const MAX_SCALE_FACTOR = 9     // relative to the network-fit view — enough to read every station name
 
 type View = { scale: number; tx: number; ty: number }
 
 export default function NetworkMap({
-  net, trains, totalActive, truncated, clock, selected, onSelect, blocks,
+  net, trains, totalActive, truncated, clock, selected, onSelect, blocks, halos = [], reroutes = [],
 }: {
   net: NetworkData
   trains: TrainDot[]
@@ -60,6 +72,8 @@ export default function NetworkMap({
   selected: string | null
   onSelect: (id: string | null) => void
   blocks: Set<string>
+  halos?: Halo[]
+  reroutes?: RerouteBlock[]
 }) {
   const [hover, setHover] = useState<Station | null>(null)
   const [isDragging, setIsDragging] = useState(false)
@@ -94,6 +108,24 @@ export default function NetworkMap({
   const byCode = useMemo(
     () => Object.fromEntries(net.stations.map(s => [s.code, s])) as Record<string, Station>,
     [net])
+
+  const secById = useMemo(
+    () => Object.fromEntries(net.sections.map(s => [s.id, s])) as Record<string, NetworkData['sections'][number]>,
+    [net])
+
+  // Each section's centreline and its unit normal, so parallel tracks can be offset from it.
+  const secGeom = useMemo(() => {
+    const out: Record<string, { x1: number; y1: number; x2: number; y2: number; nx: number; ny: number }> = {}
+    for (const sec of net.sections) {
+      const a = byCode[sec.from], b = byCode[sec.to]
+      if (!a || !b) continue
+      const [x1, y1] = project(a.lat, a.lon)
+      const [x2, y2] = project(b.lat, b.lon)
+      const len = Math.hypot(x2 - x1, y2 - y1) || 1
+      out[sec.id] = { x1, y1, x2, y2, nx: -(y2 - y1) / len, ny: (x2 - x1) / len }
+    }
+    return out
+  }, [net, byCode, project])
 
   // The network's own footprint in projected space — the initial zoom fits exactly this.
   const netBBox = useMemo(() => {
@@ -214,17 +246,58 @@ export default function NetworkMap({
           <path d={outlinePath} fill="#ffffff08" stroke="#ffffff" strokeOpacity={0.55}
                 strokeWidth={1.4} vectorEffect="non-scaling-stroke" />
 
-          {/* base network — vivid per-line colour, it is meant to be seen */}
-          {net.sections.map(sec => {
-            const a = byCode[sec.from], b = byCode[sec.to]
-            if (!a || !b) return null
-            const [x1, y1] = project(a.lat, a.lon)
-            const [x2, y2] = project(b.lat, b.lon)
+          {/* job-cluster halos — each colour is one group of nearby jobs */}
+          {halos.map((h, i) => {
+            const sec = secById[h.zone]
+            if (sec) {
+              const a = byCode[sec.from], b = byCode[sec.to]
+              if (!a || !b) return null
+              const [x1, y1] = project(a.lat, a.lon)
+              const [x2, y2] = project(b.lat, b.lon)
+              return (
+                <line key={`halo-${i}`} x1={x1} y1={y1} x2={x2} y2={y2} stroke={h.color}
+                      strokeWidth={h.active ? 16 : 11} strokeLinecap="round"
+                      opacity={h.active ? 0.6 : 0.3} vectorEffect="non-scaling-stroke"
+                      filter={h.active ? 'url(#glow)' : undefined} pointerEvents="none" />
+              )
+            }
+            const st = byCode[h.zone]
+            if (!st) return null
+            const [x, y] = project(st.lat, st.lon)
             return (
-              <line key={`base-${sec.id}`} x1={x1} y1={y1} x2={x2} y2={y2}
-                    stroke={LINE_TINT[sec.line_code] ?? '#3a4658'}
-                    strokeWidth={selected === sec.id ? 6 : 3.4}
-                    strokeLinecap="round" opacity={0.88} vectorEffect="non-scaling-stroke" />
+              <g key={`halo-${i}`} transform={`translate(${x},${y}) scale(${1 / view.scale})`}
+                 pointerEvents="none">
+                <circle r={h.active ? 15 : 11} fill={h.color} fillOpacity={h.active ? 0.35 : 0.2}
+                        stroke={h.color} strokeWidth={1.4} />
+              </g>
+            )
+          })}
+
+          {/* base network: one line per physical track, slow outside, fast inside */}
+          {net.sections.map(sec => {
+            const g = secGeom[sec.id]
+            if (!g) return null
+            const lanes = laneList(sec.tracks)
+            const tint = LINE_TINT[sec.line_code] ?? '#3a4658'
+            const sel = selected === sec.id
+            return (
+              <g key={`base-${sec.id}`}>
+                {sel && (
+                  <line x1={g.x1} y1={g.y1} x2={g.x2} y2={g.y2} stroke={tint} strokeOpacity={0.28}
+                        strokeWidth={LANE_GAP * lanes.length + 8} strokeLinecap="round"
+                        vectorEffect="non-scaling-stroke" />
+                )}
+                {lanes.map((tr, k) => {
+                  const o = ((k - (lanes.length - 1) / 2) * LANE_GAP) / view.scale
+                  const fast = tr.endsWith('_FAST')
+                  return (
+                    <line key={tr} x1={g.x1 + g.nx * o} y1={g.y1 + g.ny * o}
+                          x2={g.x2 + g.nx * o} y2={g.y2 + g.ny * o}
+                          stroke={tint} strokeWidth={sel ? 2.1 : 1.7} strokeLinecap="butt"
+                          strokeOpacity={fast ? 1 : 0.72} vectorEffect="non-scaling-stroke" />
+                  )
+                })}
+              </g>
             )
           })}
 
@@ -236,26 +309,91 @@ export default function NetworkMap({
             const [x2, y2] = project(b.lat, b.lon)
             return (
               <line key={`st-${sec.id}`} x1={x1} y1={y1} x2={x2} y2={y2}
-                    stroke={STATUS[sec.status]} strokeWidth={4.6} strokeLinecap="round"
+                    stroke={STATUS[sec.status]} strokeWidth={LANE_GAP * sec.tracks.length + 3} strokeLinecap="round"
                     filter="url(#glow)" opacity={0.95} vectorEffect="non-scaling-stroke" />
             )
           })}
 
-          {/* active maintenance blocks — CP-SAT/RL plan AND live-sim placements alike */}
-          {net.sections.filter(s => blocks.has(s.id)).map(sec => {
-            const a = byCode[sec.from], b = byCode[sec.to]
-            if (!a || !b) return null
-            const [x1, y1] = project(a.lat, a.lon)
-            const [x2, y2] = project(b.lat, b.lon)
+          {/* active maintenance: the closed tracks get a hazard animation, a crew moves along
+              them and a gear turns at the middle. Where a single-line swap is possible only the
+              blocked track is closed and the track it swaps onto pulses amber. */}
+          {net.sections.filter(sec => blocks.has(sec.id)).map(sec => {
+            const g = secGeom[sec.id]
+            if (!g) return null
+            const lanes = laneList(sec.tracks)
+            const swap = reroutes.find(r => r.section_id === sec.id)?.track_swap ?? null
+            const mx = (g.x1 + g.x2) / 2, my = (g.y1 + g.y2) / 2
             return (
-              <line key={`bl-${sec.id}`} x1={x1} y1={y1} x2={x2} y2={y2}
-                    stroke="var(--block)" strokeWidth={7} strokeLinecap="round"
-                    strokeDasharray="3 7" opacity={0.95} vectorEffect="non-scaling-stroke">
-                <animate attributeName="stroke-dashoffset" from="20" to="0"
-                         dur="1s" repeatCount="indefinite" />
-              </line>
+              <g key={`bl-${sec.id}`} pointerEvents="none">
+                {lanes.map((tr, k) => {
+                  const o = ((k - (lanes.length - 1) / 2) * LANE_GAP) / view.scale
+                  const closed = !swap || tr === swap.blocked_track
+                  const takingOver = !!swap && tr === swap.swap_to_track
+                  if (!closed && !takingOver) return null
+                  return (
+                    <line key={tr} x1={g.x1 + g.nx * o} y1={g.y1 + g.ny * o}
+                          x2={g.x2 + g.nx * o} y2={g.y2 + g.ny * o}
+                          stroke={closed ? 'var(--block)' : 'var(--sick)'}
+                          strokeWidth={closed ? 3.4 : 2.6} strokeLinecap="butt"
+                          strokeDasharray={closed ? '4 4' : '9 5'} vectorEffect="non-scaling-stroke">
+                      <animate attributeName="stroke-dashoffset" from={closed ? '16' : '0'}
+                               to={closed ? '0' : '28'} dur={closed ? '0.8s' : '1.4s'} repeatCount="indefinite" />
+                    </line>
+                  )
+                })}
+                <circle r={3 / view.scale} fill="#ffd166">
+                  <animate attributeName="cx" values={`${g.x1};${g.x2};${g.x1}`} dur="3.4s" repeatCount="indefinite" />
+                  <animate attributeName="cy" values={`${g.y1};${g.y2};${g.y1}`} dur="3.4s" repeatCount="indefinite" />
+                </circle>
+                <g transform={`translate(${mx},${my}) scale(${1 / view.scale})`}>
+                  {[0, 0.9].map(delay => (
+                    <circle key={delay} r={6} fill="none" stroke="var(--block)" strokeWidth={1.6}>
+                      <animate attributeName="r" values="6;24" dur="1.8s" begin={`${delay}s`} repeatCount="indefinite" />
+                      <animate attributeName="opacity" values="0.9;0" dur="1.8s" begin={`${delay}s`} repeatCount="indefinite" />
+                    </circle>
+                  ))}
+                  <circle r={7} fill="#150f2b" stroke="var(--block)" strokeWidth={1.2} />
+                  <circle r={5} fill="none" stroke="#ffd166" strokeWidth={2.6} strokeDasharray="2.6 2.6">
+                    <animateTransform attributeName="transform" type="rotate" from="0" to="360"
+                                      dur="3.5s" repeatCount="indefinite" />
+                  </circle>
+                </g>
+              </g>
             )
           })}
+
+          {/* rerouted long-distance and freight trains: the detour is drawn along the alternate
+              sections, with the train travelling it. Locals never appear here. */}
+          {reroutes.flatMap(b => b.reroutes.map(r => {
+            const secs = r.sections.map(id => secById[id]).filter(Boolean)
+            if (!secs.length) return null
+            let cur = secs.length === 1 ? secs[0].from
+              : ([secs[1].from, secs[1].to].includes(secs[0].from) ? secs[0].to : secs[0].from)
+            const nodes = [cur]
+            for (const sc of secs) { cur = sc.from === cur ? sc.to : sc.from; nodes.push(cur) }
+            const pts = nodes.map(c => byCode[c]).filter(Boolean).map(st => project(st.lat, st.lon))
+            if (pts.length < 2) return null
+            const d = 'M ' + pts.map(([x, y]) => `${x.toFixed(2)},${y.toFixed(2)}`).join(' L ')
+            return (
+              <g key={`rr-${b.section_id}-${r.train_id}`} pointerEvents="none">
+                <path d={d} fill="none" stroke="#22e5ff" strokeWidth={7} strokeOpacity={0.18}
+                      strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+                <path d={d} fill="none" stroke="#22e5ff" strokeWidth={2.4} strokeDasharray="7 5"
+                      strokeLinecap="round" strokeLinejoin="round" opacity={0.95}
+                      vectorEffect="non-scaling-stroke">
+                  <animate attributeName="stroke-dashoffset" from="24" to="0" dur="0.9s" repeatCount="indefinite" />
+                </path>
+                <g>
+                  <animateMotion path={d} dur={`${Math.max(6, pts.length * 2.2)}s`} repeatCount="indefinite" />
+                  <g transform={`scale(${1 / view.scale})`}>
+                    <circle r={5.5} fill="#22e5ff" stroke="#fff" strokeWidth={1.4} />
+                    <text x={9} y={3.5} fontSize={9.5} fill="#22e5ff" fontFamily="var(--mono)"
+                          fontWeight={600}>{r.train_name || r.train_id}</text>
+                  </g>
+                </g>
+              </g>
+            )
+          }))}
 
           {/* clickable hit areas */}
           {net.sections.map(sec => {
@@ -298,18 +436,29 @@ export default function NetworkMap({
 
           {/* trains — shape first, colour second; inverse-scaled to stay small dots */}
           {trains.map(t => {
-            const [x, y] = project(t.lat, t.lon)
-            const g = `translate(${x},${y}) scale(${1 / view.scale})`
+            const [px, py] = project(t.lat, t.lon)
+            const sec = secById[t.section]
+            const g = sec ? secGeom[t.section] : undefined
+            let x = px, y = py
+            if (sec && g && t.track) {
+              const lanes = laneList(sec.tracks)
+              const k = lanes.indexOf(t.track)
+              if (k >= 0) {
+                const o = ((k - (lanes.length - 1) / 2) * LANE_GAP) / view.scale
+                x += g.nx * o; y += g.ny * o
+              }
+            }
+            const gt = `translate(${x},${y}) scale(${1 / view.scale})`
             if (t.cls === 'SUBURBAN_LOCAL')
-              return <g key={t.id} transform={g}><circle r={2.5} fill="var(--accent)" opacity={0.92} /></g>
+              return <g key={t.id} transform={gt}><circle r={2.1} fill="var(--accent)" opacity={0.95} /></g>
             if (t.cls === 'FREIGHT_MAIL')
-              return <g key={t.id} transform={g}>
-                <rect x={-2.7} y={-2.7} width={5.4} height={5.4} rx={1} fill="#cfdae6" opacity={0.92} />
+              return <g key={t.id} transform={gt}>
+                <rect x={-2.4} y={-2.4} width={4.8} height={4.8} rx={1} fill="#cfdae6" opacity={0.95} />
               </g>
             return (
-              <g key={t.id} transform={g}>
-                <circle r={4.4} fill="none" stroke="#fff" strokeWidth={1} opacity={0.6} />
-                <circle r={2.2} fill="#fff" />
+              <g key={t.id} transform={gt}>
+                <circle r={4.2} fill="none" stroke="#fff" strokeWidth={1} opacity={0.6} />
+                <circle r={2} fill="#fff" />
               </g>
             )
           })}
@@ -358,10 +507,12 @@ export default function NetworkMap({
         <span><i style={{ background: 'var(--sick)' }} />Sick</span>
         <span><i style={{ background: 'var(--caution)' }} />Caution order</span>
         <span><i style={{ background: 'var(--stopstart)' }} />Stop &amp; start</span>
-        <span><i style={{ background: 'var(--block)' }} />Block active</span>
+        <span><i style={{ background: 'var(--block)' }} />Track closed for work</span>
+        <span><i style={{ background: 'var(--sick)' }} />Single-line working</span>
+        <span><i style={{ background: '#22e5ff' }} />Rerouted train</span>
         <span className="sep" />
         <span className="muted" style={{ fontStyle: 'italic' }}>
-          scroll/drag to zoom &amp; pan · state outline is stylized, not survey data
+          each line = its real tracks (slow outside, fast inside) · scroll/drag to zoom · state outline is stylized
         </span>
       </div>
     </div>

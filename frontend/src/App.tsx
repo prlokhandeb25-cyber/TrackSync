@@ -6,10 +6,14 @@ import Impact from './components/Impact'
 import RlPanel from './components/RlPanel'
 import RerouteAdvisor from './components/RerouteAdvisor'
 import Integration from './components/Integration'
+import ProofStrip from './components/ProofStrip'
+import JobClusters, { type Halo } from './components/JobClusters'
+import GapStrip from './components/GapStrip'
+import ReroutePanel from './components/ReroutePanel'
 import {
   api, DAYS, hhmm,
   type EventItem, type GapData, type MatrixData, type NetworkData,
-  type PlanData, type SectionBrief, type Task, type TrainsData,
+  type PlanData, type RerouteBlock, type SectionBrief, type Task, type TrainsData,
 } from './api'
 
 type Tab = 'operations' | 'coordination' | 'plan' | 'capacity' | 'impact' | 'ai' | 'integration'
@@ -37,6 +41,11 @@ export default function App() {
   const [brief, setBrief] = useState<SectionBrief | null>(null)
   const [simWindows, setSimWindows] = useState<{ zone_ref: string; start_s: number; end_s: number }[]>([])
   const [clock, setClock] = useState(7 * 3600)
+  const [speed, setSpeed] = useState(1)
+  const [tick, setTick] = useState(0)
+  const [halos, setHalos] = useState<Halo[]>([])
+  const [rerouteBlocks, setRerouteBlocks] = useState<RerouteBlock[]>([])
+  const [chatOpen, setChatOpen] = useState(false)
   const [playing, setPlaying] = useState(true)
   const [err, setErr] = useState<string | null>(null)
   const raf = useRef<number>(0)
@@ -49,15 +58,17 @@ export default function App() {
       .catch(e => setErr(String(e)))
   }, [])
 
+  const speedRef = useRef(speed)
+  speedRef.current = speed
   useEffect(() => {
     if (!playing) return
     let last = performance.now()
-    const tick = (now: number) => {
+    const frame = (now: number) => {
       const dt = (now - last) / 1000; last = now
-      setClock(c => (c + dt * 420) % (7 * 86400))
-      raf.current = requestAnimationFrame(tick)
+      setClock(c => (c + dt * 60 * speedRef.current) % (7 * 86400))
+      raf.current = requestAnimationFrame(frame)
     }
-    raf.current = requestAnimationFrame(tick)
+    raf.current = requestAnimationFrame(frame)
     return () => cancelAnimationFrame(raf.current)
   }, [playing])
 
@@ -83,12 +94,28 @@ export default function App() {
     return () => { alive = false; clearInterval(id) }
   }, [net])
 
+  // Which sections are closed right now and where through traffic is being sent instead.
+  useEffect(() => {
+    if (tab !== 'operations') return
+    let alive = true
+    const pull = async () => {
+      try {
+        const d = await api.reroutingActive(clockRef.current)
+        if (alive) setRerouteBlocks(d.blocks)
+      } catch { /* transient - the next poll retries */ }
+    }
+    void pull()
+    const id = setInterval(pull, 2000)
+    return () => { alive = false; clearInterval(id) }
+  }, [tab])
+
   useEffect(() => {
     if (!selected) { setBrief(null); return }
     let alive = true
-    api.sectionBrief(selected).then(b => { if (alive) setBrief(b) }).catch(() => { if (alive) setBrief(null) })
+    api.sectionBrief(selected, clockRef.current).then(b => { if (alive) setBrief(b) })
+      .catch(() => { if (alive) setBrief(null) })
     return () => { alive = false }
-  }, [selected])
+  }, [selected, tick])
 
   // The live Operations-page simulation: while that tab is open, a small batch of unplanned
   // tasks is generated and gap-scheduled every few seconds (backend/planner/live_sim.py) and
@@ -96,7 +123,7 @@ export default function App() {
   useEffect(() => {
     if (tab !== 'operations') return
     let alive = true
-    const tick = async () => {
+    const run = async () => {
       try {
         const d = await api.simTick(clockRef.current)
         if (!alive) return
@@ -110,9 +137,10 @@ export default function App() {
           .filter(r => r.placed && r.window)
           .map(r => ({ zone_ref: r.window!.zone_ref, start_s: r.window!.start_s, end_s: r.window!.end_s }))
         if (wins.length) setSimWindows(sw => [...sw, ...wins].slice(-200))
+        setTick(t => t + 1)
       } catch { /* transient - the next tick retries */ }
     }
-    const id = setInterval(tick, 7000)
+    const id = setInterval(run, 7000)
     return () => { alive = false; clearInterval(id) }
   }, [tab])
 
@@ -197,10 +225,17 @@ export default function App() {
       <main className="main">
         {tab === 'operations' && (
           <div className="grid ops">
+            <div style={{ display: 'grid', gap: 16, alignContent: 'start', minWidth: 0 }}>
             <div className="panel">
               <div className="panel-head">
                 <h2>Mumbai suburban network</h2>
-                <span className="sub">
+                <div className="speed" style={{ marginLeft: 'auto' }}>
+                  {[0.25, 1, 5, 10, 20].map(x => (
+                    <button key={x} className={speed === x ? 'on' : ''} onClick={() => setSpeed(x)}
+                            title={`${x}x simulation speed`}>{x}×</button>
+                  ))}
+                </div>
+                <span className="sub" style={{ marginLeft: 8 }}>
                   {selectedSection
                     ? `${selectedSection.id} · ${selectedSection.length_km.toFixed(1)} km · ${selectedSection.trains_per_day} trains/day`
                     : 'click a section · hover a station'}
@@ -216,11 +251,18 @@ export default function App() {
                   selected={selected}
                   onSelect={setSelected}
                   blocks={activeBlocks}
+                  halos={halos}
+                  reroutes={rerouteBlocks}
                 />
               </div>
             </div>
+            <ProofStrip tick={tick} />
+            <JobClusters tick={tick} onHalos={setHalos} />
+            </div>
 
             <div style={{ display: 'grid', gap: 16, alignContent: 'start' }}>
+              <ReroutePanel blocks={rerouteBlocks} />
+
               {selectedSection && (
                 <div className="panel">
                   <div className="panel-head">
@@ -238,6 +280,14 @@ export default function App() {
                             {brief.next_gap.gap_type.replace(/_/g, ' ').toLowerCase()})
                           </div>
                         )}
+                      </div>
+                    )}
+                    {brief && brief.timeline.length > 0 && (
+                      <div style={{ margin: '0 0 14px' }}>
+                        <div className="k muted" style={{ fontSize: 11, marginBottom: 6 }}>
+                          TODAY · TRAINS AND GAPS
+                        </div>
+                        <GapStrip key={brief.section_id} tracks={brief.timeline} nowS={brief.now_s} />
                       </div>
                     )}
                     <div className="kv"><span className="k">Status</span>
@@ -310,10 +360,7 @@ export default function App() {
         )}
 
         {tab === 'coordination' && mat && (
-          <div className="grid side">
-            <CompatMatrix data={mat} />
-            <Chat />
-          </div>
+          <CompatMatrix data={mat} />
         )}
 
         {tab === 'plan' && (
@@ -460,6 +507,18 @@ export default function App() {
         {tab === 'ai' && <RlPanel />}
         {tab === 'integration' && <Integration />}
       </main>
+
+      <div className={`chat-drawer ${chatOpen ? '' : 'closed'}`}><Chat /></div>
+      <button className="chat-fab" onClick={() => setChatOpen(o => !o)}
+              title={chatOpen ? 'Close chat' : 'Ask the planner'} aria-label="Ask the planner">
+        {chatOpen ? (
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+            <path d="M6 6l12 12M18 6L6 18" /></svg>
+        ) : (
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z" /></svg>
+        )}
+      </button>
     </div>
   )
 }
