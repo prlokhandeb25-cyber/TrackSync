@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import NetworkMap from './components/NetworkMap'
-import CompatMatrix from './components/CompatMatrix'
-import Chat from './components/Chat'
+import Coordination from './components/Coordination'
+import WeeklyPlan from './components/WeeklyPlan'
+import Chat, { MitraIcon } from './components/Chat'
 import Impact from './components/Impact'
-import RlPanel from './components/RlPanel'
-import RerouteAdvisor from './components/RerouteAdvisor'
+import AlgoLab from './components/AlgoLab'
 import Integration from './components/Integration'
 import ProofStrip from './components/ProofStrip'
+import YourJobs from './components/YourJobs'
 import JobClusters, { type Halo } from './components/JobClusters'
 import GapStrip from './components/GapStrip'
 import ReroutePanel from './components/ReroutePanel'
@@ -39,6 +40,7 @@ export default function App() {
   const [tab, setTab] = useState<Tab>('operations')
   const [selected, setSelected] = useState<string | null>(null)
   const [brief, setBrief] = useState<SectionBrief | null>(null)
+  const [userWindows, setUserWindows] = useState<{ zone_ref: string; start_s: number; end_s: number }[]>([])
   const [simWindows, setSimWindows] = useState<{ zone_ref: string; start_s: number; end_s: number }[]>([])
   const [clock, setClock] = useState(7 * 3600)
   const [speed, setSpeed] = useState(1)
@@ -152,11 +154,11 @@ export default function App() {
     if (plan) for (const a of plan.assignments) {
       if (a.start_s <= clock && clock < a.start_s + 3600) s.add(a.zone_ref)
     }
-    for (const w of simWindows) {
+    for (const w of [...simWindows, ...userWindows]) {
       if (w.start_s <= clock && clock < w.end_s) s.add(w.zone_ref)
     }
     return s
-  }, [plan, clock, simWindows])
+  }, [plan, clock, simWindows, userWindows])
 
   const selectedSection = net?.sections.find(s => s.id === selected) ?? null
   const selectedTasks = tasks.filter(t => t.zone === selected)
@@ -261,6 +263,7 @@ export default function App() {
             </div>
 
             <div style={{ display: 'grid', gap: 16, alignContent: 'start' }}>
+              <YourJobs tick={tick} onWindows={setUserWindows} onWatch={(start, sec) => { setClock(start); setSelected(sec); setPlaying(true) }} />
               <ReroutePanel blocks={rerouteBlocks} />
 
               {selectedSection && (
@@ -359,93 +362,15 @@ export default function App() {
           </div>
         )}
 
-        {tab === 'coordination' && mat && (
-          <CompatMatrix data={mat} />
+        {tab === 'coordination' && (
+          <Coordination mat={mat} clock={clock}
+                        onShow={(id, startS) => {
+                          setSelected(id); setTab('operations')
+                          if (startS !== undefined) { setClock(Math.max(0, startS - 300)); setPlaying(true) }
+                        }} />
         )}
 
-        {tab === 'plan' && (
-          <>
-          <div className="grid two">
-            <div className="panel">
-              <div className="panel-head">
-                <h2>{plan.status === 'RL_DISPATCH' ? 'Current plan — RL reactive re-plan' : 'CP-SAT weekly plan'}</h2>
-                <span className="sub">
-                  {plan.status === 'RL_DISPATCH'
-                    ? 'applied after an unplanned defect · see AI dispatcher tab'
-                    : `${plan.status.toLowerCase()} · ${plan.gap_pct}% optimality gap · ${plan.wall_s}s`}
-                </span>
-              </div>
-              <div className="panel-body">
-                <div className="tiles">
-                  <div className="tile">
-                    <div className="v">{plan.n_scheduled}<small>/{plan.n_tasks}</small></div>
-                    <div className="k">Jobs placed this week</div>
-                  </div>
-                  <div className="tile">
-                    <div className="v" style={{ color: 'var(--accent)' }}>{plan.micro_gap_count}</div>
-                    <div className="k">Into gaps between trains</div>
-                    <div className="note">
-                      Work that conventional planning would leave waiting for a night block.
-                    </div>
-                  </div>
-                  <div className="tile">
-                    <div className="v">{plan.n_unscheduled}</div>
-                    <div className="k">No window long enough</div>
-                    <div className="note">
-                      These need a window created by rerouting, not merely finding.
-                    </div>
-                  </div>
-                </div>
-                <div style={{ marginTop: 18 }}>
-                  <div className="k muted" style={{ fontSize: 11 }}>BLOCKS GRANTED PER DAY</div>
-                  <div className="week">
-                    {DAYS.map(d => {
-                      const n = plan.by_day[d] ?? 0
-                      const max = Math.max(1, ...Object.values(plan.by_day))
-                      return (
-                        <div key={d}>
-                          <b>{n || ''}</b>
-                          <i style={{ height: `${(n / max) * 52}px` }} />
-                          <span>{d}</span>
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="panel">
-              <div className="panel-head"><h2>Task pool</h2><span className="sub">{tasks.length} jobs</span></div>
-              <div className="panel-body flush scroll">
-                <table>
-                  <thead>
-                    <tr><th>Dept</th><th>Job</th><th>Where</th><th className="num">Min</th><th>When</th></tr>
-                  </thead>
-                  <tbody>
-                    {tasks.map(t => (
-                      <tr key={t.id}>
-                        <td><span className={`badge dept ${t.department}`}>{t.department}</span></td>
-                        <td>{t.label}
-                          {t.category === 'DEMAND' &&
-                            <span className="badge demand" style={{ marginLeft: 6 }}>unplanned</span>}
-                        </td>
-                        <td className="mono">{t.zone}</td>
-                        <td className="num">{t.duration_min}</td>
-                        <td>{t.scheduled
-                          ? <>{t.day} {t.start_hhmm}{t.gap_type === 'MICRO_GAP' &&
-                              <span className="badge micro" style={{ marginLeft: 6 }}>micro-gap</span>}</>
-                          : <span className="muted">unplanned</span>}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-          <RerouteAdvisor />
-          </>
-        )}
+        {tab === 'plan' && <WeeklyPlan />}
 
         {tab === 'capacity' && (
           <div className="grid two">
@@ -504,21 +429,22 @@ export default function App() {
         )}
 
         {tab === 'impact' && <Impact />}
-        {tab === 'ai' && <RlPanel />}
+        {tab === 'ai' && <AlgoLab />}
         {tab === 'integration' && <Integration />}
       </main>
 
       <div className={`chat-drawer ${chatOpen ? '' : 'closed'}`}><Chat /></div>
-      <button className="chat-fab" onClick={() => setChatOpen(o => !o)}
-              title={chatOpen ? 'Close chat' : 'Ask the planner'} aria-label="Ask the planner">
-        {chatOpen ? (
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
-            <path d="M6 6l12 12M18 6L6 18" /></svg>
-        ) : (
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z" /></svg>
-        )}
-      </button>
+      <div className="mitra-dock">
+        {!chatOpen && <span className="mitra-label">Ask <b>RailMitra</b></span>}
+        <button className="chat-fab" onClick={() => setChatOpen(o => !o)}
+                title={chatOpen ? 'Close RailMitra' : 'Ask RailMitra'} aria-label="Ask RailMitra">
+          {chatOpen ? (
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
+              <path d="M6 6l12 12M18 6L6 18" /></svg>
+          ) : <MitraIcon />}
+          {!chatOpen && <i className="ring" />}
+        </button>
+      </div>
     </div>
   )
 }

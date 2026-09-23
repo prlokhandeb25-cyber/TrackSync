@@ -45,7 +45,7 @@ export default function RlPanel() {
             <div className="tile">
               <div className="v" style={{ color: 'var(--fit)' }}>{best.mean_gap_vs_cpsat_pct}%</div>
               <div className="k">Best policy's gap from optimal</div>
-              <div className="note">{best.policy}, against CP-SAT's own objective.</div>
+              <div className="note">{best.policy}, on the same placement objective as CP-SAT.</div>
             </div>
             <div className="tile">
               <div className="v" style={{ color: 'var(--accent)' }}>{speedup.toFixed(0)}×</div>

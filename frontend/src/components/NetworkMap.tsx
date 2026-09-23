@@ -1,37 +1,25 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { NetworkData, TrainDot, Station } from '../api'
+import type { NetworkData, RerouteBlock, Station, TrainDot } from '../api'
 import type { Halo } from './JobClusters'
-import type { RerouteBlock } from '../api'
+import { MMR_BORDER, MUMBAI_CITY_BORDER } from '../data/mumbaiBorder'
 
-/* Geographic SVG built from the station coordinates, with a stylized Maharashtra state
-   outline behind it for context — both drawn through the SAME projection, so the network sits
-   in its true position relative to the state (the Konkan coast, near Mumbai, on the west
-   edge). The outline is hand-traced from general knowledge of the state's shape, not survey
-   boundary data — see ASSUMPTIONS.md. No map tiles: nothing here can fail on conference wifi.
+/* The Mumbai Metropolitan Region drawn from its real OpenStreetMap boundary (cached locally, see
+   scripts/07_build_mumbai_border.py), white inside, with the railway network on top through the
+   SAME projection so every station sits where it really is. Each section is drawn as its real
+   tracks - slow lines outside, fast inside, as on the division's system map - and trains run on
+   their own track.
 
-   Visual hierarchy: the network is drawn in vivid per-line colour (distinct at a glance, by
-   request — see SPEC.md §14.1 for the deliberate exception this page takes); status is drawn
-   even brighter on top, with a glow, because it is the message that matters most. A judge
-   should see a calm-enough network with a few hot spots and know instantly where to look.
+   Colour is chosen to read on white: one strong hue per line, black/orange/brown trains by class,
+   hazard stripes for a closed track. Status (sick, caution, stop-and-start) is a wide translucent
+   band underneath.
 
-   Zoom/pan: the whole scene sits in one transformed <g>. Station markers, labels and train
-   dots are nested in their own inverse-scaled group so they stay a constant, legible screen
-   size at any zoom level; line strokes use vector-effect="non-scaling-stroke" for the same
-   reason. */
+   Panning happens only while the button is held: the move and release listeners live on the
+   window for the length of one drag, so a missed pointer-up can never leave the map following the
+   cursor. */
 
 const W = 980
 const H = 620
-const PAD = 46
-
-// A stylized trace of Maharashtra's outer boundary — decorative context, not survey data.
-const MAHARASHTRA_OUTLINE: [number, number][] = [
-  [20.15, 72.75], [21.05, 73.55], [21.65, 74.30], [21.75, 75.60], [21.50, 76.60],
-  [21.65, 77.50], [21.85, 78.40], [21.95, 79.20], [21.40, 79.85], [20.70, 80.20],
-  [19.90, 80.10], [19.30, 79.95], [19.05, 79.30], [18.85, 78.10], [18.30, 77.40],
-  [17.85, 76.60], [17.55, 76.10], [17.10, 75.60], [16.65, 75.10], [16.30, 74.50],
-  [16.00, 74.10], [15.80, 73.85], [16.05, 73.55], [16.55, 73.35], [17.35, 73.20],
-  [18.00, 73.05], [18.55, 72.90], [18.95, 72.80], [19.30, 72.75],
-]
+const PAD = 40
 
 const STATUS: Record<string, string> = {
   FIT: 'var(--fit)',
@@ -39,16 +27,16 @@ const STATUS: Record<string, string> = {
   CAUTION_ORDER: 'var(--caution)',
   STOP_AND_START: 'var(--stopstart)',
 }
-const LINE_TINT: Record<string, string> = {
-  CR: 'var(--l-CR-vivid)', WR: 'var(--l-WR-vivid)', HR: 'var(--l-HR-vivid)', TH: 'var(--l-TH-vivid)',
+export const LINE_COLOR: Record<string, string> = {
+  CR: '#2563eb', WR: '#db2777', HR: '#15803d', TH: '#7c3aed',
 }
 const LINE_NAME: Record<string, string> = {
   CR: 'Central', WR: 'Western', HR: 'Harbour', TH: 'Trans-Harbour',
 }
+const TRAIN = { local: '#111827', intercity: '#f59e0b', freight: '#92400e', reroute: '#0891b2' }
 
-// Physical track order across a section, outside to inside: slow lines on the outside, fast lines
-// in the middle - the layout in the division's own system map (four abreast at the core, two on
-// the outer sections). Two-track sections are just DN | UP.
+// Physical track order across a section, outside to inside: slow lines outside, fast lines in the
+// middle. Two-track sections are DN | UP.
 const LANE_RANK: Record<string, number> = {
   DN_SLOW: 0, DN_FAST: 1, UP_FAST: 2, UP_SLOW: 3, DN: 1, UP: 2,
 }
@@ -56,10 +44,11 @@ const LANE_GAP = 3.7          // screen px between adjacent tracks
 const laneList = (tracks: string[]) =>
   [...tracks].sort((a, b) => (LANE_RANK[a] ?? 9) - (LANE_RANK[b] ?? 9))
 
-const MIN_SCALE_FACTOR = 0.3   // relative to the network-fit view — lets you zoom out to the whole state
-const MAX_SCALE_FACTOR = 9     // relative to the network-fit view — enough to read every station name
+const MIN_SCALE_FACTOR = 0.35
+const MAX_SCALE_FACTOR = 9
 
 type View = { scale: number; tx: number; ty: number }
+type Geom = { x1: number; y1: number; x2: number; y2: number; nx: number; ny: number }
 
 export default function NetworkMap({
   net, trains, totalActive, truncated, clock, selected, onSelect, blocks, halos = [], reroutes = [],
@@ -78,19 +67,18 @@ export default function NetworkMap({
   const [hover, setHover] = useState<Station | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const svgRef = useRef<SVGSVGElement>(null)
-  const dragState = useRef<{ x: number; y: number; tx: number; ty: number; moved: boolean } | null>(null)
+  const justDragged = useRef(false)
 
-  // Fixed projection: the whole state maps into the viewBox once. The network — a small
-  // cluster on the coast — is framed afterwards by the separate zoom/pan transform below, so
-  // both share one true geographic coordinate system.
+  // One fixed projection: the whole Mumbai region maps into the viewBox; the network is framed
+  // afterwards by the zoom/pan transform.
   const project = useMemo(() => {
-    const lats = MAHARASHTRA_OUTLINE.map(([la]) => la)
-    const lons = MAHARASHTRA_OUTLINE.map(([, lo]) => lo)
+    const pts = MMR_BORDER.flat()
+    const lats = pts.map(p => p[0]), lons = pts.map(p => p[1])
     const minLat = Math.min(...lats), maxLat = Math.max(...lats)
     const minLon = Math.min(...lons), maxLon = Math.max(...lons)
-    const kLon = Math.cos((18.7 * Math.PI) / 180)
-    const spanLon = Math.max(1e-6, (maxLon - minLon) * kLon)
-    const spanLat = Math.max(1e-6, maxLat - minLat)
+    const kLon = Math.cos((19.05 * Math.PI) / 180)
+    const spanLon = (maxLon - minLon) * kLon
+    const spanLat = maxLat - minLat
     const scale = Math.min((W - PAD * 2) / spanLon, (H - PAD * 2) / spanLat)
     const ox = (W - spanLon * scale) / 2
     const oy = (H - spanLat * scale) / 2
@@ -100,22 +88,22 @@ export default function NetworkMap({
     ]
   }, [])
 
-  const outlinePath = useMemo(() => {
-    const pts = MAHARASHTRA_OUTLINE.map(([la, lo]) => project(la, lo))
-    return 'M ' + pts.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(' L ') + ' Z'
-  }, [project])
+  const ringPath = (rings: [number, number][][]) =>
+    rings.map(r => 'M ' + r.map(([la, lo]) => {
+      const [x, y] = project(la, lo)
+      return `${x.toFixed(1)},${y.toFixed(1)}`
+    }).join(' L ') + ' Z').join(' ')
+  const mmrPath = useMemo(() => ringPath(MMR_BORDER), [project])          // eslint-disable-line
+  const cityPath = useMemo(() => ringPath(MUMBAI_CITY_BORDER), [project]) // eslint-disable-line
 
   const byCode = useMemo(
-    () => Object.fromEntries(net.stations.map(s => [s.code, s])) as Record<string, Station>,
-    [net])
-
+    () => Object.fromEntries(net.stations.map(s => [s.code, s])) as Record<string, Station>, [net])
   const secById = useMemo(
     () => Object.fromEntries(net.sections.map(s => [s.id, s])) as Record<string, NetworkData['sections'][number]>,
     [net])
 
-  // Each section's centreline and its unit normal, so parallel tracks can be offset from it.
   const secGeom = useMemo(() => {
-    const out: Record<string, { x1: number; y1: number; x2: number; y2: number; nx: number; ny: number }> = {}
+    const out: Record<string, Geom> = {}
     for (const sec of net.sections) {
       const a = byCode[sec.from], b = byCode[sec.to]
       if (!a || !b) continue
@@ -127,34 +115,24 @@ export default function NetworkMap({
     return out
   }, [net, byCode, project])
 
-  // The network's own footprint in projected space — the initial zoom fits exactly this.
-  const netBBox = useMemo(() => {
+  const initialView = useMemo((): View => {
     const pts = net.stations.map(s => project(s.lat, s.lon))
     const xs = pts.map(p => p[0]), ys = pts.map(p => p[1])
-    return {
-      minX: Math.min(...xs), maxX: Math.max(...xs),
-      minY: Math.min(...ys), maxY: Math.max(...ys),
-    }
-  }, [net, project])
-
-  const initialView = useMemo((): View => {
-    const bw = Math.max(1, netBBox.maxX - netBBox.minX)
-    const bh = Math.max(1, netBBox.maxY - netBBox.minY)
-    const pad = 60
-    const s = Math.min((W - pad * 2) / bw, (H - pad * 2) / bh)
-    const cx = (netBBox.minX + netBBox.maxX) / 2, cy = (netBBox.minY + netBBox.maxY) / 2
+    const bw = Math.max(1, Math.max(...xs) - Math.min(...xs))
+    const bh = Math.max(1, Math.max(...ys) - Math.min(...ys))
+    const s = Math.min((W - 90) / bw, (H - 90) / bh)
+    const cx = (Math.min(...xs) + Math.max(...xs)) / 2, cy = (Math.min(...ys) + Math.max(...ys)) / 2
     return { scale: s, tx: W / 2 - cx * s, ty: H / 2 - cy * s }
-  }, [netBBox])
+  }, [net, project])
 
   const [view, setView] = useState<View>(initialView)
   const minScale = initialView.scale * MIN_SCALE_FACTOR
   const maxScale = initialView.scale * MAX_SCALE_FACTOR
 
-  const toUserSpace = (clientX: number, clientY: number): { x: number; y: number } | null => {
+  const toUserSpace = (clientX: number, clientY: number) => {
     const svg = svgRef.current
-    if (!svg) return null
-    const ctm = svg.getScreenCTM()
-    if (!ctm) return null
+    const ctm = svg?.getScreenCTM()
+    if (!svg || !ctm) return null
     const pt = svg.createSVGPoint()
     pt.x = clientX; pt.y = clientY
     const loc = pt.matrixTransform(ctm.inverse())
@@ -166,17 +144,12 @@ export default function NetworkMap({
       const next = Math.min(maxScale, Math.max(minScale, v.scale * factor))
       const k = next / v.scale
       const c = center ?? { x: W / 2, y: H / 2 }
-      return {
-        scale: next,
-        tx: c.x - (c.x - v.tx) * k,
-        ty: c.y - (c.y - v.ty) * k,
-      }
+      return { scale: next, tx: c.x - (c.x - v.tx) * k, ty: c.y - (c.y - v.ty) * k }
     })
   }
 
-  // React attaches JSX onWheel as a passive listener, so e.preventDefault() inside it silently
-  // fails and the page scrolls under the map instead of zooming it. A native listener attached
-  // with { passive: false } is the only way to actually claim the wheel event.
+  // React attaches JSX onWheel as passive, so preventDefault would silently fail: use a native
+  // non-passive listener.
   const zoomByRef = useRef(zoomBy)
   zoomByRef.current = zoomBy
   useEffect(() => {
@@ -191,33 +164,48 @@ export default function NetworkMap({
     return () => svg.removeEventListener('wheel', handler)
   }, [])
 
+  // A drag exists only between a primary-button press and its release; both listeners are on the
+  // window and removed the moment it ends (or if the button is no longer down).
   const onPointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
-    (e.target as Element).setPointerCapture?.(e.pointerId)
-    dragState.current = { x: e.clientX, y: e.clientY, tx: view.tx, ty: view.ty, moved: false }
-  }
-  const onPointerMove = (e: React.PointerEvent<SVGSVGElement>) => {
-    const d = dragState.current
+    if (e.button !== 0) return
     const svg = svgRef.current
-    if (!d || !svg) return
-    const ctm = svg.getScreenCTM()
-    if (!ctm) return
-    const dx = (e.clientX - d.x) / ctm.a
-    const dy = (e.clientY - d.y) / ctm.d
-    if (Math.abs(dx) + Math.abs(dy) > 2 && !d.moved) { d.moved = true; setIsDragging(true) }
-    setView(v => ({ ...v, tx: d.tx + dx, ty: d.ty + dy }))
-  }
-  const onPointerUp = () => { setIsDragging(false) }
+    const ctm = svg?.getScreenCTM()
+    if (!svg || !ctm) return
+    const start = { x: e.clientX, y: e.clientY, tx: view.tx, ty: view.ty }
+    let moved = false
+    justDragged.current = false
 
-  const suppressClickIfDragged = (fn: () => void) => () => {
-    if (dragState.current?.moved) return
-    fn()
+    const move = (ev: PointerEvent) => {
+      if (!(ev.buttons & 1)) { end(); return }
+      const dx = (ev.clientX - start.x) / ctm.a
+      const dy = (ev.clientY - start.y) / ctm.d
+      if (!moved && Math.abs(dx) + Math.abs(dy) > 3) { moved = true; setIsDragging(true) }
+      if (moved) setView(v => ({ ...v, tx: start.tx + dx, ty: start.ty + dy }))
+    }
+    const end = () => {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', end)
+      window.removeEventListener('pointercancel', end)
+      window.removeEventListener('blur', end)
+      setIsDragging(false)
+      justDragged.current = moved
+      if (moved) setTimeout(() => { justDragged.current = false }, 0)
+    }
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', end)
+    window.addEventListener('pointercancel', end)
+    window.addEventListener('blur', end)
   }
 
-  const resetView = () => setView(initialView)
+  const pick = (id: string) => () => {
+    if (justDragged.current) return
+    onSelect(selected === id ? null : id)
+  }
 
   const degraded = net.sections.filter(s => s.status !== 'FIT')
   const lines = [...new Set(net.sections.map(s => s.line_code).filter(Boolean))]
   const zoomedIn = view.scale > initialView.scale * 1.55
+  const laneOffset = (n: number, k: number) => ((k - (n - 1) / 2) * LANE_GAP) / view.scale
 
   return (
     <div className="map-wrap">
@@ -225,98 +213,85 @@ export default function NetworkMap({
       <div className="map-controls">
         <button onClick={() => zoomBy(1.35)} title="Zoom in">+</button>
         <button onClick={() => zoomBy(1 / 1.35)} title="Zoom out">−</button>
-        <button onClick={resetView} title="Reset view" style={{ fontSize: 11 }}>⤾</button>
+        <button onClick={() => setView(initialView)} title="Reset view" style={{ fontSize: 11 }}>⤾</button>
       </div>
       <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`} role="img"
            className={isDragging ? 'dragging' : ''}
-           aria-label="Maharashtra with the Mumbai suburban network, live train positions and track status"
-           onPointerDown={onPointerDown}
-           onPointerMove={onPointerMove}
-           onPointerUp={onPointerUp}
-           onPointerLeave={() => { dragState.current = null; setIsDragging(false) }}>
-        <defs>
-          <filter id="glow" x="-60%" y="-60%" width="220%" height="220%">
-            <feGaussianBlur stdDeviation="3.2" result="b" />
-            <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
-          </filter>
-        </defs>
-
+           aria-label="Mumbai region with the suburban network, live train positions and track status"
+           onPointerDown={onPointerDown}>
         <g transform={`translate(${view.tx},${view.ty}) scale(${view.scale})`}>
-          {/* Maharashtra outline — decorative context, honestly stylized (see legend note) */}
-          <path d={outlinePath} fill="#ffffff08" stroke="#ffffff" strokeOpacity={0.55}
-                strokeWidth={1.4} vectorEffect="non-scaling-stroke" />
+          {/* the region: white inside, real border; Mumbai city proper outlined harder */}
+          <path d={mmrPath} fill="#f5f7fa" stroke="#94a3b8" strokeWidth={1.6}
+                strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+          <path d={cityPath} fill="#ffffff" stroke="#475569" strokeWidth={1.3}
+                strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
 
-          {/* job-cluster halos — each colour is one group of nearby jobs */}
+          {/* job-cluster halos */}
           {halos.map((h, i) => {
             const sec = secById[h.zone]
             if (sec) {
-              const a = byCode[sec.from], b = byCode[sec.to]
-              if (!a || !b) return null
-              const [x1, y1] = project(a.lat, a.lon)
-              const [x2, y2] = project(b.lat, b.lon)
+              const g = secGeom[sec.id]
+              if (!g) return null
               return (
-                <line key={`halo-${i}`} x1={x1} y1={y1} x2={x2} y2={y2} stroke={h.color}
-                      strokeWidth={h.active ? 16 : 11} strokeLinecap="round"
-                      opacity={h.active ? 0.6 : 0.3} vectorEffect="non-scaling-stroke"
-                      filter={h.active ? 'url(#glow)' : undefined} pointerEvents="none" />
+                <line key={`halo-${i}`} x1={g.x1} y1={g.y1} x2={g.x2} y2={g.y2} stroke={h.color}
+                      strokeWidth={h.active ? 18 : 12} strokeLinecap="round"
+                      opacity={h.active ? 0.6 : 0.32} vectorEffect="non-scaling-stroke"
+                      pointerEvents="none" />
               )
             }
             const st = byCode[h.zone]
             if (!st) return null
             const [x, y] = project(st.lat, st.lon)
             return (
-              <g key={`halo-${i}`} transform={`translate(${x},${y}) scale(${1 / view.scale})`}
-                 pointerEvents="none">
-                <circle r={h.active ? 15 : 11} fill={h.color} fillOpacity={h.active ? 0.35 : 0.2}
+              <g key={`halo-${i}`} transform={`translate(${x},${y}) scale(${1 / view.scale})`} pointerEvents="none">
+                <circle r={h.active ? 15 : 11} fill={h.color} fillOpacity={h.active ? 0.4 : 0.22}
                         stroke={h.color} strokeWidth={1.4} />
               </g>
             )
           })}
 
-          {/* base network: one line per physical track, slow outside, fast inside */}
+          {/* track status: a wide translucent band under the lines, only where something is wrong */}
+          {degraded.map(sec => {
+            const g = secGeom[sec.id]
+            if (!g) return null
+            return (
+              <line key={`st-${sec.id}`} x1={g.x1} y1={g.y1} x2={g.x2} y2={g.y2}
+                    stroke={STATUS[sec.status]} strokeWidth={LANE_GAP * sec.tracks.length + 8}
+                    strokeLinecap="round" opacity={0.5} vectorEffect="non-scaling-stroke" />
+            )
+          })}
+
+          {/* the network: one line per physical track */}
           {net.sections.map(sec => {
             const g = secGeom[sec.id]
             if (!g) return null
             const lanes = laneList(sec.tracks)
-            const tint = LINE_TINT[sec.line_code] ?? '#3a4658'
+            const tint = LINE_COLOR[sec.line_code] ?? '#475569'
             const sel = selected === sec.id
             return (
               <g key={`base-${sec.id}`}>
                 {sel && (
-                  <line x1={g.x1} y1={g.y1} x2={g.x2} y2={g.y2} stroke={tint} strokeOpacity={0.28}
-                        strokeWidth={LANE_GAP * lanes.length + 8} strokeLinecap="round"
+                  <line x1={g.x1} y1={g.y1} x2={g.x2} y2={g.y2} stroke={tint} strokeOpacity={0.22}
+                        strokeWidth={LANE_GAP * lanes.length + 10} strokeLinecap="round"
                         vectorEffect="non-scaling-stroke" />
                 )}
                 {lanes.map((tr, k) => {
-                  const o = ((k - (lanes.length - 1) / 2) * LANE_GAP) / view.scale
+                  const o = laneOffset(lanes.length, k)
                   const fast = tr.endsWith('_FAST')
                   return (
                     <line key={tr} x1={g.x1 + g.nx * o} y1={g.y1 + g.ny * o}
                           x2={g.x2 + g.nx * o} y2={g.y2 + g.ny * o}
-                          stroke={tint} strokeWidth={sel ? 2.1 : 1.7} strokeLinecap="butt"
-                          strokeOpacity={fast ? 1 : 0.72} vectorEffect="non-scaling-stroke" />
+                          stroke={tint} strokeWidth={sel ? 2.2 : 1.8} strokeLinecap="butt"
+                          strokeOpacity={fast ? 1 : 0.7} vectorEffect="non-scaling-stroke" />
                   )
                 })}
               </g>
             )
           })}
 
-          {/* status overlay — brightest layer, only where something is wrong */}
-          {degraded.map(sec => {
-            const a = byCode[sec.from], b = byCode[sec.to]
-            if (!a || !b) return null
-            const [x1, y1] = project(a.lat, a.lon)
-            const [x2, y2] = project(b.lat, b.lon)
-            return (
-              <line key={`st-${sec.id}`} x1={x1} y1={y1} x2={x2} y2={y2}
-                    stroke={STATUS[sec.status]} strokeWidth={LANE_GAP * sec.tracks.length + 3} strokeLinecap="round"
-                    filter="url(#glow)" opacity={0.95} vectorEffect="non-scaling-stroke" />
-            )
-          })}
-
-          {/* active maintenance: the closed tracks get a hazard animation, a crew moves along
-              them and a gear turns at the middle. Where a single-line swap is possible only the
-              blocked track is closed and the track it swaps onto pulses amber. */}
+          {/* maintenance: hazard stripes on the closed tracks, a crew moving along them and a gear
+              turning at the middle. With single-line working only the blocked track is closed and
+              the track taking the traffic runs a moving green dash. */}
           {net.sections.filter(sec => blocks.has(sec.id)).map(sec => {
             const g = secGeom[sec.id]
             if (!g) return null
@@ -326,34 +301,39 @@ export default function NetworkMap({
             return (
               <g key={`bl-${sec.id}`} pointerEvents="none">
                 {lanes.map((tr, k) => {
-                  const o = ((k - (lanes.length - 1) / 2) * LANE_GAP) / view.scale
+                  const o = laneOffset(lanes.length, k)
                   const closed = !swap || tr === swap.blocked_track
                   const takingOver = !!swap && tr === swap.swap_to_track
                   if (!closed && !takingOver) return null
-                  return (
-                    <line key={tr} x1={g.x1 + g.nx * o} y1={g.y1 + g.ny * o}
-                          x2={g.x2 + g.nx * o} y2={g.y2 + g.ny * o}
-                          stroke={closed ? 'var(--block)' : 'var(--sick)'}
-                          strokeWidth={closed ? 3.4 : 2.6} strokeLinecap="butt"
-                          strokeDasharray={closed ? '4 4' : '9 5'} vectorEffect="non-scaling-stroke">
-                      <animate attributeName="stroke-dashoffset" from={closed ? '16' : '0'}
-                               to={closed ? '0' : '28'} dur={closed ? '0.8s' : '1.4s'} repeatCount="indefinite" />
+                  const p = { x1: g.x1 + g.nx * o, y1: g.y1 + g.ny * o, x2: g.x2 + g.nx * o, y2: g.y2 + g.ny * o }
+                  return closed ? (
+                    <g key={tr}>
+                      <line {...p} stroke="#f59e0b" strokeWidth={4.4} vectorEffect="non-scaling-stroke" />
+                      <line {...p} stroke="#111827" strokeWidth={4.4} strokeDasharray="5 5"
+                            vectorEffect="non-scaling-stroke">
+                        <animate attributeName="stroke-dashoffset" from="20" to="0" dur="0.7s" repeatCount="indefinite" />
+                      </line>
+                    </g>
+                  ) : (
+                    <line key={tr} {...p} stroke="#22c55e" strokeWidth={3} strokeDasharray="9 5"
+                          vectorEffect="non-scaling-stroke">
+                      <animate attributeName="stroke-dashoffset" from="28" to="0" dur="1.1s" repeatCount="indefinite" />
                     </line>
                   )
                 })}
-                <circle r={3 / view.scale} fill="#ffd166">
+                <circle r={3.4 / view.scale} fill="#ef4444" stroke="#fff" strokeWidth={0.9 / view.scale}>
                   <animate attributeName="cx" values={`${g.x1};${g.x2};${g.x1}`} dur="3.4s" repeatCount="indefinite" />
                   <animate attributeName="cy" values={`${g.y1};${g.y2};${g.y1}`} dur="3.4s" repeatCount="indefinite" />
                 </circle>
                 <g transform={`translate(${mx},${my}) scale(${1 / view.scale})`}>
                   {[0, 0.9].map(delay => (
-                    <circle key={delay} r={6} fill="none" stroke="var(--block)" strokeWidth={1.6}>
-                      <animate attributeName="r" values="6;24" dur="1.8s" begin={`${delay}s`} repeatCount="indefinite" />
+                    <circle key={delay} r={6} fill="none" stroke="#ef4444" strokeWidth={1.8}>
+                      <animate attributeName="r" values="6;26" dur="1.8s" begin={`${delay}s`} repeatCount="indefinite" />
                       <animate attributeName="opacity" values="0.9;0" dur="1.8s" begin={`${delay}s`} repeatCount="indefinite" />
                     </circle>
                   ))}
-                  <circle r={7} fill="#150f2b" stroke="var(--block)" strokeWidth={1.2} />
-                  <circle r={5} fill="none" stroke="#ffd166" strokeWidth={2.6} strokeDasharray="2.6 2.6">
+                  <circle r={7.5} fill="#111827" stroke="#f59e0b" strokeWidth={1.4} />
+                  <circle r={5} fill="none" stroke="#f59e0b" strokeWidth={2.6} strokeDasharray="2.6 2.6">
                     <animateTransform attributeName="transform" type="rotate" from="0" to="360"
                                       dur="3.5s" repeatCount="indefinite" />
                   </circle>
@@ -362,8 +342,7 @@ export default function NetworkMap({
             )
           })}
 
-          {/* rerouted long-distance and freight trains: the detour is drawn along the alternate
-              sections, with the train travelling it. Locals never appear here. */}
+          {/* rerouted long-distance and freight trains travel their detour. Locals never appear. */}
           {reroutes.flatMap(b => b.reroutes.map(r => {
             const secs = r.sections.map(id => secById[id]).filter(Boolean)
             if (!secs.length) return null
@@ -376,19 +355,18 @@ export default function NetworkMap({
             const d = 'M ' + pts.map(([x, y]) => `${x.toFixed(2)},${y.toFixed(2)}`).join(' L ')
             return (
               <g key={`rr-${b.section_id}-${r.train_id}`} pointerEvents="none">
-                <path d={d} fill="none" stroke="#22e5ff" strokeWidth={7} strokeOpacity={0.18}
+                <path d={d} fill="none" stroke={TRAIN.reroute} strokeWidth={8} strokeOpacity={0.2}
                       strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
-                <path d={d} fill="none" stroke="#22e5ff" strokeWidth={2.4} strokeDasharray="7 5"
-                      strokeLinecap="round" strokeLinejoin="round" opacity={0.95}
-                      vectorEffect="non-scaling-stroke">
+                <path d={d} fill="none" stroke={TRAIN.reroute} strokeWidth={2.6} strokeDasharray="7 5"
+                      strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke">
                   <animate attributeName="stroke-dashoffset" from="24" to="0" dur="0.9s" repeatCount="indefinite" />
                 </path>
                 <g>
                   <animateMotion path={d} dur={`${Math.max(6, pts.length * 2.2)}s`} repeatCount="indefinite" />
                   <g transform={`scale(${1 / view.scale})`}>
-                    <circle r={5.5} fill="#22e5ff" stroke="#fff" strokeWidth={1.4} />
-                    <text x={9} y={3.5} fontSize={9.5} fill="#22e5ff" fontFamily="var(--mono)"
-                          fontWeight={600}>{r.train_name || r.train_id}</text>
+                    <circle r={6} fill={TRAIN.reroute} stroke="#fff" strokeWidth={1.6} />
+                    <text x={10} y={3.5} fontSize={9.5} fill="#0e7490" fontFamily="var(--mono)" fontWeight={700}
+                          stroke="#fff" strokeWidth={3} paintOrder="stroke">{r.train_name || r.train_id}</text>
                   </g>
                 </g>
               </g>
@@ -397,44 +375,39 @@ export default function NetworkMap({
 
           {/* clickable hit areas */}
           {net.sections.map(sec => {
-            const a = byCode[sec.from], b = byCode[sec.to]
-            if (!a || !b) return null
-            const [x1, y1] = project(a.lat, a.lon)
-            const [x2, y2] = project(b.lat, b.lon)
+            const g = secGeom[sec.id]
+            if (!g) return null
             return (
-              <line key={`hit-${sec.id}`} x1={x1} y1={y1} x2={x2} y2={y2}
-                    stroke="transparent" strokeWidth={16} vectorEffect="non-scaling-stroke"
-                    style={{ cursor: 'pointer' }}
-                    onClick={suppressClickIfDragged(() => onSelect(selected === sec.id ? null : sec.id))} />
+              <line key={`hit-${sec.id}`} x1={g.x1} y1={g.y1} x2={g.x2} y2={g.y2}
+                    stroke="transparent" strokeWidth={LANE_GAP * sec.tracks.length + 8}
+                    vectorEffect="non-scaling-stroke" style={{ cursor: 'pointer' }}
+                    onClick={pick(sec.id)} />
             )
           })}
 
-          {/* stations — inverse-scaled so markers and labels stay a constant, legible size */}
+          {/* stations, inverse-scaled so markers and labels keep a constant, legible size */}
           {net.stations.map(st => {
             const [x, y] = project(st.lat, st.lon)
             const interchange = (st.lines?.length ?? 0) > 1
-            const r = interchange ? 5.4 : st.tier === 'TIER_1' ? 4.4 : st.tier === 'TIER_2' ? 3 : 2.3
+            const r = interchange ? 5.4 : st.tier === 'TIER_1' ? 4.4 : st.tier === 'TIER_2' ? 3.2 : 2.6
             const label = interchange || st.tier === 'TIER_1' || (zoomedIn && st.tier === 'TIER_2')
                         || (view.scale > initialView.scale * 3.2)
             return (
               <g key={st.code} transform={`translate(${x},${y}) scale(${1 / view.scale})`}
                  onMouseEnter={() => setHover(st)} onMouseLeave={() => setHover(null)}
-                 style={{ cursor: 'pointer' }}>
+                 style={{ cursor: 'default' }}>
                 <circle r={r + 5} fill="transparent" />
-                <circle r={r} fill="#070a0f"
-                        stroke={interchange ? 'var(--text)' : 'var(--text-dim)'}
-                        strokeWidth={interchange ? 2 : 1.3} />
+                <circle r={r} fill="#fff" stroke="#111827" strokeWidth={interchange ? 2.2 : 1.4} />
                 {label && (
-                  <text x={r + 5} y={3.4} fontSize={9.5}
-                        fill={interchange ? 'var(--text)' : 'var(--text-dim)'}
-                        fontFamily="var(--mono)"
-                        fontWeight={interchange ? 600 : 400}>{st.code}</text>
+                  <text x={r + 5} y={3.6} fontSize={9.5} fill="#111827" fontFamily="var(--mono)"
+                        fontWeight={interchange ? 700 : 500} stroke="#fff" strokeWidth={3}
+                        paintOrder="stroke">{st.code}</text>
                 )}
               </g>
             )
           })}
 
-          {/* trains — shape first, colour second; inverse-scaled to stay small dots */}
+          {/* trains: black dot = local, orange ringed = intercity, brown square = freight */}
           {trains.map(t => {
             const [px, py] = project(t.lat, t.lon)
             const sec = secById[t.section]
@@ -444,29 +417,31 @@ export default function NetworkMap({
               const lanes = laneList(sec.tracks)
               const k = lanes.indexOf(t.track)
               if (k >= 0) {
-                const o = ((k - (lanes.length - 1) / 2) * LANE_GAP) / view.scale
+                const o = laneOffset(lanes.length, k)
                 x += g.nx * o; y += g.ny * o
               }
             }
             const gt = `translate(${x},${y}) scale(${1 / view.scale})`
             if (t.cls === 'SUBURBAN_LOCAL')
-              return <g key={t.id} transform={gt}><circle r={2.1} fill="var(--accent)" opacity={0.95} /></g>
+              return <g key={t.id} transform={gt}>
+                <circle r={2.4} fill={TRAIN.local} stroke="#fff" strokeWidth={0.9} />
+              </g>
             if (t.cls === 'FREIGHT_MAIL')
               return <g key={t.id} transform={gt}>
-                <rect x={-2.4} y={-2.4} width={4.8} height={4.8} rx={1} fill="#cfdae6" opacity={0.95} />
+                <rect x={-2.9} y={-2.9} width={5.8} height={5.8} rx={1} fill={TRAIN.freight}
+                      stroke="#fff" strokeWidth={0.9} />
               </g>
             return (
               <g key={t.id} transform={gt}>
-                <circle r={4.2} fill="none" stroke="#fff" strokeWidth={1} opacity={0.6} />
-                <circle r={2} fill="#fff" />
+                <circle r={4.6} fill={TRAIN.intercity} stroke="#111827" strokeWidth={1.3} />
+                <circle r={1.5} fill="#111827" />
               </g>
             )
           })}
         </g>
 
-        <text x={18} y={26} fontSize={12.5} fill="var(--text-dim)" fontFamily="var(--mono)">{clock}</text>
-        <text x={W - 18} y={26} fontSize={11} fill="var(--text-mute)" fontFamily="var(--mono)"
-              textAnchor="end">
+        <text x={18} y={26} fontSize={12.5} fill="#cbd5e1" fontFamily="var(--mono)">{clock}</text>
+        <text x={W - 18} y={26} fontSize={11} fill="#94a3b8" fontFamily="var(--mono)" textAnchor="end">
           {totalActive} services running{truncated > 0 ? ` · +${truncated} not drawn` : ''}
         </text>
 
@@ -475,18 +450,19 @@ export default function NetworkMap({
           const x = view.tx + px * view.scale, y = view.ty + py * view.scale
           const right = x > W - 200
           return (
-            <g transform={`translate(${right ? x - 196 : x + 12}, ${Math.min(Math.max(y - 8, 8), H - 80)})`}>
+            <g transform={`translate(${right ? x - 196 : x + 12}, ${Math.min(Math.max(y - 8, 8), H - 80)})`}
+               pointerEvents="none">
               <rect width={184} height={hover.lines && hover.lines.length > 1 ? 68 : 56} rx={7}
                     fill="#0b0f16" stroke="var(--line)" />
-              <text x={11} y={19} fontSize={11.5} fill="var(--text)" fontWeight={600}>{hover.name}</text>
-              <text x={11} y={35} fontSize={10} fill="var(--text-mute)" fontFamily="var(--mono)">
+              <text x={11} y={19} fontSize={11.5} fill="#eef3f8" fontWeight={600}>{hover.name}</text>
+              <text x={11} y={35} fontSize={10} fill="#94a3b8" fontFamily="var(--mono)">
                 {hover.code} · {hover.tier?.replace('_', ' ').toLowerCase()} · {hover.trains_per_day} trains/day
               </text>
               <text x={11} y={49} fontSize={10} fill={STATUS[hover.status]} fontFamily="var(--mono)">
                 {hover.status.replace(/_/g, ' ').toLowerCase()}
               </text>
               {hover.lines && hover.lines.length > 1 && (
-                <text x={11} y={62} fontSize={9.5} fill="var(--text-mute)">
+                <text x={11} y={62} fontSize={9.5} fill="#94a3b8">
                   interchange: {hover.lines.map(l => LINE_NAME[l] ?? l).join(' · ')}
                 </text>
               )}
@@ -497,22 +473,22 @@ export default function NetworkMap({
 
       <div className="legend">
         {lines.map(l => (
-          <span key={l}><i style={{ background: LINE_TINT[l] }} />{LINE_NAME[l] ?? l}</span>
+          <span key={l}><i style={{ background: LINE_COLOR[l] }} />{LINE_NAME[l] ?? l}</span>
         ))}
         <span className="sep" />
-        <span><i className="dot" style={{ background: 'var(--accent)' }} />Local</span>
-        <span><i style={{ background: '#fff' }} />Intercity</span>
-        <span><i style={{ background: '#cfdae6' }} />Freight</span>
+        <span><i className="dot" style={{ background: TRAIN.local }} />Local</span>
+        <span><i className="dot" style={{ background: TRAIN.intercity }} />Intercity</span>
+        <span><i style={{ background: TRAIN.freight }} />Freight</span>
+        <span><i style={{ background: TRAIN.reroute }} />Rerouted</span>
         <span className="sep" />
+        <span><i style={{ background: 'repeating-linear-gradient(45deg,#f59e0b 0 3px,#111827 3px 6px)' }} />Track closed for work</span>
+        <span><i style={{ background: '#22c55e' }} />Single-line working</span>
         <span><i style={{ background: 'var(--sick)' }} />Sick</span>
-        <span><i style={{ background: 'var(--caution)' }} />Caution order</span>
+        <span><i style={{ background: 'var(--caution)' }} />Caution</span>
         <span><i style={{ background: 'var(--stopstart)' }} />Stop &amp; start</span>
-        <span><i style={{ background: 'var(--block)' }} />Track closed for work</span>
-        <span><i style={{ background: 'var(--sick)' }} />Single-line working</span>
-        <span><i style={{ background: '#22e5ff' }} />Rerouted train</span>
         <span className="sep" />
         <span className="muted" style={{ fontStyle: 'italic' }}>
-          each line = its real tracks (slow outside, fast inside) · scroll/drag to zoom · state outline is stylized
+          slow tracks outside, fast inside · border: OpenStreetMap
         </span>
       </div>
     </div>

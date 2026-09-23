@@ -177,7 +177,9 @@ export const api = {
   chat: (q: string) => j<ChatAnswer>('/api/chat', {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ q }),
   }),
-  impact: () => j<ImpactData>('/api/metrics/impact'),
+  impact: (hoursPerConflict?: number, waitDays?: number) => j<ImpactData>(
+    `/api/metrics/impact${hoursPerConflict !== undefined ? `?hours_per_conflict=${hoursPerConflict}&wait_days=${waitDays}` : ''}`),
+  scorecard: () => j<ScoreCardData>('/api/metrics/scorecard'),
   rl: () => j<RlData>('/api/rl/comparison'),
   adapters: () => j<AdapterData>('/api/adapters'),
   reroutingOpportunities: () => j<ReroutingData>('/api/rerouting/opportunities'),
@@ -187,6 +189,20 @@ export const api = {
   clusters: () => j<ClustersData>('/api/tasks/clusters'),
   reroutingActive: (atS: number) => j<ReroutingActive>(`/api/rerouting/active?at_s=${Math.round(atS)}`),
   proof: () => j<ProofData>('/api/algorithms/proof'),
+  formOptions: () => j<FormOptions>('/api/form/options'),
+  submitTask: (b: SubmitBody) => j<SubmitResult>('/api/tasks/submit', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b),
+  }),
+  clearUserTasks: () => j<{ removed: number }>('/api/tasks/user/clear', { method: 'POST' }),
+  taskScores: (includeSim = false) => j<ScoresData>(`/api/tasks/scores?include_sim=${includeSim}`),
+  explainGaps: (section = '', track = '', day = 1, from = 5, to = 9) =>
+    j<GapTrace>(`/api/explain/gaps?section=${section}&track=${track}&day=${day}&hour_from=${from}&hour_to=${to}`),
+  explainClusters: () => j<ClusterTrace>('/api/explain/clusters'),
+  explainSchedule: () => j<ScheduleDemo>('/api/explain/schedule'),
+  creationSummary: () => j<CreationSummary>('/api/creation/summary'),
+  scheduleWeek: () => j<WeekSchedule>('/api/schedule/week'),
+  scheduleMonth: () => j<MonthSchedule>('/api/schedule/month'),
+  buildMonth: (force = false) => j<{ status: string }>(`/api/schedule/month/build?force=${force}`, { method: 'POST' }),
 }
 
 export const hhmm = (s: number) => {
@@ -194,3 +210,140 @@ export const hhmm = (s: number) => {
   return `${String(Math.floor(t / 3600)).padStart(2, '0')}:${String(Math.floor((t % 3600) / 60)).padStart(2, '0')}`
 }
 export const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+
+// ---------------------------------------------------------------- task pipeline (form -> score -> plan)
+
+export interface FormOptions {
+  departments: { code: string; label: string }[]
+  task_types: { code: string; label: string; department: string; min: number; max: number; power_block: boolean }[]
+  sections: { id: string; label: string; line: string; tracks: number }[]
+  stations: { code: string; name: string }[]
+  allotments: Record<string, string[]>
+}
+
+export interface SubmitBody {
+  description: string; department: string; zone_ref: string; task_type: string
+  duration_min: number; priority: number; allows_with: string[]; at_s: number
+}
+
+export interface CreationOptionView {
+  lever: string; lever_label: string; section_id: string; track: string; day: number
+  start_s: number; end_s: number; raw_min: number; delay_min: number
+  trains: { train_id: string; class: string; action: string }[]; note: string
+}
+
+export interface PairView { other: string; department: string; verdict: Verdict; reason: string; rule: string }
+export interface ScoreView {
+  task_id: string; score: number; cluster_id: number | null; mates: number
+  compatible: number; requires_iwp: number; incompatible: number; standalone: boolean
+  pairs: PairView[]
+}
+export interface ScheduleView {
+  start_s: number; end_s: number; section_id: string; track: string; gap_type: string
+  integrated_with: string[]; created: CreationOptionView | null; reason: string; steps: string[]
+  day: string; hhmm: string
+}
+export interface ScoredTask {
+  id: string; source: string; department: string; label: string; description: string
+  zone: string; zone_kind: string; duration_min: number; priority: number
+  allows_with: string[] | null
+  score: ScoreView | null
+  cluster: { id: number; label: string; size: number } | null
+  schedule: ScheduleView | null
+  unplaced_reason: string | null
+}
+export interface ScoresData {
+  tasks: ScoredTask[]; clusters: JobCluster[]
+  summary: { n_tasks: number; n_clusters: number; mean_score: number; n_user: number; n_shared: number }
+}
+export interface SubmitResult {
+  task: ScoredTask; cluster: JobCluster | null; scheduling_ms: number
+  rejected_by_allotment: boolean; pool: { n_tasks: number; n_clusters: number }
+}
+
+// ---------------------------------------------------------------- explainers
+
+export interface GapRow {
+  prev: { train_id: string; class: string; enter_s: number; exit_s: number }
+  next: { train_id: string; class: string; enter_s: number; exit_s: number }
+  gap_min: number; after_buffers_min: number; usable_min: number; keep: boolean
+  reason: string; creation: CreationOptionView | null
+}
+export interface GapTrace {
+  section_id: string; track: string; day: number; hour_from: number; hour_to: number
+  buffer_min: number; overhead_min: number; min_workable_min: number; min_raw_min: number
+  n_trains: number; rows: GapRow[]; kept: number; dropped: number; near_misses: number
+  windows: { id: string; start_s: number; end_s: number; gap_type: string; usable_min: number }[]
+  choices: { id: string; tracks: string[]; label: string }[]
+}
+export interface ClusterTrace {
+  cut_km: number; method: string
+  points: { index: number; id: string; x_km: number; y_km: number; lat: number; lon: number
+            department: string; zone: string; label: string; cluster: number }[]
+  merges: { a: number; b: number; distance_km: number; size: number; id: number }[]
+  clusters: JobCluster[]; scores: Record<string, number>; cluster_labels: Record<string, string>
+}
+export interface ScheduleDemo {
+  order: string[]
+  results: {
+    id: string; from_task: string; shortened_from: number | null; department: string; label: string; zone: string
+    duration_min: number; placed: boolean; start_s: number | null; end_s: number | null
+    hhmm: string | null; section_id: string | null; track: string | null; gap_type: string | null
+    integrated_with: string[]; created: CreationOptionView | null; reason: string; steps: string[]
+  }[]
+  clusters_used: number[]
+}
+export interface CreationSummary {
+  survey: {
+    track_days: number; natural_gaps: number; near_gaps: number; created: number
+    RETIME: number; REROUTE: number; usable_hours_added: number; delay_train_min: number
+    trains_held: number; trains_rerouted: number
+  }
+  min_workable_min: number
+  weekly: {
+    natural_placed: number; final_placed: number; n_tasks: number
+    used: { window_id: string; task_id: string; task: string; department: string; section_id: string
+            track: string; lever: string; delay_min: number; note: string; start_s: number; end_s: number }[]
+  }
+}
+
+// ---------------------------------------------------------------- schedules
+
+export interface PlanEntry {
+  task_id: string; label: string; description: string; department: string; zone: string
+  section_id: string; track: string; start_s: number; end_s: number; gap_type: string
+  source: string; priority: number; cluster: number | null; created: boolean; tag: string
+}
+export interface WeekSchedule {
+  entries: PlanEntry[]
+  unplaced: { task_id: string; label: string; department: string; zone: string; duration_min: number; reason: string }[]
+  by_day: Record<string, number>
+  summary: {
+    n_tasks: number; placed: number; unplaced: number; micro_gap: number; night: number
+    megablock: number; from_created_gaps: number; natural_only_placed: number; plan_placed: number
+    solver: string; gap_pct: number; wall_s: number
+  }
+}
+export interface MonthSchedule {
+  status: 'idle' | 'running' | 'done' | 'error'; progress: number; total_weeks: number
+  error: string | null
+  weeks: { week: number; entries: PlanEntry[]; n_tasks: number; placed: number
+           carried_in: number; carried_out: number; micro_gap: number; created: number }[]
+  summary: { n_tasks: number; placed: number; micro_gap: number; created: number; backlog_end: number }
+}
+
+export interface ScoreCardItem {
+  id: string; algorithm: string; what: string
+  before: { label: string; value: number; unit: string }
+  after: { label: string; value: number; unit: string }
+  detail: string; how: string; repro: string
+}
+export interface ScoreCardData {
+  cards: ScoreCardItem[]
+  headline: {
+    capacity_gain_pct: number; urgent_jobs_natural: number; urgent_jobs_creation: number
+    urgent_jobs_total: number; blocks_manual: number; blocks_ours: number
+    jobs_placed_manual: number; jobs_placed_ours: number
+  }
+  limits: string[]
+}
