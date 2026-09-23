@@ -1,156 +1,126 @@
-# Demo script — four minutes
+# Demo script — five minutes
 
-Rehearse it twice from a fresh terminal before presenting. The single biggest risk on stage is
-a server that was already running and is serving stale code.
+Rehearse it twice from a fresh terminal. The biggest risk on stage is a server that was already
+running and is serving stale code. Numbers below are read off the screen, not memorised: every
+figure in the app comes from a run that happened, and they can move between runs.
 
 ## Before you start
 
 ```powershell
-# one terminal
+# one terminal (the first start takes about a minute: it builds the timetable and solves the week)
 .\.venv\Scripts\python.exe -m uvicorn backend.api.main:app --port 8000
 
 # another
 cd frontend; npm run dev
 ```
 
-Open `http://127.0.0.1:5173`. Wait for the map to draw before you begin — the first request
-builds the network and takes a few seconds. Land on **Operations**.
-
-There are no map tiles anywhere in this app, so conference wifi cannot break it.
+Open `http://127.0.0.1:5173` and wait for the map. Land on **Operations**. There are no map tiles;
+the Mumbai border is cached OpenStreetMap data, so conference wifi cannot break anything.
 
 ---
 
-## 1 · The problem (25 s) — Operations tab
+## 1 · The network (30 s) — Operations
 
-> "This is the Mumbai suburban network — four lines, 73 stations, eleven thousand services a
-> week. Every one of them is in the way of maintenance."
+> "The Mumbai region, drawn from its real border. Every section is drawn as its real tracks — four
+> abreast on the Central and Western core, two on the outer stretches, slow lines outside and fast
+> inside. Trains run on their own track."
 
-Let the trains move for a beat. Point at the amber sections.
+Point at the yellow-and-black striped track with the crew moving along it.
 
-> "These four sections have defects outstanding. The network is drawn calm and the problems are
-> drawn bright, so you know where to look without reading anything."
+> "That is maintenance happening right now. Jobs are arriving and being placed continuously."
 
-Hover an interchange (Thane or Kurla).
+Set the speed to **5×** or **10×**. Point at the cyan train.
 
-> "We didn't declare the interchanges. They fall out of the data — the same station code
-> appearing on two lines."
+> "A long-distance train due through a closed section is rerouted around it. Suburban locals never
+> are — they serve fixed stations — so where a section has two tracks they run single-line instead,
+> the green dashed track."
 
-## 2 · What we replace (45 s) — Department coordination tab
+## 2 · The proof strip (20 s) — Operations, below the map
 
-> "Three departments raise maintenance work: track, overhead wire, signalling. Today their
-> three heads decide by phone who can work where without conflicting. That negotiation is what
-> this replaces."
+> "Everything under 'Proof it works' is measured, not asserted. Gap lookup with an interval tree
+> against a full scan, with identical answers; the weekly plan solved to optimality; jobs
+> clustered; jobs placed live; trains rerouted."
 
-Point at the tiles: 6 needing an Integrated Work Permission, 3 incompatible, **24 hours of
-manual negotiation**.
+## 3 · Raise your own job (75 s) — Department coordination
 
-Hover a green cell that is adjacent rather than disjoint.
+> "Three departments raise work independently. Here's the form a department fills in: what, where,
+> for how long, and which other departments may work alongside."
 
-> "Read the reason. PWI on the Matunga–Dadar section while OWD works Matunga station — they
-> meet at Matunga but don't physically overlap, so both proceed. That's rule R2, and it's the
-> capacity a phone call usually gives away."
+Raise a **PWI** job on **Dadar – Matunga**, both other departments ticked. Submit.
 
-Hover an amber cell.
+> "It scored 100 against the jobs near it, joined a group, and was scheduled into a gap — sharing a
+> block with a nearby job where the rules allow. Open the card: every pair has a written reason."
 
-> "Same section, same time, different departments. That needs an Integrated Work Permission —
-> which is a third status, not a flavour of compatible."
+Now raise an **S&T** job on the same section with **PWI unticked**.
 
-Ask the assistant on the right: **"why can't S&T work on NRL-BVS?"**
+> "PWI did not allow it, so the system keeps them at different times. The declaration is a
+> constraint, not a label."
 
-> "It answers from the live plan. There's no language model here — every number it gives you is
-> read out of the same objects the solver uses, so it can't invent one. The line underneath
-> shows what it read."
+Click **See it on the Operations map →** (or **Watch it** on Operations) and speed to 20×.
 
-## 3 · The capacity nobody uses (40 s) — Corridor capacity tab
+> "The job we just raised, happening on the map."
 
-> "Everyone schedules at night and on Sunday megablocks. We also find the gaps *between*
-> trains during the working day — twelve thousand of them across the week."
+## 4 · How it decided (60 s) — Weekly block plan
 
-Point at the 56% bar.
+> "Three steps, each shown from a real run. One: how the gaps were found — every gap between two
+> trains, minus safety and set-up time, kept only if 15 minutes of real work remain. Near misses
+> that a small change would save are marked. Two: the dendrogram — jobs merge nearest first and
+> stop at 5 km; what hangs together shares a block. Three: the schedule."
 
-> "And a gap isn't working time. Fifteen minutes to protect the block, ten to hand it back. A
-> forty-minute gap gives you about fifteen minutes of work. Planning against raw gaps would
-> overstate capacity everywhere."
+Toggle **Month**.
 
-Point at the night-window table.
+> "Four rolling weeks, each solved exactly, with the last week's leftovers carried in."
 
-> "These aren't hardcoded. Each one is read from the last and first train on that track, so
-> they differ section by section. And the Sunday megablock is corroborated — traffic in that
-> window measures 51% below a weekday."
+## 5 · Watch it think (60 s) — AI dispatcher
 
-## 4 · The plan (30 s) — Weekly block plan tab
+Press **Start simulation**.
 
-> "CP-SAT solves the week to optimality — zero optimality gap, three seconds. Thirty-six of
-> forty jobs placed, a quarter of them into gaps between trains."
+> "Same algorithms, in plain words: taking a gap apart, opening a near miss, merging the closest
+> jobs, checking the rules, giving each job a time. It is replayed from the real run, so it says
+> exactly what the code did."
 
-Point at the four unplaced.
+Scroll to the learned dispatcher.
 
-> "These four have no window long enough anywhere on their section. That's not a solver
-> failure, it's a real finding: that work can't be done without *creating* a window by moving
-> trains."
+> "And when an unplanned defect appears mid-week, the learned dispatcher re-plans in milliseconds
+> where the exact solver takes seconds. Zero constraint violations, by construction."
 
-## 5 · The innovation (50 s) — AI dispatcher tab
+## 6 · Why adopt it (45 s) — Before / after
 
-> "Here's the part that's ours. CP-SAT is exact but takes seconds, which is useless when a
-> defect appears mid-week. So we ran it a thousand times, replayed every solution as a sequence
-> of dispatch decisions, and trained a policy on those. The solver teaches the dispatcher."
+> "Each algorithm, before and after, on the same instances — with how it was measured and how to
+> reproduce it. The 'before' case is a model of today's practice, and its two invented numbers are
+> sliders: drag the negotiation time down and watch whether we still win."
 
-Point at the table.
+Point at the cost: gap creation delays trains, and that cost is stated in train-minutes.
 
-> "Twenty held-out instances it never saw. CQL-DQN lands within 14.8% of optimal and re-plans
-> twenty-nine times faster. Greedy and random are in the table because a gap number means
-> nothing without a floor."
+## 7 · Ask RailMitra (15 s)
 
-Point at the micro-gap column.
+Open the chat button: **"how are jobs grouped?"** / **"what did gap creation open?"**
 
-> "And this is the one I'd look at. The learned policies put fifty percent more work into gaps
-> between trains than greedy does. Nobody wrote that rule — it transferred from the solver's
-> own solutions."
-
-Point at violations.
-
-> "Zero constraint violations, and that's by construction, not by luck. Every action goes
-> through a legality mask, so an illegal schedule literally can't be represented."
-
-## 6 · The impact (30 s) — Before / after tab
-
-> "Ten metrics, same instances both sides."
-
-Point at the assumptions panel.
-
-> "And the 'before' case is a model, not field data — we say so. Both its parameters are
-> adjustable. Turn the negotiation time down and see whether we still win. We'd rather you
-> tested it than believed it."
-
-## 7 · Where it plugs in (20 s) — IR integration tab
-
-> "This isn't a replacement for anything. The three departments map one-to-one onto three
-> systems Indian Railways already runs — track to TMS, signalling to SMMS, overhead to TDMS.
-> Our plan goes to BDMS as block demands, and COA closes the loop with live running. We're the
-> planning brain between systems that already exist."
+> "Answers come out of the same objects the planner uses. No language model."
 
 ---
 
 ## If you are asked
 
-**"Is the data real?"** — Station coordinates and the mail/express timetable are real, from the
-public IR datasets. Suburban and freight layers are synthesised, because no public source
-carries them. 429 of 1,640 daily services are real, and provenance is tracked per train.
-`ASSUMPTIONS.md` lists everything invented.
+**"Is the data real?"** — Station coordinates, the mail/express timetable and the Mumbai border are
+real (public datasets and OpenStreetMap). Suburban and freight layers, and every maintenance job,
+are synthetic. `ASSUMPTIONS.md` lists everything invented.
 
-**"Does it scale beyond Mumbai?"** — `tests/test_scalability.py`, ten passing tests on a fifth
-corridor added as a config file. Two of them assert no corridor or station name appears
-anywhere in the code.
+**"Why only two tracks on Harbour and Trans-Harbour?"** — Those lines are two-track railways.
+Central and Western are quadrupled on the core and two-track beyond it, which is what the map shows.
 
-**"Your validation has failures."** — Yes, and we report them rather than tune the thresholds.
-Two checks fail, both understood and written up. Moving a threshold to fit the data it polices
-would make every other number unreliable.
+**"Does creating gaps hurt trains?"** — Yes, a little, and the app says how much: every option is
+priced in train-minutes, holds are capped per train, and locals are never rerouted.
 
-**"14.8% isn't that close to optimal."** — Agreed, and the spec aimed at 5–10%. Both models
-overfit early — they peaked at step 1,000 of 6,000. More data or stronger regularisation would
-likely narrow it. We'd rather tell you that than present it as a ceiling.
+**"Does it scale beyond Mumbai?"** — `tests/test_scalability.py`: a fifth corridor added as one
+config file, with assertions that no corridor or station name appears in the code.
 
-**"Isn't squeezing work between trains risky?"** — It is, and the model prices it. A job given
-less time than it needs has a higher probability of finishing in a degraded state, which costs
-train time every day until a follow-up clears it. Micro-gap scheduling is a trade-off here, not
-free capacity.
+**"Your validation has failures."** — Two checks fail and are reported, not tuned away. Moving a
+threshold to fit the data it polices would make every other number unreliable.
+
+**"The RL gap?"** — Measured on 20 held-out instances the model never saw, on the placement
+objective only (the integrated-block reward is a weekly-plan feature the dispatcher is not trained
+for). Greedy is in the table because a gap number means nothing without a floor.
+
+**"Isn't squeezing work between trains risky?"** — It is, and the model prices it: a job given less
+time than it needs finishes degraded more often. Micro-gap scheduling is a trade-off, not free capacity.
