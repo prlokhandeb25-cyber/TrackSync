@@ -140,13 +140,12 @@ def reroute_candidates(net: Network, train: Train, avoid_section_id: str,
     k = k or int(cfg.get_path("rerouting.k_alternate_paths", 3))
     limit = float(cfg.get_path(f"rerouting.max_delay_min.{train.train_class.value}", 30))
 
-    direct = _path_sections(net, [train.origin, train.destination])
-    if direct is None:
-        # Origin/destination aren't adjacent for this train's real route through the
-        # corridor; fall back to the train's own path for the delay baseline.
-        direct = []
-
-    paths = k_shortest_paths(net, train.origin, train.destination, k)
+    paths = k_shortest_paths(net, train.origin, train.destination, k + 1)
+    # Baseline for "added delay" is the shortest route between the train's own origin and
+    # destination. Comparing against an adjacent-station hop (the old baseline) made every
+    # multi-section train look like it lost no time at all on a detour.
+    direct = _path_sections(net, paths[0]) if paths else None
+    direct = direct or []
     out: list[ReroutePath] = []
     for nodes in paths:
         secs = _path_sections(net, nodes)

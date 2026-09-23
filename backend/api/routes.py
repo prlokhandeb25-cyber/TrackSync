@@ -269,13 +269,27 @@ def sim_tick(at_s: int = 0) -> dict:
             "algorithm": "Max-to-Min greedy ordering + ALNS-lite destroy/repair insertion"}
 
 
+_OCC_BY_SECTION: dict | None = None
+
+
+def _occupancy_by_section() -> dict:
+    global _OCC_BY_SECTION
+    if _OCC_BY_SECTION is None:
+        idx: dict = {}
+        for o in ensure_world().occupancy:
+            idx.setdefault(o.section_id, []).append(o)
+        _OCC_BY_SECTION = idx
+    return _OCC_BY_SECTION
+
+
 @router.get("/api/sections/{section_id}/brief")
-def section_brief(section_id: str) -> dict:
+def section_brief(section_id: str, at_s: int = 0) -> dict:
     """Plain-language summary + next available gap, for the Operations map's click panel.
 
     Uses the interval tree's range query (backend/planner/interval_index.py) to answer "what's
     free here in the next day" — a question the plain per-zone dict index cannot answer without
-    scanning every window.
+    scanning every window. Also returns, per track, the day's train passes and the gaps found
+    between them, so the UI can show HOW the gaps were identified rather than just their count.
     """
     w = ensure_world()
     sec = w.net.sections.get(section_id)
@@ -283,11 +297,23 @@ def section_brief(section_id: str) -> dict:
         raise HTTPException(status_code=404, detail="unknown section")
     index = ensure_interval_index()
     status = w.registry.get(section_id)
-    at_s = STATE.sim_time_s
+    at_s = at_s or STATE.sim_time_s
 
     open_tasks = [t for t in w.tasks if t.zone.ref == section_id and not t.completed]
     upcoming = index.free_in(section_id, WorkZoneKind.SECTION, at_s, at_s + 24 * 3600)
     next_gap = upcoming[0] if upcoming else None
+
+    day_lo = (at_s // DAY_S) * DAY_S
+    day_hi = day_lo + DAY_S
+    day_gaps = index.free_in(section_id, WorkZoneKind.SECTION, day_lo, day_hi)
+    timeline = []
+    for track in sec.tracks:
+        passes = sorted(o.enter_s - day_lo for o in _occupancy_by_section().get(section_id, [])
+                        if o.track == track and day_lo <= o.enter_s < day_hi)
+        gaps = [[max(g.start_s, day_lo) - day_lo, min(g.end_s, day_hi) - day_lo,
+                 g.gap_type.value, g.usable_min()]
+                for g in day_gaps if g.track == track]
+        timeline.append({"track": track, "trains": passes, "gaps": gaps})
 
     if open_tasks:
         lead = open_tasks[0]
@@ -301,6 +327,7 @@ def section_brief(section_id: str) -> dict:
 
     return {
         "section_id": section_id, "status": status.value, "summary": summary,
+        "timeline": timeline, "day_start_s": day_lo, "now_s": at_s - day_lo,
         "open_task_count": len(open_tasks),
         "next_gap": (None if next_gap is None else {
             "start_hhmm": s_to_hhmm(next_gap.start_s % DAY_S),
@@ -308,6 +335,161 @@ def section_brief(section_id: str) -> dict:
             "gap_type": next_gap.gap_type.value,
             "usable_min": next_gap.usable_min(),
         }),
+    }
+
+
+def _cluster_pool() -> list:
+    """Open planned/demand jobs plus whatever the live simulation has placed so far."""
+    w = ensure_world()
+    live = [p.task for p in STATE.live_sim.placed if p.placed][-24:]   # recent arrivals only
+    return [t for t in w.tasks if not t.completed] + live
+
+
+@router.get("/api/tasks/clusters")
+def task_clusters() -> dict:
+    """Jobs grouped by position with average-linkage hierarchical clustering."""
+    from backend.planner.clustering import cluster_tasks
+
+    w = ensure_world()
+    pool = _cluster_pool()
+    cut = float(load_config().get_path("clustering.cut_km", 5.0))
+    clusters = cluster_tasks(w.net, pool, cut_km=cut)
+    return {"n_tasks": len(pool), "n_clusters": len(clusters), "cut_km": cut,
+            "method": "average-linkage agglomerative (scipy)",
+            "clusters": [c.to_dict() for c in clusters]}
+
+
+_PROOF_STATIC: dict | None = None
+_REROUTE_PROOF: tuple | None = None
+
+
+def _proof_interval_tree() -> dict:
+    """Measured, not asserted: the same range queries answered by a full scan and by the tree."""
+    w = ensure_world()
+    index = ensure_interval_index()
+    sections = list(w.net.sections)
+    queries = [(sections[i % len(sections)], (i * 7919) % (6 * DAY_S)) for i in range(60)]
+
+    t0 = time.perf_counter()
+    scan_results = []
+    for zone, lo in queries:
+        hi = lo + 3 * 3600
+        scan_results.append({x.id for x in w.windows
+                             if x.zone_ref == zone and x.zone_kind == WorkZoneKind.SECTION
+                             and x.start_s < hi and lo < x.end_s})
+    scan_ms = (time.perf_counter() - t0) * 1000
+
+    t0 = time.perf_counter()
+    tree_results = [{x.id for x in index.free_in(zone, WorkZoneKind.SECTION, lo, lo + 3 * 3600)}
+                    for zone, lo in queries]
+    tree_ms = (time.perf_counter() - t0) * 1000
+
+    return {"queries": len(queries), "scan_ms": round(scan_ms, 1), "tree_ms": round(tree_ms, 2),
+            "speedup_x": round(scan_ms / max(1e-6, tree_ms), 1),
+            "identical": scan_results == tree_results}
+
+
+_REROUTE_CACHE: dict = {}
+_REROUTE_SEEN: set = set()
+_WEEK_BY_ID: dict | None = None
+
+
+def _active_blocks(at_s: int) -> list[tuple[str, int, int]]:
+    """Section blocks in force at this instant: the weekly plan's and the live simulation's."""
+    w = ensure_world()
+    out: list[tuple[str, int, int]] = []
+    if STATE.plan:
+        for a in STATE.plan.assignments:
+            if a.zone_ref in w.net.sections and a.start_s <= at_s < a.end_s:
+                out.append((a.zone_ref, a.start_s, a.end_s))
+    for p in STATE.live_sim.placed:
+        if p.placed and p.window is not None and p.window.zone_ref in w.net.sections:
+            start = p.window.start_s
+            end = start + p.task.duration_min * 60
+            if start <= at_s < end:
+                out.append((p.window.zone_ref, start, end))
+    return list(dict.fromkeys(out))
+
+
+@router.get("/api/rerouting/active")
+def rerouting_active(at_s: int = 0) -> dict:
+    """Trains due through a section that is blocked right now, and where they go instead."""
+    from backend.planner.active_reroute import plan_block_reroutes
+
+    global _WEEK_BY_ID
+    w = ensure_world()
+    if _WEEK_BY_ID is None:
+        _WEEK_BY_ID = {t.id: t for t in w.week}
+    blocks = []
+    for section_id, start, end in _active_blocks(at_s):
+        key = (section_id, start, end)
+        if key not in _REROUTE_CACHE:
+            _REROUTE_CACHE[key] = plan_block_reroutes(
+                w.net, _WEEK_BY_ID, _occupancy_by_section().get(section_id, []),
+                w.net.sections[section_id], start, end).to_dict()
+        b = _REROUTE_CACHE[key]
+        for r in b["reroutes"]:
+            _REROUTE_SEEN.add((section_id, start, r["train_id"]))
+        blocks.append(b)
+    return {"at_s": at_s, "blocks": blocks, "executed": len(_REROUTE_SEEN)}
+
+
+@router.get("/api/algorithms/proof")
+def algorithms_proof() -> dict:
+    """Measured evidence that each algorithm ran, from the same objects the app uses.
+
+    The interval-tree benchmark is computed once (the world is static) and cached; everything
+    else is read live so the numbers move as the simulation runs.
+    """
+    import json
+
+    global _PROOF_STATIC, _REROUTE_PROOF
+    w = ensure_world()
+    plan = ensure_plan()
+    if _PROOF_STATIC is None:
+        _PROOF_STATIC = _proof_interval_tree()
+
+    by_type = Counter(x.gap_type.value for x in w.gaps.windows)
+    usable = sum(x.usable_min() for x in w.gaps.windows)
+
+    from backend.planner.clustering import cluster_tasks
+    pool = _cluster_pool()
+    clusters = cluster_tasks(w.net, pool)
+    cross = sum(c.cross_pairs for c in clusters)
+
+    if _REROUTE_PROOF is None or _REROUTE_PROOF[0] != id(plan):
+        from backend.planner.rerouting import find_opportunities
+        opps = find_opportunities(w.net, w.tasks, w.windows, plan.unscheduled, w.week)
+        _REROUTE_PROOF = (id(plan), {
+            "unplaced": len(plan.unscheduled),
+            "with_lever": sum(1 for o in opps if o.reroute_paths or o.track_swap),
+            "reroute_paths": sum(len(o.reroute_paths) for o in opps),
+            "track_swaps": sum(1 for o in opps if o.track_swap),
+        })
+
+    rl = None
+    path = REPO_ROOT_ART / "rl_comparison.json"
+    if path.exists():
+        d = json.loads(path.read_text(encoding="utf-8"))
+        best = min(d["table"], key=lambda r: r["mean_gap_vs_cpsat_pct"])
+        rl = {"policy": best["policy"], "gap_pct": best["mean_gap_vs_cpsat_pct"],
+              "speedup_x": round(d["cpsat_mean_ms"] / max(1.0, best["mean_full_replan_ms"]), 1),
+              "instances": d["instances"]}
+
+    placed_live = [p for p in STATE.live_sim.placed if p.placed]
+    return {
+        "interval_tree": _PROOF_STATIC,
+        "gaps": {"total": len(w.gaps.windows), "micro": by_type.get("MICRO_GAP", 0),
+                 "night": by_type.get("NIGHT_WINDOW", 0), "megablock": by_type.get("MEGABLOCK", 0),
+                 "usable_hours": round(usable / 60)},
+        "cpsat": {"status": plan.status, "gap_pct": plan.gap_pct, "placed": len(plan.assignments),
+                  "n_tasks": plan.n_tasks, "wall_s": round(plan.wall_s, 2)},
+        "rl": rl,
+        "clusters": {"tasks": len(pool), "clusters": len(clusters), "cross_pairs": cross,
+                     "compatible": sum(c.compatible for c in clusters)},
+        "live_sim": {"arrived": len(STATE.live_sim.placed), "placed": len(placed_live),
+                     "moved_aside": sum(1 for p in placed_live if "moving aside" in p.reason)},
+        "rerouting": {**_REROUTE_PROOF[1], "executed": len(_REROUTE_SEEN)},
     }
 
 
@@ -418,7 +600,7 @@ def _segments() -> list:
         # Direction determines which end the train starts from.
         if o.direction == "UP":
             a, b = b, a
-        out.append((o.train_id, o.train_class.value, o.enter_s, o.exit_s, a, b, o.section_id))
+        out.append((o.train_id, o.train_class.value, o.enter_s, o.exit_s, a, b, o.section_id, o.track))
     out.sort(key=lambda r: r[2])
     _SEGMENTS = out
     return out
@@ -433,11 +615,11 @@ def trains(at_s: int = 0, limit: int = 120) -> dict:
     """
     segs = _segments()
     active = []
-    for tid, cls, enter, exit_, a, b, sid in segs:
+    for tid, cls, enter, exit_, a, b, sid, track in segs:
         if enter <= at_s < exit_:
             f = (at_s - enter) / max(1, exit_ - enter)
             active.append({
-                "id": tid, "cls": cls, "section": sid,
+                "id": tid, "cls": cls, "section": sid, "track": track,
                 "lat": a[0] + (b[0] - a[0]) * f,
                 "lon": a[1] + (b[1] - a[1]) * f,
             })

@@ -115,3 +115,6 @@ metrics:                           # SPEC §15.1 — baseline model parameters
 
 adapters:
   mode: mock                       # mock | live
+
+clustering:                        # backend/planner/clustering.py (ASSUMPTIONS A-029)
+  cut_km: 5.0                      # average-linkage distance at which job groups stop merging
