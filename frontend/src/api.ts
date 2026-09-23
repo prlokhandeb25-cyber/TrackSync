@@ -5,11 +5,13 @@ export interface Station {
   code: string; name: string; lat: number; lon: number
   tier: string | null; junction: boolean; platforms: number
   trains_per_day: number; peak_tph: number; status: Status
+  lines?: string[]; line_code?: string; coord_src?: string
 }
 export interface Section {
   id: string; from: string; to: string; length_km: number
   line_speed_kmph: number; tracks: string[]; tier: string | null
   geometry: [number, number][]; trains_per_day: number; status: Status
+  line_code: string
 }
 export interface NetworkData { corridor: string; name: string; stations: Station[]; sections: Section[]; order: string[] }
 
@@ -54,6 +56,41 @@ export interface TrainsData { at_s: number; trains: TrainDot[]; total_active: nu
 
 export interface EventItem { at_s: number; text: string; kind: string }
 
+export interface ChatAnswer {
+  text: string
+  facts: { k: string; v: string }[]
+  trace: string[]
+  intent: string
+  suggestions: string[]
+}
+
+export interface ImpactMetric {
+  id: string; name: string; before: number; after: number; unit: string
+  better: 'lower' | 'higher'; note: string; delta_pct: number; improvement_pct: number
+}
+export interface ImpactData {
+  instances: number
+  assumptions: Record<string, unknown>
+  metrics: ImpactMetric[]
+}
+
+export interface RlRow {
+  policy: string; instances: number; mean_gap_vs_cpsat_pct: number
+  mean_scheduled_pct: number; mean_micro_gap: number; mean_decision_ms: number
+  mean_full_replan_ms: number; constraint_violations: number
+}
+export interface RlData { table: RlRow[]; cpsat_mean_ms: number; instances: number }
+
+export interface AdapterInfo {
+  system: string; full_name: string; role: string; direction: string
+  department: string | null; methods: string[]; mode: string; schema_status: string
+}
+export interface AdapterData {
+  mode: string; adapters: AdapterInfo[]
+  sample_block_demands: Record<string, unknown>[]
+  sample_task_records: Record<string, Record<string, unknown>[]>
+}
+
 const j = async <T,>(url: string, init?: RequestInit): Promise<T> => {
   const r = await fetch(url, init)
   if (!r.ok) throw new Error(`${url} -> ${r.status}`)
@@ -69,6 +106,12 @@ export const api = {
   trains: (at: number) => j<TrainsData>(`/api/trains?at_s=${Math.round(at)}`),
   events: () => j<{ events: EventItem[] }>('/api/events'),
   injectDemand: () => j<{ task: { id: string; describe: string } }>('/api/tasks/demand', { method: 'POST' }),
+  chat: (q: string) => j<ChatAnswer>('/api/chat', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ q }),
+  }),
+  impact: () => j<ImpactData>('/api/metrics/impact'),
+  rl: () => j<RlData>('/api/rl/comparison'),
+  adapters: () => j<AdapterData>('/api/adapters'),
 }
 
 export const hhmm = (s: number) => {
