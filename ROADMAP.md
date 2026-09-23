@@ -82,15 +82,12 @@ building one from scratch, honestly labelled as invented (per CLAUDE.md's honest
 is a lot of net-new scope for a capability nothing currently asks for beyond the map looking
 busier. Worth doing once real depot/fleet data exists to model against.
 
-### Clustering-based grouping on top of the compatibility matrix
+### Clustering on the Department-coordination tab
 
-Agglomerative or K-Medoids clustering of tasks by (zone, time window, department), as an
-additional visual/analytic layer over the Department-coordination tab's compatibility matrix.
-
-**Why not now:** it's a Department-coordination-page feature, not an Operations-page one, and
-was explicitly out of scope for this pass. It would sit *alongside* the existing rule-based
-COMPATIBLE / REQUIRES_IWP / INCOMPATIBLE verdicts (`backend/domain/compatibility.py`) as a
-grouping signal, never replace them — those verdicts are a protected CLAUDE.md invariant.
+Job clustering itself now exists (`backend/planner/clustering.py`, shown on the Operations tab as
+"Job clusters"). What is still not built is surfacing the same grouping inside the
+compatibility matrix on the Department-coordination tab, and K-Medoids as an alternative to the
+average-linkage method used today.
 
 ---
 
