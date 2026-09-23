@@ -923,6 +923,12 @@ Concretely:
 - Dark theme default (reads well on projectors), high contrast, generous whitespace, one heading
   scale. Subtle transitions on state change — motion is what makes it feel expensive.
 
+**Exception, recorded rather than made silently:** the Operations map's per-line colours were
+later made deliberately vivid and mutually distinct at the user's explicit request, instead of
+the desaturated tint this section otherwise calls for. Status colour stays the brightest layer
+on that map (a glow effect the line tints do not get), so the hierarchy this section cares about
+is preserved; only the "one accent besides status" rule is relaxed, and only on that one screen.
+
 ### 14.2 The map (core)
 
 - **Geography:** Maharashtra, with interconnected railway lines. Mumbai suburban network shown at

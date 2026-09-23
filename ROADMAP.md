@@ -59,6 +59,39 @@ Microsimulation at signal-section granularity, to verify block clearance rather 
 The current model treats an inter-station section as the unit of occupancy with a headway rule,
 which is right for planning and too coarse for safety verification.
 
+### Simulated Annealing over the train timetable
+
+Nudging real departure times (a couple of minutes here and there) around planned maintenance
+blocks, cooling toward a network-wide schedule that minimises total commuter delay, was
+requested alongside the Operations-page rework.
+
+**Why not now:** every other part of this project is built around a promise the demo repeatedly
+makes to judges — that trains are not the thing being moved, only maintenance work is. Touching
+real departure times is a materially different, much larger problem (it has to re-derive
+occupancy and re-run gap-finding for whatever it changes) and risks quietly contradicting that
+promise days before a demo. If this is ever built, it belongs as its own reviewed phase, not a
+same-day addition to the Operations map.
+
+### Capacitated Arc Routing (CARP) for maintenance-vehicle logistics
+
+Routing tamping rakes and OHE tower wagons from depot to work site as a capacitated
+arc-routing problem over the track network.
+
+**Why not now:** there is no depot, vehicle or capacity data model anywhere in this project —
+building one from scratch, honestly labelled as invented (per CLAUDE.md's honesty invariant),
+is a lot of net-new scope for a capability nothing currently asks for beyond the map looking
+busier. Worth doing once real depot/fleet data exists to model against.
+
+### Clustering-based grouping on top of the compatibility matrix
+
+Agglomerative or K-Medoids clustering of tasks by (zone, time window, department), as an
+additional visual/analytic layer over the Department-coordination tab's compatibility matrix.
+
+**Why not now:** it's a Department-coordination-page feature, not an Operations-page one, and
+was explicitly out of scope for this pass. It would sit *alongside* the existing rule-based
+COMPATIBLE / REQUIRES_IWP / INCOMPATIBLE verdicts (`backend/domain/compatibility.py`) as a
+grouping signal, never replace them — those verdicts are a protected CLAUDE.md invariant.
+
 ---
 
 ## Wanted, and not reached in the time available
@@ -68,7 +101,7 @@ These are not deferred on principle — they ran out of clock.
 | | |
 |---|---|
 | **Third RL algorithm** | An offline advantage-weighted actor-critic alongside BC and CQL-DQN. Vanilla A2C is on-policy and not valid trained purely offline; the adaptation is the interesting part. The evaluation harness already supports a fourth row |
-| **Continuous demand arrivals** | Today the reactive path is exercised by one scripted injection. Stochastic arrivals through a simulated week would show it is reactive rather than staged |
+| **Continuous demand arrivals** | *Partly closed*: the Operations tab now generates a small batch of unplanned tasks every ~7 seconds and gap-schedules them live with Max-to-Min ordering + an ALNS-lite destroy/repair (`backend/planner/live_sim.py`, ASSUMPTIONS A-027/A-028). What is still missing is arrivals following a realistic stochastic process across a full simulated week, rather than a fixed tick interval |
 | **Rerouting as an explicit solver lever** | Currently modelled as window-extension cost. The domain distinction is implemented and asserted — intercity and freight may take an alternate path, suburban locals may only swap UP/DN on the same section — but the solver does not yet choose paths |
 | **Closing the V5 residual** | 1,050 sub-headway events remain, all real intercity services published at 60-second spacing. Three repair strategies hit a floor; the next is absorbing the hold into the follower's dwell with a per-station cap, or modelling more than one fast path through the CSMT–Kalyan throat |
 | **More expert data** | Both learned models peaked at training step 1,000 of 6,000. The 14.8% gap would likely narrow with a larger dataset or stronger regularisation |

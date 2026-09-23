@@ -37,6 +37,11 @@ Updated in the same commit that introduces the assumption (CLAUDE.md invariant).
 | A-023 | A section is SICK only where a defect was found | priority 1-2, or a fault-named task type | SICK means a defect needs attention. Routine preventive work - tamping on a cycle, a scheduled lamp change - happens on healthy track, so marking those sections sick both overstates corridor degradation and washes the map amber, hiding the sections that genuinely are degraded | Defect registers from TMS / SMMS / TDMS |
 | A-022 | Same department, same zone, same time | INCOMPATIBLE — must be sequenced | One gang cannot be in two places; two gangs in one zone under one block is not how the work is organised | Gang rosters |
 
+| **P-Ops — Operations map, live simulation** |
+| A-026 | Maharashtra state boundary drawn behind the network | a ~30-point polygon traced from general knowledge of the state's shape | Decorative context for the map, not a claim of surveyed accuracy — no tiles, no network dependency, same reasoning as SPEC §14.2's schematic-map fallback | Official Survey of India / state government boundary GeoJSON |
+| A-027 | Live-simulation tasks (Operations tab, ticking every ~7s) | same synthetic generation as the existing task pool (`backend/data/synth_tasks.py::generate_demand_task`) | Same precedent already used for demand-injection tasks; there is no real-time defect-reporting feed to draw from | A live feed from TMS/SMMS/TDMS (SPEC §16) |
+| A-028 | ALNS-lite destroy/repair (`backend/planner/live_sim.py`) | one repair pass plus at most one bounded destroy-and-retry, not run to convergence | Scoped for a live, sub-second response on every tick rather than solution quality; it reuses the real compatibility rule engine so it can never place work the rules would reject, but it does not search as hard as CP-SAT's exact solve, and the UI names it "ALNS-lite" rather than "optimal" for exactly this reason | Run more destroy/repair rounds, or a real ALNS with an acceptance criterion, if this ever needs to beat greedy on solution quality rather than just be live |
+
 ---
 
 ## P1 status note — open issue, recorded rather than hidden
