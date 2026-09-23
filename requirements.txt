@@ -13,6 +13,9 @@ python-dateutil==2.9.0.post0
 # P4 — CP-SAT planner
 ortools==9.11.4210
 
+# A-Ops — augmented interval tree for gap/window lookups
+intervaltree==3.1.0
+
 # P7 — offline RL (CPU wheel; see CLAUDE.md "Environment")
 # torch installed separately at P7:
 #   .venv\Scripts\python.exe -m pip install torch --index-url https://download.pytorch.org/whl/cpu

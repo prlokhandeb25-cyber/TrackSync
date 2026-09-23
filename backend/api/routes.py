@@ -5,15 +5,18 @@
 
 from __future__ import annotations
 
+import random
 import time
 from collections import Counter
 
 from fastapi import APIRouter, HTTPException
 
-from backend.api.state import STATE, ensure_plan, ensure_world, new_demand_task, reset
+from backend.api.state import (
+    STATE, ensure_interval_index, ensure_plan, ensure_world, new_demand_task, reset,
+)
 from backend.config import load_config
 from backend.domain.compatibility import coordination_conflicts, matrix
-from backend.domain.models import TrackStatus, s_to_hhmm
+from backend.domain.models import TrackStatus, WorkZoneKind, s_to_hhmm
 from backend.gaps.engine import GapType
 from backend.adapters import all_adapters, registry
 from backend.chat.engine import answer as chat_answer
@@ -217,6 +220,95 @@ def rerouting_opportunities() -> dict:
             d["duration_min"] = t.duration_min
         out.append(d)
     return {"unscheduled_total": len(res.unscheduled), "opportunities": out}
+
+
+@router.post("/api/sim/tick")
+def sim_tick(at_s: int = 0) -> dict:
+    """One tick of the live Operations-map simulation (SPEC's map, ROADMAP's "continuous
+    demand arrivals" gap): a small batch of new, unplanned tasks is generated and gap-scheduled
+    right now with Max-to-Min greedy ordering and an ALNS-lite destroy/repair insertion
+    (backend/planner/live_sim.py) — kept fully separate from the CP-SAT weekly plan and the
+    trained RL dispatcher, neither of which this reads from or writes to.
+    """
+    from backend.planner.live_sim import alns_lite_insert, order_max_to_min, random_task
+
+    w = ensure_world()
+    index = ensure_interval_index()
+    rng = random.Random(load_config()["seed"] + 97 * (STATE.sim_seq + 1))
+    n = rng.choices([1, 2], weights=[70, 30], k=1)[0]
+
+    batch = []
+    for i in range(n):
+        STATE.sim_seq += 1
+        batch.append(random_task(w.net, rng, at_s, STATE.sim_seq))
+    ordered = order_max_to_min(batch)
+
+    results = []
+    for t in ordered:
+        placement = alns_lite_insert(w.net, t, index, w.tasks, STATE.live_sim)
+        STATE.log(
+            at_s,
+            f"Simulated arrival: {t.describe()} — {placement.reason}.",
+            "plan" if placement.placed else "info",
+        )
+        results.append({
+            "task": {"id": t.id, "describe": t.describe(), "zone": t.zone.ref,
+                     "department": t.department.value, "duration_min": t.duration_min,
+                     "priority": t.priority},
+            "placed": placement.placed,
+            "window": (None if placement.window is None else {
+                "id": placement.window.id, "section_id": placement.window.section_id,
+                "zone_ref": placement.window.zone_ref,
+                "start_s": placement.window.start_s,
+                "end_s": placement.window.start_s + t.duration_min * 60,
+                "gap_type": placement.window.gap_type.value,
+            }),
+            "reason": placement.reason,
+        })
+    return {"at_s": at_s, "results": results,
+            "algorithm": "Max-to-Min greedy ordering + ALNS-lite destroy/repair insertion"}
+
+
+@router.get("/api/sections/{section_id}/brief")
+def section_brief(section_id: str) -> dict:
+    """Plain-language summary + next available gap, for the Operations map's click panel.
+
+    Uses the interval tree's range query (backend/planner/interval_index.py) to answer "what's
+    free here in the next day" — a question the plain per-zone dict index cannot answer without
+    scanning every window.
+    """
+    w = ensure_world()
+    sec = w.net.sections.get(section_id)
+    if sec is None:
+        raise HTTPException(status_code=404, detail="unknown section")
+    index = ensure_interval_index()
+    status = w.registry.get(section_id)
+    at_s = STATE.sim_time_s
+
+    open_tasks = [t for t in w.tasks if t.zone.ref == section_id and not t.completed]
+    upcoming = index.free_in(section_id, WorkZoneKind.SECTION, at_s, at_s + 24 * 3600)
+    next_gap = upcoming[0] if upcoming else None
+
+    if open_tasks:
+        lead = open_tasks[0]
+        summary = f"{lead.department.label} is doing {lead.label.lower()} here, {lead.duration_min} min."
+        if len(open_tasks) > 1:
+            summary += f" {len(open_tasks) - 1} more job(s) are waiting on this section."
+    elif status is not TrackStatus.FIT:
+        summary = f"No work booked yet, but this section is {status.value.replace('_', ' ').lower()}."
+    else:
+        summary = "Nothing outstanding here right now — the section is fit and clear."
+
+    return {
+        "section_id": section_id, "status": status.value, "summary": summary,
+        "open_task_count": len(open_tasks),
+        "next_gap": (None if next_gap is None else {
+            "start_hhmm": s_to_hhmm(next_gap.start_s % DAY_S),
+            "end_hhmm": s_to_hhmm(next_gap.end_s % DAY_S),
+            "gap_type": next_gap.gap_type.value,
+            "usable_min": next_gap.usable_min(),
+        }),
+    }
 
 
 def _rollout_to_plan_result(net, tasks, rollout_result) -> "PlanResult":

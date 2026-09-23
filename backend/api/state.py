@@ -18,6 +18,8 @@ from backend.domain.fsm import StatusRegistry
 from backend.domain.task import Task, WorkZone
 from backend.planner.context import World, build_base_world
 from backend.planner.cpsat import PlanResult, solve_with_relaxation
+from backend.planner.interval_index import IntervalWindowIndex, build_interval_index
+from backend.planner.live_sim import LiveSimState
 
 _LOCK = threading.Lock()
 
@@ -32,6 +34,9 @@ class AppState:
     sim_time_s: int = 0
     playing: bool = False
     speed: int = 60  # simulated seconds per real second
+    interval_index: IntervalWindowIndex | None = None
+    live_sim: LiveSimState = field(default_factory=LiveSimState)
+    sim_seq: int = 0
 
     def log(self, at_s: int, text: str, kind: str = "info") -> None:
         self.event_log.append({"at_s": at_s, "text": text, "kind": kind})
@@ -74,6 +79,14 @@ def ensure_plan() -> PlanResult:
         return res
 
 
+def ensure_interval_index() -> IntervalWindowIndex:
+    world = ensure_world()
+    with _LOCK:
+        if STATE.interval_index is None:
+            STATE.interval_index = build_interval_index(world.windows)
+        return STATE.interval_index
+
+
 def new_demand_task(at_s: int, zone_ref: str | None = None) -> Task:
     world = ensure_world()
     STATE.demand_counter += 1
@@ -97,3 +110,6 @@ def reset() -> None:
         STATE.event_log = []
         STATE.demand_counter = 0
         STATE.sim_time_s = 0
+        STATE.interval_index = None
+        STATE.live_sim = LiveSimState()
+        STATE.sim_seq = 0
