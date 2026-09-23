@@ -13,3 +13,5 @@ artifacts/charts/*
 artifacts/screenshots/*
 *.log
 .DS_Store
+.pytest_cache/
+artifacts/models/
