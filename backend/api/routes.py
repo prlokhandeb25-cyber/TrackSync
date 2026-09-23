@@ -157,6 +157,33 @@ def plan_cpsat() -> dict:
     return d
 
 
+@router.post("/api/plan/rl")
+def plan_rl() -> dict:
+    """Re-plan the current task pool with the learned dispatcher alone.
+
+    Same task pool and windows CP-SAT sees, scored with CP-SAT's own objective, so the
+    two numbers mean the same thing when compared - see backend/rl/env.py.
+    """
+    from backend.rl.env import rollout
+
+    from backend.rl.policies import load_best_policy
+
+    w = ensure_world()
+    policy, dispatcher_note = load_best_policy()
+    t0 = time.time()
+    r = rollout(policy, w.net, w.tasks, w.windows)
+    latency_ms = (time.time() - t0) * 1000
+    res = _rollout_to_plan_result(w.net, w.tasks, r)
+    STATE.plan = res
+    STATE.log(0, (f"RL dispatcher ({dispatcher_note}) re-planned the week in "
+                  f"{latency_ms:.0f} ms: {len(res.assignments)} jobs placed."), "plan")
+    d = res.to_dict()
+    d["latency_ms"] = round(latency_ms, 1)
+    d["dispatcher"] = dispatcher_note
+    d["violations"] = r.violations
+    return d
+
+
 @router.get("/api/plan")
 def plan() -> dict:
     res = ensure_plan()
@@ -166,14 +193,116 @@ def plan() -> dict:
     return d
 
 
+@router.get("/api/rerouting/opportunities")
+def rerouting_opportunities() -> dict:
+    """For each task CP-SAT could not place, what lever could create a window (SPEC §9).
+
+    A standalone advisor, deliberately not wired into the solver's own objective - the solver
+    already reaches OPTIMAL at a 0% gap, and path selection inside CP-SAT is the highest-risk
+    change left in the project. This analyses the same unplaced tasks after the fact.
+    """
+    from backend.planner.rerouting import find_opportunities
+
+    w = ensure_world()
+    res = ensure_plan()
+    opps = find_opportunities(w.net, w.tasks, w.windows, res.unscheduled, w.week)
+    tasks_by_id = {t.id: t for t in w.tasks}
+    out = []
+    for o in opps:
+        d = o.to_dict()
+        t = tasks_by_id.get(o.task_id)
+        if t is not None:
+            d["task_label"] = t.label
+            d["department"] = t.department.value
+            d["duration_min"] = t.duration_min
+        out.append(d)
+    return {"unscheduled_total": len(res.unscheduled), "opportunities": out}
+
+
+def _rollout_to_plan_result(net, tasks, rollout_result) -> "PlanResult":
+    """Express an RL rollout in the same shape CP-SAT results are rendered in.
+
+    So the UI's plan rendering, the map's active-block overlay and the task pool all work
+    identically whichever dispatcher produced the schedule - the map should not need to know
+    which one it is looking at.
+    """
+    from backend.planner.cpsat import Assignment, PlanResult
+    from backend.rl.env import objective_of
+
+    assignments = [
+        Assignment(
+            task_id=task.id, window_id=window.id, section_id=window.section_id,
+            zone_ref=window.zone_ref, track=window.track,
+            start_s=window.start_s, end_s=window.start_s + task.duration_min * 60,
+            gap_type=window.gap_type.value, day=window.start_s // DAY_S,
+        )
+        for task, window in rollout_result.placements
+    ]
+    return PlanResult(
+        status="RL_DISPATCH", objective=objective_of(rollout_result.placements, tasks,
+                                                      rollout_result.iwp_used),
+        best_bound=0.0, gap_pct=0.0, wall_s=0.0,
+        assignments=assignments, unscheduled=rollout_result.unscheduled,
+        n_tasks=len(tasks), n_windows_considered=0, iwp_used=rollout_result.iwp_used,
+    )
+
+
 @router.post("/api/tasks/demand")
 def inject_demand(zone_ref: str | None = None, at_s: int = 0) -> dict:
+    """Inject an unplanned defect and re-plan both ways, side by side (SPEC §13.2).
+
+    This is the demo's centrepiece: the same problem, solved twice. CP-SAT re-solves the
+    whole week exactly, which takes seconds; the learned dispatcher reacts in milliseconds.
+    The RL schedule is the one actually applied live, because that is the point of having it -
+    a controller cannot wait seconds every time a defect is reported.
+    """
+    import time as _time
+
+    w = ensure_world()
     t = new_demand_task(at_s or STATE.sim_time_s, zone_ref)
     STATE.log(at_s or STATE.sim_time_s,
               f"Unplanned defect reported: {t.describe()}.", "demand")
-    return {"task": {"id": t.id, "describe": t.describe(), "zone": t.zone.ref,
-                     "department": t.department.value, "duration_min": t.duration_min,
-                     "priority": t.priority}}
+
+    t0 = _time.perf_counter()
+    cpsat_res = solve_with_relaxation(
+        w.net, w.tasks, w.windows,
+        time_limit_s=load_config()["planner"]["solve_time_s_demo"])
+    cpsat_ms = (_time.perf_counter() - t0) * 1000
+
+    from backend.rl.env import rollout
+    from backend.rl.policies import load_best_policy
+
+    policy, dispatcher_note = load_best_policy()
+    t0 = _time.perf_counter()
+    rl_rollout = rollout(policy, w.net, w.tasks, w.windows)
+    rl_ms = (_time.perf_counter() - t0) * 1000
+    rl_res = _rollout_to_plan_result(w.net, w.tasks, rl_rollout)
+
+    # Apply the reactive schedule live: this is the plan the map and task pool now show.
+    STATE.plan = rl_res
+    demand_placed = any(a.task_id == t.id for a in rl_res.assignments)
+    speedup = cpsat_ms / max(1e-6, rl_ms)
+    STATE.log(
+        at_s or STATE.sim_time_s,
+        (f"Re-planned in {rl_ms:.0f} ms with {dispatcher_note} "
+         f"({speedup:.0f}x faster than CP-SAT's {cpsat_ms / 1000:.1f}s full re-solve). "
+         f"{'The new job was fitted in.' if demand_placed else 'No window was found for it yet.'}"),
+        "plan",
+    )
+
+    return {
+        "task": {"id": t.id, "describe": t.describe(), "zone": t.zone.ref,
+                 "department": t.department.value, "duration_min": t.duration_min,
+                 "priority": t.priority},
+        "cpsat": {"status": cpsat_res.status, "latency_ms": round(cpsat_ms, 1),
+                  "scheduled": len(cpsat_res.assignments), "n_tasks": cpsat_res.n_tasks,
+                  "demand_task_placed": any(a.task_id == t.id for a in cpsat_res.assignments)},
+        "rl": {"status": "OK", "dispatcher": dispatcher_note, "latency_ms": round(rl_ms, 1),
+               "scheduled": len(rl_res.assignments), "n_tasks": rl_res.n_tasks,
+               "violations": rl_rollout.violations,
+               "demand_task_placed": demand_placed},
+        "speedup_x": round(speedup, 1),
+    }
 
 
 _SEGMENTS: list | None = None

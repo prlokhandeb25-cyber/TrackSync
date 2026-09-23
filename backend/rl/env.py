@@ -20,7 +20,7 @@ from backend.domain.compatibility import Verdict, compatibility
 from backend.domain.network import Network
 from backend.domain.task import Task
 from backend.gaps.engine import CandidateWindow, GapType
-from backend.planner.cpsat import DAY_S, PlanResult, eligible_windows
+from backend.planner.cpsat import DAY_S, PlanResult, build_window_index, eligible_windows
 from backend.rl.mdp import (
     DispatchState,
     decode_action,
@@ -85,7 +85,8 @@ def rollout(policy, net: Network, tasks: list[Task], windows: list[CandidateWind
     gangs = int(cfg.get_path("departments.gangs_per_department", 2))
     quota = int(cfg.get_path("departments.iwp_quota_per_day", 2)) * 7
 
-    eligible = {t.id: eligible_windows(t, windows) for t in tasks}
+    window_index = build_window_index(windows)
+    eligible = {t.id: eligible_windows(t, windows, window_index) for t in tasks}
     state = DispatchState(time_s=0, pending=list(tasks))
     out = Rollout()
     limit = max_steps if max_steps is not None else len(tasks) * 2 + 10

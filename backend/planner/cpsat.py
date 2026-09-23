@@ -90,16 +90,42 @@ class PlanResult:
         }
 
 
-def eligible_windows(task: Task, windows: list[CandidateWindow]) -> list[CandidateWindow]:
+WindowIndex = dict[tuple[str, str], list[CandidateWindow]]
+
+
+def build_window_index(windows: list[CandidateWindow]) -> WindowIndex:
+    """Group windows by (zone_ref, zone_kind) once, so eligible_windows stops being O(n_windows)
+    per task.
+
+    Every call site builds a per-task dict by calling eligible_windows once per task - with the
+    full four-line network (40k+ windows) and even a modest task pool, that is on the order of a
+    million comparisons and was costing several hundred milliseconds, weakening the "reacts in
+    milliseconds" claim this whole module exists to support. A task only ever cares about windows
+    on its own zone, so grouping once up front turns each lookup from a full scan into a dict hit
+    over a few hundred windows.
+    """
+    idx: WindowIndex = {}
+    for w in windows:
+        idx.setdefault((w.zone_ref, w.zone_kind), []).append(w)
+    return idx
+
+
+def eligible_windows(task: Task, windows: list[CandidateWindow],
+                     index: WindowIndex | None = None) -> list[CandidateWindow]:
     """Windows that could physically hold this job.
 
     A window qualifies only if its USABLE time covers the duration - raw gap time is not
     working time. Power-block work pays the isolation overhead twice, which removes a lot of
     short windows for OHE jobs and is exactly the sort of thing a planner must not miss.
+
+    Pass a pre-built `index` (build_window_index) when calling this once per task in a loop;
+    without it, this scans the full `windows` list, which is fine for a single lookup but not
+    for the O(n_tasks) loops every call site in this codebase actually runs.
     """
+    candidates = index.get((task.zone.ref, task.zone.kind), []) if index is not None else windows
     out = []
-    for w in windows:
-        if w.zone_ref != task.zone.ref or w.zone_kind != task.zone.kind:
+    for w in candidates:
+        if index is None and (w.zone_ref != task.zone.ref or w.zone_kind != task.zone.kind):
             continue
         if w.usable_min(power_block=task.requires_power_block) < task.duration_min:
             continue
@@ -134,7 +160,10 @@ def build_and_solve(
             live.append(t)
 
     # ---- candidate windows per task
-    cand: dict[str, list[CandidateWindow]] = {t.id: eligible_windows(t, windows) for t in live}
+    window_index = build_window_index(windows)
+    cand: dict[str, list[CandidateWindow]] = {
+        t.id: eligible_windows(t, windows, window_index) for t in live
+    }
     n_considered = sum(len(v) for v in cand.values())
 
     model = cp_model.CpModel()

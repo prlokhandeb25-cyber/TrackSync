@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api, type RlData } from '../api'
+import DemandDemo from './DemandDemo'
 
 /* The innovation claim, with its evidence. Showing greedy and random alongside the learned
    policies is deliberate: a gap figure means nothing without the floor it is measured from. */
@@ -24,6 +25,8 @@ export default function RlPanel() {
 
   return (
     <div style={{ display: 'grid', gap: 16 }}>
+      <DemandDemo />
+
       <div className="panel">
         <div className="panel-head">
           <h2>Learned dispatcher vs the solver</h2>

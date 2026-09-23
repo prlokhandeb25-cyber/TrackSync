@@ -4,6 +4,7 @@ import CompatMatrix from './components/CompatMatrix'
 import Chat from './components/Chat'
 import Impact from './components/Impact'
 import RlPanel from './components/RlPanel'
+import RerouteAdvisor from './components/RerouteAdvisor'
 import Integration from './components/Integration'
 import {
   api, DAYS, hhmm,
@@ -267,12 +268,15 @@ export default function App() {
         )}
 
         {tab === 'plan' && (
+          <>
           <div className="grid two">
             <div className="panel">
               <div className="panel-head">
-                <h2>CP-SAT weekly plan</h2>
+                <h2>{plan.status === 'RL_DISPATCH' ? 'Current plan — RL reactive re-plan' : 'CP-SAT weekly plan'}</h2>
                 <span className="sub">
-                  {plan.status.toLowerCase()} · {plan.gap_pct}% optimality gap · {plan.wall_s}s
+                  {plan.status === 'RL_DISPATCH'
+                    ? 'applied after an unplanned defect · see AI dispatcher tab'
+                    : `${plan.status.toLowerCase()} · ${plan.gap_pct}% optimality gap · ${plan.wall_s}s`}
                 </span>
               </div>
               <div className="panel-body">
@@ -343,6 +347,8 @@ export default function App() {
               </div>
             </div>
           </div>
+          <RerouteAdvisor />
+          </>
         )}
 
         {tab === 'capacity' && (

@@ -26,7 +26,7 @@ from backend.domain.compatibility import Verdict, check_allotment, compatibility
 from backend.domain.network import Network
 from backend.domain.task import Department, Task
 from backend.gaps.engine import CandidateWindow, GapType
-from backend.planner.cpsat import DAY_S, eligible_windows
+from backend.planner.cpsat import DAY_S, build_window_index, eligible_windows
 
 
 @dataclass
@@ -51,6 +51,7 @@ def plan_manually(net: Network, tasks: list[Task],
     # Only the windows a decentralised process would ever look at.
     usable = [w for w in windows
               if w.gap_type in (GapType.NIGHT_WINDOW, GapType.MEGABLOCK)]
+    usable_index = build_window_index(usable)
 
     res = ManualResult()
     blocks_today: dict[int, int] = {}
@@ -67,7 +68,7 @@ def plan_manually(net: Network, tasks: list[Task],
             res.unscheduled.append(task.id)
             continue
 
-        candidates = sorted(eligible_windows(task, usable), key=lambda w: w.start_s)
+        candidates = sorted(eligible_windows(task, usable, usable_index), key=lambda w: w.start_s)
         assigned = None
         for w in candidates:
             day = w.start_s // DAY_S

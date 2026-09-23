@@ -20,7 +20,7 @@ import numpy as np
 from backend.domain.network import Network
 from backend.domain.task import Department, Task
 from backend.gaps.engine import CandidateWindow, GapType
-from backend.planner.cpsat import PlanResult, eligible_windows
+from backend.planner.cpsat import PlanResult, build_window_index, eligible_windows
 from backend.rl.mdp import (
     DAY_S,
     DispatchState,
@@ -73,7 +73,8 @@ def replay(net: Network, tasks: list[Task], windows: list[CandidateWindow],
     """Walk the expert plan in time order, emitting one transition per placement."""
     stats = TrajectoryStats()
     by_id = {t.id: t for t in tasks}
-    eligible = {t.id: eligible_windows(t, windows) for t in tasks}
+    window_index = build_window_index(windows)
+    eligible = {t.id: eligible_windows(t, windows, window_index) for t in tasks}
     window_by_id = {w.id: w for w in windows}
 
     placements = sorted(plan.assignments, key=lambda a: a.start_s)

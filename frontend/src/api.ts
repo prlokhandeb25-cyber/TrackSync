@@ -91,6 +91,22 @@ export interface AdapterData {
   sample_task_records: Record<string, Record<string, unknown>[]>
 }
 
+export interface DemandReplanResult {
+  task: { id: string; describe: string; zone: string; department: string; duration_min: number; priority: number }
+  cpsat: { status: string; latency_ms: number; scheduled: number; n_tasks: number; demand_task_placed: boolean }
+  rl: { status: string; dispatcher: string; latency_ms: number; scheduled: number; n_tasks: number; violations: number; demand_task_placed: boolean }
+  speedup_x: number
+}
+
+export interface ReroutePath { train_id: string; train_class: string; sections: string[]; added_delay_min: number; within_limit: boolean }
+export interface TrackSwap { section_id: string; blocked_track: string; swap_to_track: string; locals_affected_per_hour: number; max_single_line_min: number }
+export interface ReroutingOpportunity {
+  task_id: string; zone_ref: string; shortfall_min: number
+  reroute_paths: ReroutePath[]; track_swap: TrackSwap | null
+  task_label?: string; department?: string; duration_min?: number
+}
+export interface ReroutingData { unscheduled_total: number; opportunities: ReroutingOpportunity[] }
+
 const j = async <T,>(url: string, init?: RequestInit): Promise<T> => {
   const r = await fetch(url, init)
   if (!r.ok) throw new Error(`${url} -> ${r.status}`)
@@ -105,13 +121,14 @@ export const api = {
   plan: () => j<PlanData>('/api/plan'),
   trains: (at: number) => j<TrainsData>(`/api/trains?at_s=${Math.round(at)}`),
   events: () => j<{ events: EventItem[] }>('/api/events'),
-  injectDemand: () => j<{ task: { id: string; describe: string } }>('/api/tasks/demand', { method: 'POST' }),
+  injectDemand: () => j<DemandReplanResult>('/api/tasks/demand', { method: 'POST' }),
   chat: (q: string) => j<ChatAnswer>('/api/chat', {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ q }),
   }),
   impact: () => j<ImpactData>('/api/metrics/impact'),
   rl: () => j<RlData>('/api/rl/comparison'),
   adapters: () => j<AdapterData>('/api/adapters'),
+  reroutingOpportunities: () => j<ReroutingData>('/api/rerouting/opportunities'),
 }
 
 export const hhmm = (s: number) => {
