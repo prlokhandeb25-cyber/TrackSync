@@ -81,7 +81,7 @@ _BY_ID = {f["id"]: f for f in FEATURES}
 def sandbox_fingerprint() -> tuple:
     """What an answer must leave untouched: sizes and ids of every live booking, log and override."""
     st = W._live().STATE
-    return (len(st.live_sim.placed), len(st.sudden_state.placed), len(st.forecast_state.placed), len(st.sudden_log),
+    return (len(st.live_sim.placed), len(st.sudden_state.placed), len(st.forecast_state.placed), len(st.daily_state.placed), len(st.sudden_log),
             len(st.overrides), len(st.user_placements), len(st.forecast_rows),
             tuple(sorted((a.task_id, a.start_s) for a in (st.plan.assignments if st.plan else []))),
             tuple(sorted((t.id, t.scheduled_start_s) for t in (st.world.tasks if st.world else []))))
@@ -534,10 +534,10 @@ def h_greeting(q: str, s: W.Slots, world, now_s: int) -> Answer:
 
 def warm(a: Answer) -> Answer:
     """A friendly lead-in and a follow-up for answers from the analysis handlers; the figures are untouched."""
-    lead = {"whatif": "Sure, I tried that on a copy of the schedule, so nothing real changed. ",
-            "planblock": "Happy to help plan that. I re-worked the week on a copy to see what would move. ",
-            "traffic": "", "whos_working": "", "together": "Let me check the rules for you. ",
-            "sudden": "", "status": "", "why_not": "Let me look at the rules. "}.get(a.intent, "")
+    lead = {"whatif": "Sure, I tried that on a copy of the schedule, so nothing real changed.\n\n",
+            "planblock": "Happy to help plan that. I re-worked the week on a copy to see what would move.\n\n",
+            "traffic": "", "whos_working": "", "together": "Let me check the rules for you.\n\n",
+            "sudden": "", "status": "", "why_not": "Let me look at the rules.\n\n"}.get(a.intent, "")
     if lead and not a.text.startswith(lead):
         a.text = lead + a.text
     if a.suggestions and "Want me to" not in a.text and a.intent in ("whatif", "planblock", "sudden", "together", "traffic"):
@@ -561,14 +561,29 @@ def route(q: str, world, now_s: int) -> Answer | None:
         return h_clusters_run(q, s, world, now_s)
     if re.search(r"\b(alns|algorithms?|techniques?|really optimi[sz]|is it optimal|are you (sure|confident))\b", low):
         return h_algorithms(q, s, world, now_s)
-    if re.search(r"\b(buffer|crew history|overrun)\w*\b", low) and not re.search(r"\bhow often\b", low):
+    from backend.chat import ops as _ops
+    if re.search(r"\b(buffer|crew history|overrun)\w*\b", low) and not re.search(r"\bhow often\b", low) \
+            and not (s.zone is not None and (s.tod_s is not None or _ops.time_range(low))):
         return h_buffers(q, s, world, now_s)
     if re.search(r"\b(predict\w*|early warning\w*|forecast\w*|watch ?list|proactive|warnings?)\b", low) \
             and not re.search(r"\b(resource|manpower|people|crew|equipment)\b", low):
         return h_prediction_note(q, s, world, now_s)
-    if re.search(r"\b(resources?|manpower|equipment|crew|machines?|materials|gang|who (is|are) needed|what (does|do) .* need)\b", low) \
+    from backend.chat import ops
+    tr_ = ops.time_range(low)
+    slot_words = re.search(r"\b(gap|slot|window|free|available|availability|open)\b", low)
+    if (slot_words and s.zone is not None and (tr_ or s.tod_s is not None) and not re.search(r"\b(best|earliest|quietest|fit a|find (me )?a)\b", low)) \
+            or re.search(r"\b(can|could) (my|another|other|any) (dept|department)\b|\bwhat (should|would) (the )?buffer\b|\bdynamic buffer\b|\bbuffer (for|in|on)\b", low) and s.zone is not None:
+        return ops.h_slot_check(q, s, world, now_s)
+    if re.search(r"\b(\d+\s*(more |extra |additional )?(workers?|people|men|staff|technicians?|maintainers?|machines?|tampers?)|more (workers|people|machines?)|fewer (workers|people)|extra (workers|people|machines?)|"
+                 r"how (long|much longer|much faster|quickly)\b.*\b(take|with|if)|how (long|much time) (will|would|does) .*(take|need))", low) \
+            and (s.depts or s.types or re.search(r"\b(job|task|block|work)\b", low)):
+        return ops.h_crew_whatif(q, s, world, now_s)
+    if re.search(r"\b(resources?|manpower|equipment|crew|machines?|materials|gang|costs?|price|budget|expense|rupees|how much (will|would|does) it|who (is|are) needed|what (does|do) .* need)\b", low) \
             and not re.search(r"\b(buffer|overrun)\b", low):
-        return h_resources(q, s, world, now_s)
+        return ops.h_resources(q, s, world, now_s)
+    if (re.match(r"^\s*(show|list|display|view|see|give me)\b", low) and re.search(r"\b(tasks?|jobs?|work|maintenance|planned|scheduled|schedule|plan)\b", low)) \
+            or re.search(r"\bwhat (tasks|jobs|work|maintenance) (is|are)\b", low):
+        return ops.h_tasks(q, s, world, now_s)
     if re.search(r"\b(finish\w* early|finished early|ends? early|over early|early finish\w*|finishing early|leftover|left over|freed|spare time|reclaim)\b", low) \
             or (re.search(r"\bblock\b", low) and len(_durations(low)) >= 2 and re.search(r"\b(finish\w*|done|over|complete\w*)\b", low)):
         return h_reclaim(q, s, world, now_s)

@@ -44,7 +44,7 @@ const STARTERS = [
 
 function render(raw: string) {
   // Bold and italic, so the backend can emphasise the figures that matter and footnote its method.
-  const text = raw.replace(/^- /gm, '• ')
+  const text = raw.replace(/^- /gm, '•  ')
   const parts = text.split(/(\*\*[^*]+\*\*|\*[^*\n]+\*)/g)
   return parts.map((p, i) =>
     p.startsWith('**') && p.endsWith('**') && p.length > 4

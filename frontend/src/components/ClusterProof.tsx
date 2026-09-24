@@ -54,7 +54,7 @@ export default function ClusterProof() {
       </div>
       <div className="panel-body">
         <p className="explain">
-          Closest jobs join first. Joins stop at <b>{d.cut_km} km</b> (dashed): jobs still together can share one block.
+          Jobs that are close and similarly urgent join first (each priority step counts as 2 km). Joins stop at <b>{d.cut_km}</b> (dashed): jobs still together can share one block.
         </p>
         <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img" aria-label="Dendrogram of job groups">
           {[0, 0.25, 0.5, 0.75, 1].map(f => {
@@ -67,7 +67,7 @@ export default function ClusterProof() {
               </g>
             )
           })}
-          <text x={4} y={12} fontSize={9} fill="var(--text-mute)">km apart</text>
+          <text x={4} y={12} fontSize={9} fill="var(--text-mute)">distance (km + urgency)</text>
           {d.merges.map((m, i) => {
             const a = layout.pos.get(m.a)!, b = layout.pos.get(m.b)!, p = layout.pos.get(m.id)!
             const below = m.distance_km <= d.cut_km

@@ -454,11 +454,30 @@ def _entries(res, by_id: dict, cluster_of: dict, offset_s: int = 0, tag: str = "
     return sorted(out, key=lambda e: e["start_s"])
 
 
+_DAILY_LOCK = threading.Lock()
+
+
+def ensure_dayfill() -> dict:
+    """Book each day's routine jobs from 04:00 on, once, against everything already booked."""
+    from backend.planner.dayfill import fill_days
+    w = ensure_world()
+    plan = ensure_plan()
+    with _DAILY_LOCK:
+        if STATE.daily_summary:
+            return STATE.daily_summary
+        committed = list(w.tasks) + [x.task for x in STATE.live_sim.placed if x.placed]
+        STATE.daily_state = LiveSimState()
+        STATE.daily_summary = fill_days(w.net, ensure_interval_index(), committed, get_pax(), STATE.daily_state,
+                                        int(load_config()["seed"]))
+        return STATE.daily_summary
+
+
 @router.get("/api/schedule/week")
 def schedule_week() -> dict:
     """This week's plan: what was placed where, and what gap creation contributed."""
     w = ensure_world()
     plan = ensure_plan()
+    daily = ensure_dayfill()
     pool, clusters, scores, cluster_of = _scored_pool()
     by_id = {t.id: t for t in w.tasks}
     entries = _entries(plan, by_id, cluster_of)
@@ -501,6 +520,18 @@ def schedule_week() -> dict:
                 "cluster": None, "created": bool(sp.created), "tag": "sudden",
             })
             placed_ids.add(t.id)
+    # routine daily jobs (04:00 onward) are booked live alongside the planned ones
+    for dp in STATE.daily_state.placed:
+        if dp.placed and dp.task.id not in placed_ids:
+            t = dp.task
+            entries.append({
+                "task_id": t.id, "label": t.label, "description": t.description,
+                "department": t.department.value, "zone": t.zone.ref, "section_id": dp.window.section_id,
+                "track": dp.window.track, "start_s": dp.start_s, "end_s": dp.end_s,
+                "gap_type": dp.window.gap_type.value, "source": "DAILY", "priority": t.priority,
+                "cluster": None, "created": False, "tag": "daily",
+            })
+            placed_ids.add(t.id)
     entries.sort(key=lambda e: e["start_s"])
 
     unplaced = [{"task_id": t.id, "label": t.label, "department": t.department.value,
@@ -509,6 +540,8 @@ def schedule_week() -> dict:
                                   if t.id in STATE.overrides else "no window long enough this week")}
                 for t in w.tasks if t.id not in placed_ids]
     nat = STATE.plan_natural
+    planned_e = [e for e in entries if e["source"] not in ("DAILY", "SUDDEN", "USER")]
+    hour = lambda e: (e["start_s"] % DAY_S) // 3600   # noqa: E731
     by_day = {DAYS[i]: sum(1 for e in entries if (e["start_s"] // DAY_S) % 7 == i) for i in range(7)}
     return {
         "entries": entries, "unplaced": unplaced, "by_day": by_day,
@@ -521,6 +554,9 @@ def schedule_week() -> dict:
             "natural_only_placed": len(nat.assignments) if nat else len(plan.assignments),
             "plan_placed": len(plan.assignments),
             "solver": plan.status, "gap_pct": plan.gap_pct, "wall_s": round(plan.wall_s, 1),
+            "planned_in_small_hours": sum(1 for e in planned_e if hour(e) < 4), "planned_total": len(planned_e),
+            "daily_placed": daily["placed"], "daily_unplaced": daily["unplaced"], "daily_from_hour": daily["from_hour"],
+            "daily_per_day": daily["per_day"],
         },
     }
 

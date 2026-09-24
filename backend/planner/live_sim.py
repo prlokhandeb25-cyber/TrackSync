@@ -167,7 +167,8 @@ Creator = Callable[[Task, int], list[CreationOption]]
 
 
 def rank_windows(net: Network, candidate: Task, windows: list[CandidateWindow],
-                 existing: list[Task], mates: list[Task], from_s: int, pax=None) -> list[dict]:
+                 existing: list[Task], mates: list[Task], from_s: int, pax=None,
+                 not_before_s: int | None = None) -> list[dict]:
     """Every window that could hold the job, best first, with why.
 
     Preference order: share a block with a compatible neighbour, then a gap between trains over a
@@ -179,6 +180,10 @@ def rank_windows(net: Network, candidate: Task, windows: list[CandidateWindow],
     rows = []
     for w in windows:
         start, ov, with_ = _choose_start(candidate, w, mates)
+        if not_before_s is not None and start < not_before_s:
+            start, ov, with_ = not_before_s, 0, []          # daily routine work waits for the day to begin
+            if start + dur_s + _overheads(candidate)[1] > w.end_s:
+                continue
         exp = pax.exposure(w.section_id, start, start + dur_s) if pax is not None else None
         pax_pen = 0.0
         if exp is not None:
@@ -196,7 +201,7 @@ def alns_lite_insert(net: Network, candidate: Task, index: IntervalWindowIndex,
                      committed_tasks: list[Task], sim_state: LiveSimState,
                      creator: Creator | None = None, at_s: int | None = None,
                      pax=None, commit: bool = True,
-                     allow_destroy: bool = True) -> LiveSimPlacement:
+                     allow_destroy: bool = True, not_before_s: int | None = None) -> LiveSimPlacement:
     """Place one task now. See the module docstring for the algorithm.
 
     With `commit=False` nothing is remembered: the answer to "where WOULD this go?" (used by the
@@ -221,7 +226,7 @@ def alns_lite_insert(net: Network, candidate: Task, index: IntervalWindowIndex,
     if mates:
         steps.append(f"{len(mates)} nearby job(s) from other departments could share a block with it.")
 
-    ranked = rank_windows(net, candidate, windows, existing, mates, from_s, pax)
+    ranked = rank_windows(net, candidate, windows, existing, mates, from_s, pax, not_before_s)
     scored = [(r["score"], r["start"], r["overlap_min"], r["with"], r["window"]) for r in ranked]
     exp_of = {(r["window"].id, r["start"]): r["exposure"] for r in ranked}
 

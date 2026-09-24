@@ -50,6 +50,11 @@ reacting to an unplanned defect mid-week possible at all.
 - **Groups jobs by place and urgency**, and lets small jobs ride in a big job's block: no group mixes very
   urgent with very routine work any more (2 groups did before), and 2 small jobs ride today, saving 50
   minutes of set-up and hand-back (A-054).
+- **Fills the day, not just the small hours.** Planned jobs sit mostly in the quiet 00:00-04:00 gaps; a daily list
+  of small routine jobs is placed from 04:00 to midnight into gaps that already exist (A-055).
+- **RailMitra answers slot questions** (is a gap free, who may use it, what buffer to leave), **crew and cost
+  what-ifs** (how long and how much with different workers or machines, assumed rates A-056), and shows jobs
+  on screen, as short bullet lists.
 - **Says what a job needs on site** (people by role, machines, materials) from planning norms, not a
   prediction (A-052).
 - **Early-warning predictions were removed.** The feed was simulated, so its accuracy could not be

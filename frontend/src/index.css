@@ -879,3 +879,16 @@ tbody tr:nth-child(even) td { background: color-mix(in srgb, var(--panel-2) 55%,
 .needs-roles { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
 .needs-line { font-size: 12.5px; margin-top: 4px; } .needs-line span { color: var(--text-mute); margin-right: 8px; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; }
 .cv-grow { transform-box: fill-box; transform-origin: left; animation: grow-x .8s cubic-bezier(.2,.7,.2,1) backwards; }
+
+.blk.daily { background-image: repeating-linear-gradient(135deg, rgba(255,255,255,.55) 0 2px, transparent 2px 5px); opacity: .85; }
+
+/* tasks shown inside the chat */
+.cv-tasks { display: grid; gap: 2px; max-height: 300px; overflow: auto; }
+.cvt-row { display: grid; grid-template-columns: 8px 1fr auto; gap: 9px; align-items: center; padding: 6px 2px; border-bottom: 1px solid var(--line-soft); font-size: 11.5px; animation: slide-in .3s ease backwards; }
+.cvt-dot { width: 8px; height: 8px; border-radius: 50%; }
+.cvt-track { position: relative; height: 5px; background: var(--panel-3); border-radius: 3px; margin-top: 4px; }
+.cvt-track i { position: absolute; top: 0; bottom: 0; border-radius: 3px; animation: grow-x .6s ease backwards; transform-origin: left; }
+.cvt-when { text-align: right; font-variant-numeric: tabular-nums; color: var(--text-dim); white-space: nowrap; }
+.cvt-p { margin-left: 6px; padding: 1px 5px; border-radius: 4px; font-size: 10px; font-weight: 700; background: var(--panel-3); }
+.cvt-p.p1 { background: var(--stopstart); color: #fff; } .cvt-p.p2 { background: var(--amber); color: #fff; }
+.msg.bot .bubble b { color: var(--text); }

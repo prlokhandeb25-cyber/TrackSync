@@ -365,6 +365,7 @@ def booked_tasks(world, include_forecast: bool = True) -> list[Task]:
     out = [t for t in world.tasks if t.scheduled_start_s is not None]
     seen = {t.id for t in out}
     for p in (list(st.STATE.live_sim.placed) + list(st.STATE.sudden_state.placed)
+              + list(st.STATE.daily_state.placed)
               + (list(st.STATE.forecast_state.placed) if include_forecast else [])):
         if p.placed and p.task.id not in seen and p.task.scheduled_start_s is not None:
             out.append(p.task)

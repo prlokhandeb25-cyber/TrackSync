@@ -462,12 +462,17 @@ def answer(question: str, world, plan=None, at_s: int = 0) -> Answer:
     from backend.chat.features import route as feature_route
     feat = feature_route(q, world, int(at_s or 0))
     if feat is not None:
+        from backend.chat.ops import neaten
+        feat.text = neaten(feat.text)
         return feat
     from backend.chat.whatif import route as whatif_route
     live = whatif_route(q, world, int(at_s or 0))
     if live is not None:
         from backend.chat.features import warm
-        return warm(live)
+        from backend.chat.ops import neaten
+        live = warm(live)
+        live.text = neaten(live.text)
+        return live
 
     e = _extract(q, world)
     for name, pattern, handler in INTENTS:

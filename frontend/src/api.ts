@@ -65,6 +65,9 @@ export type ChatVisual =
       closed: { from: [number, number]; to: [number, number]; id: string; names: [string, string] }
       detour: [number, number][]; stops: { name: string; at: [number, number] }[] }
   | { type: 'scatter'; title: string; points: { x: number; y: number; g: number; medoid: boolean }[] }
+  | { type: 'tasks'; title: string; day: number | null
+      rows: { id: string; dept: string; label: string; zone: string; priority: number; start_s: number; end_s: number; source: string }[] }
+  | { type: 'daystrip'; title: string; range: [number, number]; tracks: { track: string; trains: [number, number, string][] }[] }
   | { type: 'blockbar'; title: string; planned_min: number; actual_min: number; jobs: { label: string; min: number }[] }
   | { type: 'profile'; title: string; unit: string; day: string; highlight: [number, number] | null
       hours: { hour: number; value: number; passengers: number }[] }
@@ -409,6 +412,8 @@ export interface WeekSchedule {
     n_tasks: number; placed: number; unplaced: number; micro_gap: number; night: number
     megablock: number; from_created_gaps: number; natural_only_placed: number; plan_placed: number
     solver: string; gap_pct: number; wall_s: number
+    planned_in_small_hours: number; planned_total: number; daily_placed: number; daily_unplaced: number
+    daily_from_hour: number; daily_per_day: number
   }
 }
 export interface MonthSchedule {

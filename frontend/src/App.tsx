@@ -465,6 +465,16 @@ export default function App() {
                 </div>
               )}
 
+            </div>
+
+            <div style={{ display: 'grid', gap: 16, alignContent: 'start' }}>
+              <SuddenPanel net={net} clock={clock} tick={tick} onResult={onSudden} onWatch={watchSudden}
+                           onClear={onSuddenClear} />
+              <YourJobs tick={tick} onWindows={setUserWindows}
+                        onWatch={t => t.schedule && showJob(t.schedule.section_id, t.schedule.start_s, {
+                          endS: t.schedule.end_s, label: t.description || t.label, dept: t.department,
+                          track: t.schedule.track, id: t.id })} />
+              <EfficiencyPanel onWatch={showJob} />
               <div className="panel">
                 <div className="panel-head">
                   <h2>Status board</h2><span className="sub">plain language</span>
@@ -495,16 +505,6 @@ export default function App() {
                   ))}
                 </div>
               </div>
-            </div>
-
-            <div style={{ display: 'grid', gap: 16, alignContent: 'start' }}>
-              <SuddenPanel net={net} clock={clock} tick={tick} onResult={onSudden} onWatch={watchSudden}
-                           onClear={onSuddenClear} />
-              <YourJobs tick={tick} onWindows={setUserWindows}
-                        onWatch={t => t.schedule && showJob(t.schedule.section_id, t.schedule.start_s, {
-                          endS: t.schedule.end_s, label: t.description || t.label, dept: t.department,
-                          track: t.schedule.track, id: t.id })} />
-              <EfficiencyPanel onWatch={showJob} />
             </div>
           </div>
         )}

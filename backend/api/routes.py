@@ -421,7 +421,8 @@ def _active_blocks(at_s: int) -> list[tuple[str, int, int]]:
         if o and o["zone_ref"] in w.net.sections and o["start_s"] <= at_s < o["end_s"]:
             out.append((o["zone_ref"], o["start_s"], o["end_s"]))
     for p in (list(STATE.live_sim.placed) + list(STATE.user_placements.values())
-              + list(STATE.sudden_state.placed) + list(STATE.forecast_state.placed)):
+              + list(STATE.sudden_state.placed) + list(STATE.forecast_state.placed)
+              + list(STATE.daily_state.placed)):
         if p.placed and p.window is not None and p.window.zone_ref in w.net.sections:
             if p.start_s is not None and p.start_s <= at_s < p.end_s:
                 out.append((p.window.zone_ref, p.start_s, p.end_s))

@@ -130,6 +130,12 @@ clustering:                        # backend/planner/clustering.py (ASSUMPTIONS 
   small_job_min: 45                # a job this short or shorter can ride in a bigger job's block (A-054)
   rider_priority_gap: 1            # ... if it is within this many priority steps of the big job (A-054)
 
+daily:                             # backend/planner/dayfill.py (ASSUMPTIONS A-055)
+  jobs_per_day: 4                  # standing routine jobs raised each day
+  max_job_min: 45                  # longest routine job
+  from_hour: 4                     # they are placed from this hour to the end of the day
+  days: 7
+
 reclaim:                           # backend/planner/reclaim.py (ASSUMPTIONS A-053)
   backlog_jobs: 240                # small as-and-when jobs waiting across the network
   max_job_min: 60                  # longest job that counts as small enough to fill freed time

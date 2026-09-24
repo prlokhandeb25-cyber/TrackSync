@@ -13,7 +13,7 @@ function tip(e: PlanEntry) {
   return `${DEPT_SHORT[e.department]} · ${e.description || e.label}\n${e.section_id} (${e.track})\n` +
     `${hhmm(e.start_s)}–${hhmm(e.end_s)} · ${e.gap_type.replace('_', ' ').toLowerCase()}` +
     (e.created ? '\ncreated gap' : '') +
-    (e.source === 'USER' ? '\nraised by you' : '') + (e.source === 'SUDDEN' ? '\nsudden task' : '') + (e.tag === 'moved' ? '\nmoved by a sudden task' : '')
+    (e.source === 'USER' ? '\nraised by you' : '') + (e.source === 'SUDDEN' ? '\nsudden task' : '') + (e.source === 'DAILY' ? '\ndaily routine job' : '') + (e.tag === 'moved' ? '\nmoved by a sudden task' : '')
 }
 
 function WeekGrid({ entries, dayOffset = 0 }: { entries: PlanEntry[]; dayOffset?: number }) {
@@ -40,7 +40,7 @@ function WeekGrid({ entries, dayOffset = 0 }: { entries: PlanEntry[]; dayOffset?
               {[6, 12, 18].map(h => <i key={h} style={{ top: (h / 24) * H }} />)}
               {day.map((e, i) => (
                 <div key={e.task_id + e.start_s} title={tip(e)}
-                     className={`blk ${e.created ? 'created' : ''} ${e.source === 'USER' ? 'user' : ''} ${e.source === 'SUDDEN' || e.tag === 'moved' ? 'sudden' : ''}`}
+                     className={`blk ${e.created ? 'created' : ''} ${e.source === 'USER' ? 'user' : ''} ${e.source === 'SUDDEN' || e.tag === 'moved' ? 'sudden' : ''} ${e.source === 'DAILY' ? 'daily' : ''}`}
                      style={{ top: ((e.start_s % DAY) / DAY) * H, height: Math.max(5, ((e.end_s - e.start_s) / DAY) * H),
                               left: `calc(${(laneOf[i] / lanes) * 100}% + 2px)`, right: 'auto',
                               width: `calc(${100 / lanes}% - 3px)`, background: DEPT_COLOR[e.department] }} />
@@ -61,6 +61,7 @@ function Legend() {
       <span><i style={{ background: 'transparent', border: '1.5px dashed var(--sick)' }} />created gap</span>
       <span><i style={{ background: 'transparent', border: '1.5px solid var(--text)' }} />yours</span>
       <span><i style={{ background: 'transparent', border: '1.5px dotted var(--stopstart)' }} />sudden / moved</span>
+      <span><i style={{ background: 'repeating-linear-gradient(135deg, var(--text-mute) 0 2px, transparent 2px 4px)' }} />daily routine (from 04:00)</span>
     </div>
   )
 }
@@ -110,6 +111,8 @@ export default function ScheduleView() {
               <div className="note">{s!.solver.toLowerCase()} · {s!.gap_pct}% gap · {s!.wall_s}s</div></div>
             <div className="tile"><div className="v" style={{ color: 'var(--accent)' }}>{s!.micro_gap}</div><div className="k">in gaps between trains</div></div>
             <div className="tile"><div className="v">{s!.night}</div><div className="k">in night windows</div></div>
+            <div className="tile"><div className="v" style={{ color: 'var(--accent)' }}>{s!.daily_placed}</div><div className="k">daily routine jobs, {String(s!.daily_from_hour).padStart(2, '0')}:00 onward</div>
+              <div className="note">{s!.daily_per_day} a day fitted into daytime gaps ({s!.daily_unplaced} did not fit); {s!.planned_in_small_hours} of {s!.planned_total} planned jobs sit in the 00:00-04:00 gaps</div></div>
             <div className="tile"><div className="v">{s!.megablock}</div><div className="k">in the Sunday megablock</div></div>
             <div className="tile"><div className="v" style={{ color: 'var(--fit)' }}>{pw?.data ? `−${Math.round(pw.data.saved_pct)}%` : '…'}</div>
               <div className="k">passengers within reach</div><div className="note">vs timing that ignores them</div></div>

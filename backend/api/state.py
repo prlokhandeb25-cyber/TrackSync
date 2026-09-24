@@ -60,6 +60,8 @@ class AppState:
     forecast_state: LiveSimState = field(default_factory=LiveSimState)
     forecast_rows: list = field(default_factory=list)
     forecast_summary: dict = field(default_factory=dict)
+    daily_state: LiveSimState = field(default_factory=LiveSimState)   # routine daily jobs placed from 04:00 on
+    daily_summary: dict = field(default_factory=dict)
 
     def log(self, at_s: int, text: str, kind: str = "info") -> None:
         self.event_log.append({"at_s": at_s, "text": text, "kind": kind})
@@ -235,3 +237,5 @@ def reset() -> None:
         STATE.forecast_state = LiveSimState()
         STATE.forecast_rows = []
         STATE.forecast_summary = {}
+        STATE.daily_state = LiveSimState()
+        STATE.daily_summary = {}

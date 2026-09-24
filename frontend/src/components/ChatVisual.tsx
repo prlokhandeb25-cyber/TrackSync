@@ -159,6 +159,59 @@ function Route({ v }: { v: Extract<ChatVisual, { type: 'route' }> }) {
   )
 }
 
+const CLS_COL: Record<string, string> = { SUBURBAN_LOCAL: '#64748b', INTERCITY: '#f59e0b', FREIGHT_MAIL: '#92400e' }
+
+/* A day on one section: each track as a line, trains as bars, the free gaps between them, the asked-about slot outlined. */
+function DayStrip({ v }: { v: Extract<ChatVisual, { type: 'daystrip' }> }) {
+  const W = 452, L = 46, T = 18, rowH = 22, H = T + v.tracks.length * rowH + 24
+  const x = (s: number) => L + (s / DAY) * (W - L - 6)
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img" aria-label={v.title}>
+      {[0, 6, 12, 18, 24].map(h => (
+        <g key={h}><line x1={x(h * 3600)} x2={x(h * 3600)} y1={T - 4} y2={H - 16} stroke="var(--line-soft)" />
+          <text x={x(h * 3600)} y={H - 4} fontSize={9} textAnchor="middle" fill="var(--text-mute)" fontFamily="var(--mono)">{String(h % 24).padStart(2, '0')}:00</text></g>
+      ))}
+      {v.tracks.map((t, i) => (
+        <g key={t.track}>
+          <text x={L - 6} y={T + i * rowH + 13} fontSize={8.5} textAnchor="end" fill="var(--text-dim)">{t.track.replace('_', ' ')}</text>
+          <rect x={L} y={T + i * rowH + 3} width={W - L - 6} height={rowH - 8} rx={3} fill="var(--fit)" opacity={0.16} />
+          {t.trains.map(([a, b, c], k) => (
+            <rect key={k} className="cv-blk" x={x(a)} y={T + i * rowH + 3} width={Math.max(1.6, x(b) - x(a))} height={rowH - 8} rx={1}
+                  fill={CLS_COL[c] ?? '#64748b'} style={{ animationDelay: `${Math.min(500, k * 6)}ms` }} />
+          ))}
+        </g>
+      ))}
+      <rect className="cv-grow" x={x(v.range[0])} y={T - 3} width={Math.max(3, x(v.range[1]) - x(v.range[0]))} height={v.tracks.length * rowH + 2}
+            fill="var(--accent)" fillOpacity={0.14} stroke="var(--accent)" strokeWidth={1.4} rx={3} />
+      <g fontSize={9} fill="var(--text-dim)"><rect x={L} y={4} width={8} height={5} fill="var(--fit)" opacity={0.5} /><text x={L + 11} y={10}>free</text>
+        <rect x={L + 44} y={4} width={8} height={5} fill="#64748b" /><text x={L + 55} y={10}>train</text>
+        <rect x={L + 92} y={4} width={8} height={5} fill="none" stroke="var(--accent)" /><text x={L + 103} y={10}>your slot</text></g>
+    </svg>
+  )
+}
+
+const DEPT_C: Record<string, string> = { PWI: 'var(--d-pwi)', OWD: 'var(--d-owd)', S_AND_T: 'var(--d-snt)' }
+
+/* The jobs themselves: who, what, where, when, and how urgent, each on its own 24-hour line. */
+function Tasks({ v }: { v: Extract<ChatVisual, { type: 'tasks' }> }) {
+  const hh = (s: number) => `${String(Math.floor((s % DAY) / 3600)).padStart(2, '0')}:${String(Math.floor((s % 3600) / 60)).padStart(2, '0')}`
+  const DN = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+  return (
+    <div className="cv-tasks">
+      {v.rows.map((r, i) => (
+        <div key={r.id + i} className="cvt-row" style={{ animationDelay: `${i * 40}ms` }}>
+          <i className="cvt-dot" style={{ background: DEPT_C[r.dept] ?? 'var(--text-mute)' }} />
+          <div className="cvt-main">
+            <b>{r.label}</b> <span className="mono muted">{r.zone}</span>
+            <div className="cvt-track"><i style={{ left: `${((r.start_s % DAY) / DAY) * 100}%`, width: `${Math.max(1.5, ((r.end_s - r.start_s) / DAY) * 100)}%`, background: DEPT_C[r.dept] }} /></div>
+          </div>
+          <div className="cvt-when">{DN[Math.floor(r.start_s / DAY) % 7]} {hh(r.start_s)}–{hh(r.end_s)}<span className={`cvt-p p${r.priority}`}>P{r.priority}</span></div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 /* One block: planned length, the time it really took, and the small jobs that fill what was left. */
 function BlockBar({ v }: { v: Extract<ChatVisual, { type: 'blockbar' }> }) {
   const W = 452, H = 84, L = 8, bw = W - 2 * L
@@ -213,7 +266,7 @@ export default function ChatVisualView({ v }: { v: ChatVisual }) {
     <div className="cv">
       <div className="cv-title">{v.title}</div>
       {v.type === 'schedule' ? <Schedule v={v} /> : v.type === 'profile' ? <Profile v={v} />
-        : v.type === 'route' ? <Route v={v} /> : v.type === 'scatter' ? <Scatter v={v} /> : v.type === 'blockbar' ? <BlockBar v={v} /> : <Bars v={v} />}
+        : v.type === 'route' ? <Route v={v} /> : v.type === 'scatter' ? <Scatter v={v} /> : v.type === 'daystrip' ? <DayStrip v={v} /> : v.type === 'tasks' ? <Tasks v={v} /> : v.type === 'blockbar' ? <BlockBar v={v} /> : <Bars v={v} />}
     </div>
   )
 }
