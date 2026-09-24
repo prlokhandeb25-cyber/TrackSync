@@ -192,7 +192,7 @@ def evaluate(policy, net: Network, tasks: list[Task], windows: list[CandidateWin
     # never trained to chase and objective_of does not include. Add it back so both sides are
     # scored on the same placement objective; otherwise the gap would measure that missing term.
     w8 = float(load_config()["planner"]["weights"].get("w8_integrated_block", 0.0))
-    ref = cpsat.objective + w8 * getattr(cpsat, "integrated_pairs", 0)
+    ref = cpsat.objective + w8 * getattr(cpsat, "integrated_pairs", 0) + getattr(cpsat, "soft_cost", 0.0)
     # A near-zero reference makes a ratio meaningless; fall back to an absolute difference.
     gap = ((obj - ref) / abs(ref) * 100) if abs(ref) > 1e-6 else (obj - ref)
 

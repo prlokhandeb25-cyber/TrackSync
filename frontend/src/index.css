@@ -447,7 +447,7 @@ button.action.primary:hover { filter: brightness(1.1); }
 .chat-fab svg { width: 24px; height: 24px; }
 .chat-drawer {
   position: fixed; right: 22px; bottom: 86px; z-index: 70;
-  width: min(390px, calc(100vw - 32px)); height: min(560px, calc(100vh - 130px));
+  width: min(500px, calc(100vw - 32px)); height: min(680px, calc(100vh - 130px));
   border-radius: var(--r); overflow: hidden; box-shadow: 0 18px 48px -12px rgba(8,16,26,.55); border: 1px solid var(--line);
 }
 .chat-drawer.closed { display: none; }
@@ -716,3 +716,52 @@ details.fold > summary { cursor: pointer; padding: 11px 16px; font-size: 13px; f
 details.fold > summary::before { content: "▸"; display: inline-block; width: 16px; }
 details.fold[open] > summary::before { content: "▾"; }
 details.fold > div { padding: 4px 16px 16px; }
+
+/* ---------------- RailMitra: answers with a shape ---------------- */
+.msg.bot .bubble { white-space: pre-wrap; }
+.msg { max-width: 96%; }
+.cv { margin-top: 11px; padding: 9px 10px 6px; background: var(--panel); border: 1px solid var(--line-soft); border-radius: var(--r-sm); white-space: normal; }
+.cv-title { font-size: 11px; font-weight: 600; color: var(--text-dim); margin-bottom: 4px; letter-spacing: .01em; }
+
+/* ---------------- polish ---------------- */
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+@keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.main > * , .main .panel { animation: rise .32s cubic-bezier(.2,.7,.2,1) both; }
+.map-wrap, .map-wrap * { animation-name: none; }
+.tab { display: inline-flex; align-items: center; gap: 8px; }
+.tab-ic { width: 16px; height: 16px; flex: none; opacity: .75; }
+.tab.on .tab-ic { opacity: 1; }
+.panel-head h2 { display: flex; align-items: center; gap: 8px; }
+.panel-head h2::before { content: ""; width: 3px; height: 14px; border-radius: 2px; background: var(--accent); flex: none; }
+.tile { position: relative; transition: border-color .15s, transform .15s, box-shadow .15s; }
+.tile:hover { transform: translateY(-1px); box-shadow: var(--shadow); border-color: var(--line); }
+.tile .v { letter-spacing: -.025em; }
+button.action { box-shadow: 0 1px 0 rgba(0,0,0,.04); }
+button.action.primary { box-shadow: 0 1px 2px rgba(15,76,129,.35); }
+button.action:active { transform: translateY(1px); }
+form select, form input[type=number], form textarea, .sd-pick select { background: var(--panel); }
+table { font-variant-numeric: tabular-nums; }
+tbody tr:nth-child(even) td { background: color-mix(in srgb, var(--panel-2) 55%, transparent); }
+.score-card { transition: background .15s; }
+.hstat { backdrop-filter: none; }
+.kpi { transition: transform .2s, background .2s; }
+.kpi:hover { transform: translateY(-2px); background: rgba(255,255,255,.1); }
+.kpi .big { text-shadow: 0 0 24px rgba(126,224,168,.25); }
+.ba-hero { position: relative; overflow: hidden; }
+.ba-hero > * { position: relative; z-index: 1; }
+.ba-hero::after {       /* two rails and their sleepers: the only decoration, and it is the subject */
+  content: ""; position: absolute; right: 0; top: 0; bottom: 0; width: 52%; z-index: 0; pointer-events: none;
+  background:
+    repeating-linear-gradient(90deg, rgba(255,255,255,.055) 0 3px, transparent 3px 26px),
+    linear-gradient(0deg, transparent 0 30%, rgba(255,255,255,.16) 30% 32%, transparent 32% 42%, rgba(255,255,255,.16) 42% 44%, transparent 44% 100%);
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 55%); mask-image: linear-gradient(90deg, transparent, #000 55%);
+}
+.cmp { transition: transform .18s, box-shadow .18s; }
+.cmp:hover { transform: translateY(-2px); box-shadow: 0 10px 26px -14px rgba(16,28,40,.35); }
+.brow .trk { position: relative; }
+.chat-drawer { border-radius: 12px; }
+.mitra-head h2 { font-size: 14px; }
+.suggests button { border-radius: 8px; }
+.msg.user { border-radius: 12px 12px 3px 12px; }
+.panel-head { min-height: 44px; }
+@media (prefers-reduced-motion: reduce) { .main > *, .main .panel { animation: none; } * { transition: none !important; } }

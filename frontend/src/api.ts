@@ -57,6 +57,12 @@ export interface TrainsData { at_s: number; trains: TrainDot[]; total_active: nu
 export interface EventItem { at_s: number; text: string; kind: string }
 
 export interface ChatAction { label: string; section: string | null; start_s: number }
+export type ChatVisual =
+  | { type: 'schedule'; title: string; days: string[]
+      blocks: { id: string; dept: string; start_s: number; end_s: number; kind: 'stay' | 'moved' | 'new' | 'dropped'
+                label: string; from?: { start_s: number; end_s: number } }[] }
+  | { type: 'profile'; title: string; unit: string; day: string; highlight: [number, number] | null
+      hours: { hour: number; value: number; passengers: number }[] }
 export interface ChatAnswer {
   text: string
   facts: { k: string; v: string }[]
@@ -64,6 +70,7 @@ export interface ChatAnswer {
   intent: string
   suggestions: string[]
   action?: ChatAction | null
+  visual?: ChatVisual | null
 }
 
 export interface ImpactMetric {
@@ -213,6 +220,8 @@ export const api = {
   suddenClear: () => j<{ cleared: number }>('/api/sudden/clear', { method: 'POST' }),
   paxExperiment: () => j<PaxExperiment>('/api/pax/experiment'),
   paxWeekly: () => j<PaxWeekly>('/api/pax/weekly'),
+  planVerify: () => j<PlanVerify>('/api/plan/verify'),
+  planRobustness: () => j<Robustness>('/api/plan/robustness'),
   buildMonth: (force = false) => j<{ status: string }>(`/api/schedule/month/build?force=${force}`, { method: 'POST' }),
 }
 
@@ -410,4 +419,17 @@ export interface PaxWeekly {
     unaware: { placed: number; pax: number; status: string }
     common_jobs: number; aware_common: number; unaware_common: number; saved_pct: number; how: string
   } | null
+}
+
+export interface PlanVerify {
+  ok: boolean; n_violations: number; violations: string[]; total_checks: number
+  checks: Record<string, number>; n_jobs: number; status: string
+}
+interface RobStats { mean: number; risky: number; expected_overruns: number; blocks: number }
+export interface Robustness {
+  samples: number; plan: RobStats; before_centring: RobStats | null; centred_moves: number
+  weakest: { task_id: string; section_id: string; track: string; start_s: number; p_clear: number; slack_after_min: number }[]
+  ablation_status: 'idle' | 'running' | 'done' | 'error'
+  ablation: { placed: number; solver: string; raw: RobStats; centred: RobStats; moved: number } | null
+  error: string | null; how: string
 }

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
-  api, type ImpactData, type PaxExperiment, type PaxWeekly, type ScoreCardData, type SuddenMetrics,
+  api, type ImpactData, type PaxExperiment, type PaxWeekly, type PlanVerify, type Robustness, type ScoreCardData,
+  type SuddenMetrics,
 } from '../api'
 
 /* Before / after, for a reader who has ten minutes: what today's manual practice achieves against
@@ -9,7 +10,7 @@ import {
    parameters of the manual baseline are sliders at the bottom so the advantage can be watched
    surviving a hostile setting. */
 
-type Kind = 'h' | 'n' | 'ms'
+type Kind = 'h' | 'n' | 'ms' | 'pct'
 const fmtMs = (v: number) => {
   if (v >= 86_400_000) return `${(v / 86_400_000).toFixed(v >= 864_000_000 ? 0 : 1)} days`
   if (v >= 3_600_000) return `${(v / 3_600_000).toFixed(1)} h`
@@ -18,7 +19,7 @@ const fmtMs = (v: number) => {
   return `${v < 10 ? v.toFixed(1) : v.toFixed(0)} ms`
 }
 const fmt = (v: number, k: Kind) =>
-  k === 'ms' ? fmtMs(v) : k === 'h' ? `${v < 10 ? v.toFixed(1) : Math.round(v).toLocaleString()} h`
+  k === 'ms' ? fmtMs(v) : k === 'pct' ? `${v.toFixed(0)}%` : k === 'h' ? `${v < 10 ? v.toFixed(1) : Math.round(v).toLocaleString()} h`
   : Math.round(v).toLocaleString()
 
 interface Bar { who: string; v: number; tone: 'before' | 'mid' | 'after' }
@@ -74,6 +75,8 @@ export default function Impact() {
   const [px, setPx] = useState<PaxExperiment | null>(null)
   const [sd, setSd] = useState<SuddenMetrics | null>(null)
   const [pw, setPw] = useState<PaxWeekly | null>(null)
+  const [rb, setRb] = useState<Robustness | null>(null)
+  const [vf, setVf] = useState<PlanVerify | null>(null)
   const [err, setErr] = useState<string | null>(null)
   const [hours, setHours] = useState(4)
   const [wait, setWait] = useState(7)
@@ -84,7 +87,10 @@ export default function Impact() {
     api.scorecard().then(setSc).catch(() => undefined)
     api.paxExperiment().then(setPx).catch(() => undefined)
     api.suddenMetrics().then(setSd).catch(() => undefined)
+    api.planVerify().then(setVf).catch(() => undefined)
     let alive = true
+    const pollRb = () => api.planRobustness().then(r => { if (alive) { setRb(r); if (r.ablation_status === 'running') setTimeout(pollRb, 4000) } }).catch(() => undefined)
+    void pollRb()
     const poll = () => api.paxWeekly().then(r => { if (alive) { setPw(r); if (r.status === 'running') setTimeout(poll, 3000) } }).catch(() => undefined)
     void poll()
     return () => { alive = false }
@@ -138,6 +144,9 @@ export default function Impact() {
     if (pw?.data) out.push({ id: 'pw', title: 'Weekly plan: passengers within reach', kind: 'n', better: 'lower',
       bars: [{ who: 'Timing ignores them', v: pw.data.unaware_common, tone: 'before' }, { who: 'RailBlock', v: pw.data.aware_common, tone: 'after' }],
       how: pw.data.how, repro: 'GET /api/pax/weekly' })
+    if (rb?.ablation) out.push({ id: 'rb', title: 'Blocks that clear before the next train', kind: 'pct', better: 'higher',
+      bars: [{ who: 'Solver alone', v: rb.ablation.raw.mean * 100, tone: 'before' }, { who: 'RailBlock', v: rb.plan.mean * 100, tone: 'after' }],
+      how: `${rb.how} "Solver alone" is the same week solved without the fragile-window cost.`, repro: 'GET /api/plan/robustness' })
     if (it) out.push({ id: 'it', title: 'Finding free gaps', kind: 'ms', better: 'lower',
       bars: [{ who: 'Scan every window', v: it.before.value, tone: 'before' }, { who: 'Interval tree', v: it.after.value, tone: 'after' }],
       how: `${it.how} ${it.detail}`, repro: it.repro })
@@ -148,7 +157,7 @@ export default function Impact() {
              { who: 'RailBlock (median)', v: sd.median_ms, tone: 'after' }],
       how: `Median of ${sd.n} sudden task(s) injected on the Operations page.`, repro: 'GET /api/sudden/metrics' })
     return out
-  }, [sc, d, px, sd, pw])
+  }, [sc, d, px, sd, pw, rb])
 
   if (err) return <div className="panel"><div className="panel-body muted">Could not load impact metrics: {err}</div></div>
   if (!d) return <div className="loading"><div className="spinner" />Measuring the manual baseline and every algorithm…</div>
@@ -190,7 +199,8 @@ export default function Impact() {
               <li><span><b>{h.blocks_ours}</b> protected blocks where manual needs <b>{h.blocks_manual}</b></span></li>
               {rlc && <li><span>Re-plans a defect in <b>{fmtMs(rlc.after.value * 1000)}</b>; a full solve takes {fmtMs(rlc.before.value * 1000)}</span></li>}
               {paxSaved !== null && <li><span><b>{paxSaved}%</b> fewer passengers within reach of work</span></li>}
-              <li><span><b>0</b> rule violations; every verdict carries its reason</span></li>
+              <li><span><b>{vf ? vf.n_violations : 0}</b> rule violations in {vf ? vf.total_checks : '…'} independent checks; every verdict carries its reason</span></li>
+              {rb && <li><span>Blocks clear before the next train on <b>{Math.round(rb.plan.mean * 100)}%</b> of simulated days</span></li>}
             </ul>
           </div>
         </div>

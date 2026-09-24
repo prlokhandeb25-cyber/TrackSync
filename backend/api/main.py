@@ -18,6 +18,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from backend.api.routes import router
 from backend.api.routes_tasks import router as tasks_router
 from backend.api.routes_sudden import router as sudden_router
+from backend.api.routes_quality import router as quality_router
 from backend.config import REPO_ROOT, load_config, seed_everything
 
 app = FastAPI(title="RailBlock AI", version="0.1.0")
@@ -31,6 +32,7 @@ app.add_middleware(
 app.include_router(router)
 app.include_router(tasks_router)
 app.include_router(sudden_router)
+app.include_router(quality_router)
 
 VALIDATION_REPORT = REPO_ROOT / "data" / "validation_report.json"
 

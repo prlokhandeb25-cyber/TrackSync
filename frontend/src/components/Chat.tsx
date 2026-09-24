@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { api, type ChatAnswer } from '../api'
 import type { FocusReq } from './NetworkMap'
+import ChatVisualView from './ChatVisual'
 
 /* The assistant reads live state and answers from it. No language model is involved, which is
    the point: every figure it quotes is read from the same objects the planner and the map use,
@@ -42,12 +43,14 @@ const STARTERS = [
 ]
 
 function render(text: string) {
-  // Minimal bold support so the backend can emphasise the figures that matter.
-  const parts = text.split(/(\*\*[^*]+\*\*)/g)
+  // Bold and italic, so the backend can emphasise the figures that matter and footnote its method.
+  const parts = text.split(/(\*\*[^*]+\*\*|\*[^*\n]+\*)/g)
   return parts.map((p, i) =>
-    p.startsWith('**') && p.endsWith('**')
+    p.startsWith('**') && p.endsWith('**') && p.length > 4
       ? <b key={i}>{p.slice(2, -2)}</b>
-      : <span key={i}>{p}</span>)
+      : p.startsWith('*') && p.endsWith('*') && p.length > 2
+        ? <i key={i} className="muted">{p.slice(1, -1)}</i>
+        : <span key={i}>{p}</span>)
 }
 
 export default function Chat({ atS = 0, onShow }: {
@@ -104,6 +107,7 @@ export default function Chat({ atS = 0, onShow }: {
               <div key={i} className="msg bot">
                 <div className="bubble">
                   {render(t.text)}
+                  {t.answer?.visual ? <ChatVisualView v={t.answer.visual} /> : null}
                   {t.answer?.facts?.length ? (
                     <div className="chips">
                       {t.answer.facts.map((f, k) => (
@@ -122,7 +126,7 @@ export default function Chat({ atS = 0, onShow }: {
               </div>
             )
         ))}
-        {busy && <div className="msg bot"><div className="bubble muted">thinking…</div></div>}
+        {busy && <div className="msg bot"><div className="bubble muted">working it out on a copy of the schedule…</div></div>}
       </div>
 
       {suggestions.length > 0 && (

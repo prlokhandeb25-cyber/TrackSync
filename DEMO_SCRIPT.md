@@ -79,16 +79,26 @@ times. A declaration is a constraint, not a label.
 
 Toggle **Month**.
 
-## 5 · Ask RailMitra (60 s)
+## 5 · Ask RailMitra (75 s)
 
 Open the chat button and ask:
 
-- *what if a 60 minute PWI job at Dadar to Matunga?*
+- *I need to plan a 2 hour PWI block on Kurla to Sion by Friday. How and where should I put it?*
+
+> "It recommends a slot in coordinator's terms — a traffic block, how long it really needs with set-up
+> and hand-back — says why the slot is quiet, how likely it is to clear before the next train, and what
+> else in the week has to move. The chart shows the week with the new block and anything shifted. It
+> re-solved the week on a copy in about a second and changed nothing."
+
 - *what if Dadar to Matunga is closed at 14:00 for an hour?*
 - *can OHE insulator work and tamping happen together at Kurla?*
 
-> "It answers by running the real gap finder, rule engine and passenger model on a copy of the
-> schedule. Nothing it tries changes the plan, and there is no language model."
+## 5b · Is it right? (30 s) — Weekly block plan, bottom
+
+> "A referee re-checks the plan from the timetable, not from the solver: 167 checks, none failed, and
+> the tests show it failing on deliberately broken plans. Then each block is simulated against late
+> trains and overrunning work; the solver avoids fragile windows, so blocks clear before the next
+> train far more often than when the solver plans alone."
 
 ## 6 · Why adopt (45 s) — Before / after
 

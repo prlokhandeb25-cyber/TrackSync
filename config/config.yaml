@@ -100,6 +100,8 @@ planner:                           # SPEC §10
     w7_micro_gap_bonus: 15.0       # deliberate: we want micro-gap usage (SPEC §10.3)
     w8_integrated_block: 6.0       # reward per compatible cross-department pair sharing a block
     w9_pax_exposure: 1.0           # cost per 1,000 passenger-hours within reach of a job (A-040)
+    w10_fragile_window: 6.0        # cost of a window with no spare time or a shaky start (A-043)
+    w11_churn: 0.0                 # cost per existing job moved by a re-plan; the assistant sets it (A-044)
 
 rl:                                # SPEC §11-§12
   n_instances: 500
@@ -143,3 +145,6 @@ sudden:                            # backend/planner/sudden.py (ASSUMPTIONS A-04
   max_bumped: 2                    # planned jobs one sudden task may push aside
   emergency_max_train_min: 3000    # train-minutes a critical fault's emergency block may cost (P1; P2 gets two thirds)
   emergency_lead_min: 10           # time to get a gang and protection to site
+
+robustness:                        # backend/planner/robustness.py (ASSUMPTIONS A-043)
+  overrun_sigma: 0.15              # spread of how long work really takes against its plan (lognormal)

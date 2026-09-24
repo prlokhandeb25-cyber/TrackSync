@@ -49,6 +49,7 @@ class AppState:
     creation_used: list = field(default_factory=list)
     pax: PaxModel | None = None
     week_by_id: dict | None = None
+    robust: dict = field(default_factory=dict)   # what centring did to the weekly plan (before / after / moves)
     # sudden tasks: never in the planned pool; their own bookings, log, and the planned/simulated
     # jobs they displaced (task id -> new slot, or None if it could not be re-placed)
     sudden_state: LiveSimState = field(default_factory=LiveSimState)
@@ -112,6 +113,20 @@ def ensure_plan() -> PlanResult:
             world.net, world.tasks, world.windows, occ, rc,
             time_limit_s=load_config()["planner"]["solve_time_s_demo"], pax=pax,
         )
+        # Robust placement: slide each job to the start that is most likely to clear before the next
+        # train. Only start times change, each move is re-checked by the referee, and it is measured.
+        from backend.planner.robustness import centre_plan
+        centred, rep = centre_plan(world.net, world.tasks, res.assignments, world.windows, occ)
+        by = {t.id: t for t in world.tasks}
+        for a in centred:
+            t = by.get(a.task_id)
+            if t is not None and a.window_id and not a.window_id.startswith("CW-"):
+                t.scheduled_start_s, t.scheduled_end_s = a.start_s, a.end_s
+        res.assignments = centred
+        d = rep.to_dict()
+        STATE.robust = {"moves": rep.moved, "samples": rep.samples,
+                        "before": {"mean": d["mean_before"], "risky": d["risky_before"], "expected_overruns": d["expected_overruns_before"]},
+                        "after": {"mean": d["mean_after"], "risky": d["risky_after"], "expected_overruns": d["expected_overruns_after"]}}
         STATE.plan_natural = natural
         STATE.plan = res
         STATE.creation_used = creation_summary(world, res, created)

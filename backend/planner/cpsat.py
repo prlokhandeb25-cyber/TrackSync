@@ -67,6 +67,7 @@ class PlanResult:
     n_windows_considered: int = 0
     integrated_pairs: int = 0       # compatible cross-department neighbours placed in one shared block
     pax_exposed: int = 0            # passenger-hours within reach of the placed jobs (heuristic, A-040)
+    soft_cost: float = 0.0          # passenger and fragility terms in the objective (not in objective_of)
 
     @property
     def micro_gap_count(self) -> int:
@@ -148,9 +149,12 @@ def build_and_solve(
     relax: list[str] | None = None,
     log: bool = False,
     pax=None,
+    weights: dict | None = None,
+    anchor: dict[str, tuple[str, int]] | None = None,
+    hard_due: set[str] | None = None,
 ) -> PlanResult:
     cfg = load_config()
-    w = cfg["planner"]["weights"]
+    w = {**cfg["planner"]["weights"], **(weights or {})}
     relax = relax or []
     t0 = time.time()
 
@@ -225,7 +229,7 @@ def build_and_solve(
 
         # Release time, and due dates (hard for priority 1 unless relaxed).
         model.Add(s >= t.released_s).OnlyEnforceIf(sched)
-        if t.due_by_s is not None and t.priority == 1 and "drop_due_dates" not in relax:
+        if t.due_by_s is not None and (t.priority == 1 or (hard_due and t.id in hard_due))                 and "drop_due_dates" not in relax:
             model.Add(e <= min(t.due_by_s, horizon)).OnlyEnforceIf(sched)
 
     # ---- Constraint 2: compatibility between every pair that could coincide.
@@ -334,6 +338,8 @@ def build_and_solve(
     # ---- Objective (SPEC §10.3)
     terms = []
     w9 = float(w.get("w9_pax_exposure", 0))
+    w10 = float(w.get("w10_fragile_window", 0))
+    soft: dict[tuple[str, str], int] = {}     # per (task, window): the passenger + fragility cost
     for t in live:
         pw = (6 - t.priority)  # priority 1 -> weight 5
         # Leaving work unplanned is the dominant cost, weighted by priority and age.
@@ -347,6 +353,14 @@ def build_and_solve(
             if cw.created_by:
                 # a created window is not free: it costs the trains it delays or diverts
                 terms.append(int(w["w1_train_minutes_lost"] * cw.delay_cost_min * 4) * x[(t.id, cw.id)])
+            if w10 > 0:
+                # A window with no spare time, or that follows a train likely to run late, is a fragile
+                # place to put a block: it will sometimes hold the next train. Prefer roomy, reliable ones.
+                slack = cw.usable_min(power_block=t.requires_power_block) - t.duration_min
+                cost = int(round(w10 * (max(0.0, 20.0 - slack) / 20.0 + cw.late_risk)))
+                if cost:
+                    terms.append(cost * x[(t.id, cw.id)])
+                    soft[(t.id, cw.id)] = soft.get((t.id, cw.id), 0) + cost
             if pax is not None and w9 > 0:
                 # Prefer quiet places and times: the more passengers within reach of the window,
                 # the dearer it is. Scaled per 1,000 passenger-hours so it stays a tie-breaker
@@ -356,9 +370,29 @@ def build_and_solve(
                 cost = int(round(w9 * per_hour * (t.duration_min / 60.0) / 1000.0))
                 if cost:
                     terms.append(cost * x[(t.id, cw.id)])
+                    soft[(t.id, cw.id)] = soft.get((t.id, cw.id), 0) + cost
 
     if integ_lits:
         terms.append(-int(w8) * sum(integ_lits))
+
+    # ---- Minimum-churn re-planning: when an existing plan is passed as an anchor, every job that
+    # ends up anywhere other than where it was pays a cost, so a new block reshuffles as little as it
+    # must. The old plan also goes in as a hint, which is what makes the re-solve quick.
+    churn = float(w.get("w11_churn", 0))
+    if anchor:
+        for t in live:
+            if t.id not in anchor:
+                continue
+            wid, s0 = anchor[t.id]
+            if (t.id, wid) in x:
+                model.AddHint(x[(t.id, wid)], 1)
+            model.AddHint(scheduled[t.id], 1)
+            model.AddHint(start[t.id], s0)
+            if churn > 0:
+                same = model.NewBoolVar(f"same_{t.id}")
+                model.Add(start[t.id] == s0).OnlyEnforceIf(same)
+                model.Add(start[t.id] != s0).OnlyEnforceIf(same.Not())
+                terms.append(int(churn) * same.Not())
 
     all_iwp = [lit for lits in iwp_lits.values() for lit in lits]
     unique_iwp = list({id(l): l for l in all_iwp}.values())
@@ -411,6 +445,7 @@ def build_and_solve(
                 gap_type=chosen.gap_type.value, day=s_val // DAY_S,
             )
         )
+        result.soft_cost += soft.get((t.id, chosen.id), 0)
         t.scheduled_start_s = s_val
         t.scheduled_end_s = s_val + t.duration_min * 60
         t.window_id = chosen.id
@@ -438,10 +473,11 @@ RELAXATION_LADDER = [
 
 def solve_with_relaxation(net: Network, tasks: list[Task], windows: list[CandidateWindow],
                           time_limit_s: float | None = None, horizon_days: int = 7,
-                          pax=None) -> PlanResult:
+                          pax=None, weights: dict | None = None) -> PlanResult:
     last: PlanResult | None = None
     for relax in RELAXATION_LADDER:
-        res = build_and_solve(net, tasks, windows, time_limit_s, horizon_days, relax=relax, pax=pax)
+        res = build_and_solve(net, tasks, windows, time_limit_s, horizon_days, relax=relax, pax=pax,
+                              weights=weights)
         if res.status in ("OPTIMAL", "FEASIBLE"):
             return res
         last = res

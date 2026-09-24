@@ -35,6 +35,13 @@ reacting to an unplanned defect mid-week possible at all.
 - Lets a department **raise a job** with the departments it may work alongside; the system scores
   it, **clusters** it with nearby jobs (hierarchical clustering), and schedules it into a gap,
   sharing a block with a compatible neighbour where the rules allow.
+- **Checks itself.** An independent referee re-checks every rule of the finished plan straight from
+  the timetable (window, release and deadline, allotment, no train on the track during the work,
+  incompatible pairs, permits, gangs, station concurrency, daily limit): 167 checks, 0 violations on
+  the live plan, and the tests show it failing on deliberately broken plans.
+- **Plans for a bad day.** Each block is simulated against late trains and overrunning work; the
+  solver avoids fragile windows and each start time is centred where the line is most likely to be
+  handed back before the next train.
 - Takes **sudden tasks** (low to critical) that were never in the plan: fits them into an existing
   gap, or opens one, or moves lower-priority work aside and re-places it, in milliseconds, with the
   cost in train-minutes and passengers shown.
@@ -45,9 +52,10 @@ reacting to an unplanned defect mid-week possible at all.
   work progresses) and diverted long-distance trains travelling their detour; a step-by-step replay
   of the algorithms in plain words; and a before/after page where every figure says how it was
   measured.
-- **RailMitra** answers live questions and what-ifs (a job, a closure, two kinds of work sharing a
-  place) by running the real gap finder, rule engine, passenger model and rerouting search on a
-  copy of the schedule. No language model.
+- **RailMitra** answers in block-coordinator terms (traffic block, power block, hand-back), in plain
+  words: "plan a 2 hour PWI block on Kurla to Sion by Friday" gets a recommended slot and what else in
+  the week would move (an exact re-solve on a copy that keeps the plan unless moving a job pays), with
+  a small chart. Also closures, pairs of work, who is working where. No language model.
 - Light and dark themes.
 
 ## Numbers, all from runs that actually happened
@@ -62,6 +70,7 @@ reacting to an unplanned defect mid-week possible at all.
 | Passengers | the same 60 jobs placed with and without the passenger term: **75% fewer** passengers within reach (127,950 vs 517,070, estimated); chosen sites average 4.5 trains/h against 12.4 across the network |
 | Interval tree | about 160x faster range lookups than a full scan, identical answers (varies with machine load) |
 | Best learned policy | behaviour cloning within **10.9%** of optimal on 20 held-out instances (CQL-DQN 11.1%, greedy 13.4%), **25x** faster to re-plan (161 ms vs 4,100 ms), 0 constraint violations |
+| Plan check | referee: 167 checks, 0 violations. Blocks clear before the next train on 97% of simulated days against 88% when the solver plans alone (3 vs 10 fragile blocks of 28); both plans place 36 of 40 and solve to optimal. Varies between runs |
 | Tests | see the last line of `pytest -q` |
 
 The RL figures are on the placement objective only (the integrated-block reward is a weekly-plan
