@@ -56,11 +56,11 @@ reacting to an unplanned defect mid-week possible at all.
   what-ifs** (how long and how much with different workers or machines, assumed rates A-056), and shows jobs
   on screen, as short bullet lists.
 - **Scaling studio tab.** Runs the algorithm on random batches of 40, 100, 200 and 400 jobs with the exact solver
-  and 800 and 1,600 with the fast path, and shows timing curves, the gap to the best possible plan, and an independent
+  (timing the fast path on the same jobs), and shows timing curves, the gap to the best possible plan, and an independent
   rule check of every plan. Measured: the exact solver's plans pass every rule at every size (0 of 2,248 checks failed)
   and it always found a legal plan, but it proves optimality only on small batches (3.8% gap at 40 jobs, 41-89% at
   100-400 in the time allowed); the fast path plans 400 jobs in about 2 s but breaks the gang and daily-block limits
-  (72 failed checks at 400) and slows faster than the batch grows (51 s at 1,600). Trade-off plans, machine limits,
+  (72 failed checks at 400). Trade-off plans, machine limits,
   approvals and learning-from-execution exist as backend routes (`/api/studio/*`, `/api/approvals`, `/api/learning`)
   but are no longer shown in the UI.
 - **Says what a job needs on site** (people by role, machines, materials) from planning norms, not a

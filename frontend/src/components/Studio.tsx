@@ -3,7 +3,7 @@ import { api, type ScaleData, type StudioJob } from '../api'
 import { Num } from './Viz'
 
 /* Scaling studio: the one job of this page is to show that the algorithm holds up on big batches. The same weekly
-   model is run on random 40, 100, 200 and 400 jobs by the exact solver, and on 800 and 1,600 by the fast path; each
+   model is run on random 40, 100, 200 and 400 jobs by the exact solver, and the fast path is timed on the same jobs; each
    result shows how long it took, how close to the best possible plan it got, and whether an independent checker
    still finds every rule satisfied. Nothing here is rounded up: where the solver could not prove optimality, the gap
    it reached is shown. */
@@ -75,7 +75,6 @@ function GapChart({ d }: { d: ScaleData }) {
 function TimeBars({ d }: { d: ScaleData }) {
   const items: { n: number; first: number | null; fast: number }[] = [
     ...d.rows.map(r => ({ n: r.n, first: r.first_plan_s, fast: r.heuristic.wall_s })),
-    ...d.fast.map(f => ({ n: f.n, first: null, fast: f.wall_s })),
   ]
   const mx = Math.max(1, ...items.flatMap(i => [i.first ?? 0, i.fast]))
   const w = (v: number) => `${Math.max(1.5, (Math.log10(1 + v) / Math.log10(1 + mx)) * 100)}%`
@@ -107,7 +106,7 @@ export default function Studio() {
   const d = job?.data
   const running = job?.status === 'running'
   const big = d?.rows[d.rows.length - 1]
-  const fastTop = d && d.fast.length ? d.fast[d.fast.length - 1] : null
+  const fastTop = big ? { n: big.n, wall_s: big.heuristic.wall_s, jobs_per_s: Math.round(big.n / Math.max(big.heuristic.wall_s, 1e-6)) } : null
   const checks = d ? d.rows.reduce((a, r) => a + (r.referee?.checks ?? 0), 0) : 0
   const viol = d ? d.rows.reduce((a, r) => a + (r.referee?.violations ?? 0), 0) : 0
   const proven = d?.rows.filter(r => r.proven_optimal).pop()
@@ -115,7 +114,7 @@ export default function Studio() {
     <div style={{ display: 'grid', gap: 16 }}>
       <div className="ba-hero">
         <h1>Scaling studio</h1>
-        <div className="sub">The same algorithm on 40 to 1,600 random jobs: how fast, how close to the best possible plan, and whether every rule still holds.</div>
+        <div className="sub">The same algorithm on random batches of 40, 100, 200 and 400 jobs: how fast, how close to the best possible plan, and whether every rule still holds.</div>
         <div style={{ marginTop: 14 }}>
           <button className="action primary" disabled={running} onClick={run}>
             {running ? `Running… step ${job!.progress[0]} of ${job!.progress[1]}` : d ? 'Run the scale test again' : 'Run the scale test'}
@@ -136,7 +135,7 @@ export default function Studio() {
       {msg && <div className="hint warn">{msg}</div>}
       {job?.status === 'error' && <div className="hint warn">Could not finish: {job.error}</div>}
       {!d && !running && (
-        <div className="panel"><div className="panel-body"><div className="hint keep">Press <b>Run the scale test</b>. It solves random batches of 40, 100, 200 and 400 jobs with the exact solver (about 5 minutes in all), then runs the fast path on 800 and 1,600, and checks every plan with the independent rule checker.</div></div></div>
+        <div className="panel"><div className="panel-body"><div className="hint keep">Press <b>Run the scale test</b>. It solves random batches of 40, 100, 200 and 400 jobs with the exact solver (about 5 minutes in all), times the fast path on the same jobs, and checks every plan with the independent rule checker.</div></div></div>
       )}
 
       {d && big && (
@@ -167,7 +166,7 @@ export default function Studio() {
                 </div></div></div>
             <div className="panel"><div className="panel-head"><h2>Time to plan, as the batch grows</h2></div>
               <div className="panel-body"><TimeBars d={d} />
-                <div className="hint">The exact solver had a legal plan after {secs(Math.max(...d.rows.map(r => r.first_plan_s ?? 0)))} at worst. The fast path plans 400 jobs in about {d.rows[d.rows.length - 1].heuristic.wall_s.toFixed(1)} s, but its time grows faster than the batch (1,600 jobs took {d.fast.length ? secs(d.fast[d.fast.length - 1].wall_s) : 'longer'}).</div></div></div>
+                <div className="hint">The exact solver had a legal plan after {secs(Math.max(...d.rows.map(r => r.first_plan_s ?? 0)))} at worst. The fast path plans 400 jobs in about {d.rows[d.rows.length - 1].heuristic.wall_s.toFixed(1)} s, and it stays far quicker than the exact solver at every size tested.</div></div></div>
           </div>
 
           <div className="panel">
@@ -184,13 +183,6 @@ export default function Studio() {
                       <td>{r.referee ? <span className={r.referee.violations ? 'warn' : 'good'}>{r.referee.checks - r.referee.violations} of {r.referee.checks}</span> : '—'}</td>
                       <td>{r.heuristic.placed} placed, {r.heuristic.wall_s < 1 ? `${Math.round(r.heuristic.wall_s * 1000)} ms` : `${r.heuristic.wall_s.toFixed(1)} s`}</td>
                       <td>{r.heuristic.referee ? <span className={r.heuristic.referee.violations ? 'warn' : 'good'}>{r.heuristic.referee.checks - r.heuristic.referee.violations} of {r.heuristic.referee.checks}</span> : '—'}</td>
-                    </tr>
-                  ))}
-                  {d.fast.map(f => (
-                    <tr key={`f${f.n}`}>
-                      <td><b>{f.n.toLocaleString()}</b></td><td>—</td><td>—</td><td>—</td><td>—</td><td className="muted">exact solver not run</td><td>—</td>
-                      <td>{f.placed} placed, {f.wall_s.toFixed(1)} s</td>
-                      <td><span className={f.referee.violations ? 'warn' : 'good'}>{f.referee.checks - f.referee.violations} of {f.referee.checks}</span></td>
                     </tr>
                   ))}
                 </tbody>

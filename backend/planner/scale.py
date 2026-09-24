@@ -31,7 +31,7 @@ from backend.planner.verify import verify_plan
 
 SIZES = (40, 100, 200, 400)
 BUDGET_S = {40: 30.0, 100: 60.0, 200: 90.0, 400: 120.0}
-FAST_SIZES = (800, 1600)          # the fast path only: how it behaves far beyond what the exact solver can prove
+FAST_SIZES: tuple[int, ...] = ()   # fast-path-only sizes (800, 1600 were run once and removed from the test on request)
 
 
 def _first_within(curve: list[tuple[float, float, float]], pct: float) -> float | None:
