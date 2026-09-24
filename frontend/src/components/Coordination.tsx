@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
-  api, type FormOptions, type MatrixData, type ScoredTask, type ScoresData, type SubmitResult,
+  api, type FormOptions, type MatrixData, type RiskView, type ScoredTask, type ScoresData, type SubmitResult,
 } from '../api'
 // import CompatMatrix from './CompatMatrix'   // pair-by-pair matrix: hidden
 import type { FocusReq } from './NetworkMap'
@@ -23,6 +23,56 @@ const jobFocus = (t: ScoredTask): Partial<FocusReq> => ({
 })
 
 const scoreColor = (s: number) => (s >= 80 ? 'var(--fit)' : s >= 50 ? 'var(--sick)' : 'var(--stopstart)')
+
+const BAND_COLOR: Record<string, string> = {
+  Low: 'var(--fit)', Medium: 'var(--sick)', High: 'var(--iwp)', Extreme: 'var(--stopstart)',
+}
+const bandOf = (s: number) => (s >= 17 ? 'Extreme' : s >= 10 ? 'High' : s >= 5 ? 'Medium' : 'Low')
+
+/* 5 x 5 likelihood-by-severity grid; a dot marks where this job's hazards sit once controls are applied. */
+function RiskGrid({ risk }: { risk: RiskView }) {
+  const at = new Map(risk.cells.map(([l, s, n]) => [`${l}-${s}`, n]))
+  return (
+    <div className="risk-grid" role="img" aria-label="Risk matrix">
+      {[5, 4, 3, 2, 1].map(l => [1, 2, 3, 4, 5].map(s => {
+        const n = at.get(`${l}-${s}`)
+        return <i key={`${l}-${s}`} style={{ background: BAND_COLOR[bandOf(l * s)] }} className={n ? 'has' : ''}>{n ?? ''}</i>
+      }))}
+      <span className="rg-x">severity →</span><span className="rg-y">likelihood →</span>
+    </div>
+  )
+}
+
+function RiskBlock({ risk }: { risk: RiskView }) {
+  return (
+    <div className="risk-box">
+      <div className="risk-head">
+        <b>Risk assessment</b>
+        <span className="risk-chip" style={{ background: BAND_COLOR[risk.inherent_band] }}>{risk.inherent_band} before controls</span>
+        <span className="arrow">→</span>
+        <span className="risk-chip" style={{ background: BAND_COLOR[risk.residual_band] }}>{risk.residual_band} after controls</span>
+      </div>
+      <div className="risk-body">
+        <table className="risk-table">
+          <thead><tr><th>Hazard</th><th>L × S</th><th>Control</th><th>Left</th></tr></thead>
+          <tbody>
+            {risk.hazards.map((h, i) => (
+              <tr key={i}>
+                <td>{h.name}{h.with && <span className="muted"> · with <span className="mono">{h.with}</span></span>}</td>
+                <td className="mono"><span style={{ color: BAND_COLOR[h.inherent_band] }}>{h.likelihood}×{h.severity}={h.inherent}</span></td>
+                <td className="muted">{h.control}</td>
+                <td className="mono"><b style={{ color: BAND_COLOR[h.residual_band] }}>{h.residual}</b> {h.residual_band}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <RiskGrid risk={risk} />
+      </div>
+      <div className="hint keep">Likelihood 1 (rare) to 5 (almost certain) × severity 1 (minor) to 5 (fatal); 1–4 Low, 5–9 Medium, 10–16 High, 17+ Extreme.
+        Rules-based, with assumed scales, not calibrated to incident data (A-060).</div>
+    </div>
+  )
+}
 
 function Dial({ value, size = 46 }: { value: number; size?: number }) {
   const r = size / 2 - 4
@@ -201,6 +251,7 @@ function ScoreCard({ t, open, onToggle, onShow }: {
                 {sc.incompatible > 0 && <> · <span style={{ color: 'var(--stopstart)' }}>{sc.incompatible} apart</span></>}</>
             )}
             {sc?.standalone && <> · <span className="muted">nothing nearby to conflict with</span></>}
+            {sc?.risk && <> · <span className="risk-chip sm" style={{ background: BAND_COLOR[sc.risk.residual_band] }}>{sc.risk.residual_band} risk</span></>}
           </div>
           <div className="score-sched">
             {s ? (
@@ -229,12 +280,14 @@ function ScoreCard({ t, open, onToggle, onShow }: {
               </div>
             </div>
           )}
+          {sc?.risk && <RiskBlock risk={sc.risk} />}
           {sc && sc.pairs.length > 0 ? sc.pairs.map(p => (
             <div key={p.other} className="pairline">
               <span className={`vdot v-${p.verdict}`} />
               <span className="mono">{p.other}</span>
               <b style={{ margin: '0 6px' }}>{VERDICT_TEXT[p.verdict]}</b>
               <span className="muted">{p.reason}</span>
+              {p.risk && <span className="risk-chip sm" style={{ background: BAND_COLOR[p.risk.residual_band], marginLeft: 6 }}>{p.risk.residual_band}</span>}
             </div>
           )) : <div className="muted" style={{ fontSize: 12 }}>No other department has a job near this one.</div>}
           {s && <button className="action" style={{ marginTop: 8 }} onClick={() => onShow(s.section_id, s.start_s, jobFocus(t))}>Show on Operations map →</button>}
@@ -314,6 +367,8 @@ export default function Coordination({ mat: _mat, clock, onShow }: {
               <div className="tile"><div className="v">{data?.summary.n_tasks ?? '—'}</div><div className="k">jobs</div></div>
               <div className="tile"><div className="v" style={{ color: scoreColor(data?.summary.mean_score ?? 0) }}>
                 {data?.summary.mean_score ?? '—'}</div><div className="k">average score</div></div>
+              <div className="tile"><div className="v" style={{ color: 'var(--iwp)' }}>{(data?.tasks ?? []).filter(t => ['High', 'Extreme'].includes(t.score?.risk?.residual_band ?? '')).length}</div>
+                <div className="k">high risk after controls</div><div className="note">of {data?.summary.n_tasks ?? 0} jobs; click a job for its hazards</div></div>
               <div className="tile"><div className="v">{data?.summary.n_shared ?? '—'}</div>
                 <div className="k">shared groups</div><div className="note">nearby jobs that can share a block</div></div>
               <div className="tile"><div className="v" style={{ color: 'var(--accent)' }}>{data?.summary.n_user ?? 0}</div>

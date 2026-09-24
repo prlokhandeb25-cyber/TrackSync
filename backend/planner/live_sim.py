@@ -30,6 +30,7 @@ import random
 from dataclasses import dataclass, field
 from typing import Callable
 
+from backend.planner.aging import effective_priority
 from backend.config import load_config
 from backend.data.synth_tasks import generate_demand_task
 from backend.domain.compatibility import Verdict
@@ -284,7 +285,7 @@ def alns_lite_insert(net: Network, candidate: Task, index: IntervalWindowIndex,
     for _, start, ov, with_, w in (scored if allow_destroy else []):
         blocker = _blocked_by(net, candidate, start, existing)
         if (blocker is not None and blocker.id.startswith("SIM-")
-                and blocker.priority > candidate.priority):
+                and effective_priority(blocker, from_s) > candidate.priority):
             if commit:
                 sim_state.placed = [p for p in sim_state.placed if p.task.id != blocker.id]
             existing = [t for t in existing if t.id != blocker.id]

@@ -206,7 +206,7 @@ export default function ScheduleView() {
                         <tr key={e.task_id + e.start_s}>
                           <td className="mono">{hhmm(e.start_s)}–{hhmm(e.end_s)}</td>
                           <td><span className={`badge dept ${e.department}`}>{DEPT_SHORT[e.department]}</span></td>
-                          <td>{e.description || e.label}</td>
+                          <td>{e.description || e.label}{e.aged_from !== undefined && <span className="tag good" title="Left over from an earlier week, so it was planned more urgently each week it waited"> P{e.aged_from} → P{e.priority} after {e.waited_weeks} week{e.waited_weeks === 1 ? '' : 's'} waiting</span>}</td>
                           <td className="mono">{e.section_id}</td>
                           <td className="muted">{e.gap_type.replace('_', ' ').toLowerCase()}{e.created && ' · created gap'}</td>
                         </tr>

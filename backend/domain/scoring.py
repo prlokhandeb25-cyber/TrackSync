@@ -26,6 +26,7 @@ from backend.domain.compatibility import (
     CompatibilityResult, Verdict, ZoneRelation, compatibility, overlaps_in_time, zone_relation,
 )
 from backend.domain.network import Network
+from backend.domain.risk import assess_job, assess_pair
 from backend.domain.task import Task
 
 
@@ -59,13 +60,14 @@ class TaskScore:
     incompatible: int = 0
     standalone: bool = False
     pairs: list[dict] = field(default_factory=list)
+    risk: dict | None = None         # hazards, likelihood x severity, controls, residual (domain/risk.py)
 
     def to_dict(self) -> dict:
         return {
             "task_id": self.task_id, "score": self.score, "cluster_id": self.cluster_id,
             "mates": self.mates, "compatible": self.compatible,
             "requires_iwp": self.requires_iwp, "incompatible": self.incompatible,
-            "standalone": self.standalone, "pairs": self.pairs,
+            "standalone": self.standalone, "pairs": self.pairs, "risk": self.risk,
         }
 
 
@@ -81,6 +83,7 @@ def score_tasks(net: Network, tasks: list[Task], clusters: list) -> dict[str, Ta
         for tid in c.task_ids:
             t = by_id[tid]
             sc = TaskScore(task_id=tid, score=100, cluster_id=c.id, mates=0)
+            pair_risks: list[tuple[str, dict]] = []
             for oid in c.task_ids:
                 o = by_id[oid]
                 if oid == tid or o.department == t.department:
@@ -93,11 +96,15 @@ def score_tasks(net: Network, tasks: list[Task], clusters: list) -> dict[str, Ta
                     sc.requires_iwp += 1
                 else:
                     sc.incompatible += 1
+                pr = assess_pair(t, o, r.value.value, r.zone_relation.value)
+                pair_risks.append((oid, pr))
                 sc.pairs.append({"other": oid, "department": o.department.value,
-                                 "verdict": r.value.value, "reason": r.reason, "rule": r.rule_id})
+                                 "verdict": r.value.value, "reason": r.reason, "rule": r.rule_id,
+                                 "risk": {k: pr[k] for k in ("inherent", "inherent_band", "residual", "residual_band", "top")}})
             if sc.mates:
                 sc.score = round(100 * (sc.compatible + 0.5 * sc.requires_iwp) / sc.mates)
             else:
                 sc.standalone = True
+            sc.risk = assess_job(t, pair_risks)
             out[tid] = sc
     return out

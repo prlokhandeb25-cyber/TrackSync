@@ -87,6 +87,17 @@ def _startup() -> None:
     except Exception:
         pass    # the routes build it on first use, as before
 
+    def _warm_plan() -> None:                 # the weekly plan and the daily jobs take a few seconds: do them before the first click
+        try:
+            from backend.api.state import ensure_plan
+            from backend.api.routes_tasks import ensure_dayfill
+            ensure_plan()
+            ensure_dayfill()
+        except Exception:
+            pass
+    import threading
+    threading.Thread(target=_warm_plan, daemon=True).start()
+
 
 @app.get("/api/health")
 def health() -> dict:

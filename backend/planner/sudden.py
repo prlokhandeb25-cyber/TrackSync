@@ -26,6 +26,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Callable
 
+from backend.planner.aging import effective_priority, record_bump
 from backend.config import load_config
 from backend.domain.compatibility import Verdict
 from backend.domain.network import Network
@@ -116,7 +117,8 @@ def place_sudden(net: Network, task: Task, index: IntervalWindowIndex, committed
         blockers = _all_blockers(net, task, r["start"], existing)
         if not blockers or len(blockers) > max_bumped:
             continue
-        if any(b.priority <= task.priority or not movable(b) for b in blockers):
+        # aging: a job that has waited a long time, or been moved before, is protected (planner/aging.py)
+        if any(effective_priority(b, at_s) <= task.priority or not movable(b) for b in blockers):
             continue
         options.append((len(blockers), -sum(b.priority for b in blockers), r["score"], r, blockers))
     options.sort(key=lambda o: o[:3])
@@ -138,6 +140,8 @@ def place_sudden(net: Network, task: Task, index: IntervalWindowIndex, committed
 
     _, _, _, r, blockers = options[0]
     old = {b.id: _slot(b) for b in blockers}
+    for b in blockers:
+        record_bump(b.id)          # each time a job is pushed aside it ages one step, so it cannot be pushed forever
     for b in blockers:
         b.scheduled_start_s = b.scheduled_end_s = None
     w: CandidateWindow = r["window"]

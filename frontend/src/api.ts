@@ -352,11 +352,20 @@ export interface CreationOptionView {
   trains: { train_id: string; class: string; action: string }[]; note: string
 }
 
-export interface PairView { other: string; department: string; verdict: Verdict; reason: string; rule: string }
+export interface PairView { other: string; department: string; verdict: Verdict; reason: string; rule: string; risk?: { inherent: number; inherent_band: string; residual: number; residual_band: string; top: string | null } }
 export interface ScoreView {
   task_id: string; score: number; cluster_id: number | null; mates: number
   compatible: number; requires_iwp: number; incompatible: number; standalone: boolean
   pairs: PairView[]
+  risk?: RiskView | null
+}
+export interface RiskHazard {
+  id: string; name: string; likelihood: number; severity: number; inherent: number; inherent_band: string
+  control: string; residual_likelihood: number; residual: number; residual_band: string; with: string | null
+}
+export interface RiskView {
+  inherent: number; inherent_band: string; residual: number; residual_band: string; top: string | null
+  hazards: RiskHazard[]; n_hazards: number; controls: string[]; cells: [number, number, number][]
 }
 export interface ScheduleView {
   start_s: number; end_s: number; section_id: string; track: string; gap_type: string
@@ -433,6 +442,7 @@ export interface PlanEntry {
   task_id: string; label: string; description: string; department: string; zone: string
   section_id: string; track: string; start_s: number; end_s: number; gap_type: string
   source: string; priority: number; cluster: number | null; created: boolean; tag: string
+  aged_from?: number; waited_weeks?: number
 }
 export interface WeekSchedule {
   entries: PlanEntry[]

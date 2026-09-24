@@ -60,6 +60,26 @@ def time_range(low: str) -> tuple[int, int] | None:
     return (a, b) if 0 <= a < b <= 24 * 3600 + 1 else None
 
 
+_N = r"(\d+)\s*(?:more |extra |additional )?"
+_WORKERS = r"(?:workers?|people|men|staff|technicians?|maintainers?|persons?|gang members?)"
+
+
+def _delta(low: str, kind: str) -> int | None:
+    """"add 2 more workers" / "2 fewer people": a change to the normal crew rather than a crew size."""
+    m = re.search(rf"\b(add|adding|plus|extra|additional|more|another|bring in)\s+(?:in )?(\d+)\s*(?:more |extra |additional )?{kind}", low)         or re.search(rf"(\d+)\s*(more|extra|additional)\s+{kind}", low)
+    if m:
+        return int(next(g for g in m.groups() if g and g.isdigit()))
+    m = re.search(rf"\b(remove|removing|drop|cut|lose|minus|fewer|less)\s+(?:by )?(\d+)\s*{kind}", low) or re.search(rf"(\d+)\s*(fewer|less)\s+{kind}", low)
+    if m:
+        return -int(next(g for g in m.groups() if g and g.isdigit()))
+    return None
+
+
+def _instead_of(low: str) -> int | None:
+    m = re.search(r"\b(?:instead of|rather than|not|from|versus|vs\.?|compared (?:to|with))\s*(\d+)\b", low)
+    return int(m.group(1)) if m else None
+
+
 def _workers(low: str) -> int | None:
     m = re.search(r"(\d+)\s*(?:more |extra |additional )?(?:workers?|people|men|staff|technicians?|maintainers?|persons?|gang members?)", low)
     return int(m.group(1)) if m else None
@@ -191,7 +211,14 @@ def h_crew_whatif(q: str, s: W.Slots, world, now_s: int) -> Answer:
     tt = _tt(s)
     dur = s.duration_min or max(tt.min_duration_min, min(120, tt.max_duration_min))
     n, m = _workers(low), _machines(low)
-    base = RS.costed(tt, dur)
+    base0 = RS.costed(tt, dur)
+    dn, dm = _delta(low, _WORKERS), _delta(low, r"(?:machines?|tampers?|wagons?)")
+    if dn is not None:
+        n = max(1, base0["norm_workers"] + dn)
+    if dm is not None and base0["norm_machines"]:
+        m = max(1, base0["norm_machines"] + dm)
+    n0 = _instead_of(low)
+    base = RS.costed(tt, dur, workers=n0) if (n0 and dn is None and n is not None and n0 != n) else base0
     if n is None and m is None:
         n = base["norm_workers"] + 4
     new = RS.costed(tt, dur, workers=n, machines=m)
@@ -199,7 +226,7 @@ def h_crew_whatif(q: str, s: W.Slots, world, now_s: int) -> Answer:
     d_cost = new["cost"]["total"] - base["cost"]["total"]
     verb = "shorter" if d_min < 0 else "longer" if d_min > 0 else "the same"
     text = (f"Here's how a **{dur}-minute {tt.label.lower()}** changes with a different crew:\n\n"
-            f"- **Crew:** **{base['norm_workers']}** normally → **{new['workers']}** workers"
+            f"- **Crew:** **{base['workers']}** {'as you said' if base is not base0 else 'normally'} → **{new['workers']}** workers"
             + (f", machines {base['norm_machines']} → **{new['machines']}**" if base["norm_machines"] else "") + "\n"
             f"- **Work time:** **{base['work_min']} min** → **{new['work_min']} min** ({abs(d_min)} min {verb})\n"
             f"- **Block on the track:** **{base['block_min']} min** → **{new['block_min']} min** (includes {new['overhead_min']} min set-up and hand-back, which more people can't shorten)\n"
@@ -261,7 +288,13 @@ def _dynamic_buffer(world, st, w, tt, day_s: int, dur_min: int, target: float = 
     return {"spare_min": pick, "curve": curve, "target": target}
 
 
+LAST_SLOT_Q: str | None = None      # the last slot question that named a place, so "can OWD work in that slot?" has something to mean
+
+
 def h_slot_check(q: str, s: W.Slots, world, now_s: int) -> Answer:
+    global LAST_SLOT_Q
+    if s.zone is not None:
+        LAST_SLOT_Q = q[-400:]
     st = W._live()
     net = world.net
     low = q.lower()

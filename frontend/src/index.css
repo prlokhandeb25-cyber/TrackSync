@@ -969,3 +969,18 @@ tbody tr:nth-child(even) td { background: color-mix(in srgb, var(--panel-2) 55%,
 
 .flat-why { margin-top: 10px; font-size: 12px; line-height: 1.5; color: var(--text-mute); }
 .flat-why ul { margin: 6px 0; padding-left: 4px; list-style: none; display: grid; gap: 3px; color: var(--text); }
+
+.risk-box { margin: 8px 0 10px; padding: 10px 12px; background: var(--panel-2); border-radius: 8px; border-left: 3px solid var(--iwp); }
+.risk-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 12.5px; margin-bottom: 8px; }
+.risk-chip { color: #fff; font-size: 10.5px; font-weight: 700; padding: 2px 8px; border-radius: 10px; letter-spacing: .02em; }
+.risk-chip.sm { font-size: 9.5px; padding: 1px 6px; }
+.risk-body { display: grid; grid-template-columns: 1fr auto; gap: 14px; align-items: start; }
+.risk-table { width: 100%; font-size: 11.5px; border-collapse: collapse; }
+.risk-table th { text-align: left; font-weight: 600; color: var(--text-mute); padding: 2px 6px 4px 0; }
+.risk-table td { padding: 4px 6px 4px 0; vertical-align: top; border-top: 1px solid var(--line-soft); }
+.risk-grid { position: relative; display: grid; grid-template-columns: repeat(5, 18px); grid-auto-rows: 18px; gap: 2px; margin: 2px 14px 16px 16px; }
+.risk-grid i { display: grid; place-items: center; font-style: normal; font-size: 9px; font-weight: 800; color: #fff; opacity: .28; border-radius: 3px; }
+.risk-grid i.has { opacity: 1; outline: 2px solid var(--text); outline-offset: 1px; }
+.risk-grid .rg-x { position: absolute; bottom: -14px; left: 0; font-size: 8.5px; color: var(--text-mute); }
+.risk-grid .rg-y { position: absolute; top: 0; left: -14px; font-size: 8.5px; color: var(--text-mute); writing-mode: vertical-rl; transform: rotate(180deg); }
+@media (max-width: 760px) { .risk-body { grid-template-columns: 1fr; } }

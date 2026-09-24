@@ -55,6 +55,13 @@ reacting to an unplanned defect mid-week possible at all.
 - **RailMitra answers slot questions** (is a gap free, who may use it, what buffer to leave), **crew and cost
   what-ifs** (how long and how much with different workers or machines, assumed rates A-056), and shows jobs
   on screen, as short bullet lists.
+- **Priority aging.** Routine (P4/P5) work moves up a level for every 48 hours it waits, or each time a more urgent job
+  pushes it aside, and jobs carried over from a previous week are planned more urgently each week; nothing rises above P2.
+  It protects waiting jobs from being bumped by sudden tasks and shows up in the Month view (A-059).
+- **Risk assessment in Department coordination.** Every job carries a hazard list rated likelihood x severity on a 5 x 5
+  matrix, before and after the controls the planner applies (kept at different times, joint permit, non-overlapping
+  zones). Rules-based with assumed scales, not calibrated to incident data (A-060). RailMitra adds the same to
+  "can X and Y work together?" answers.
 - **Scaling studio tab.** Runs the algorithm on random batches of 40, 100, 200 and 400 jobs with the exact solver
   (timing the fast path on the same jobs), and shows timing curves, the gap to the best possible plan, and an independent
   rule check of every plan. Measured: the exact solver's plans pass every rule at every size (0 of 2,248 checks failed)

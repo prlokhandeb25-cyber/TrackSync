@@ -777,6 +777,13 @@ def do_reset() -> dict:
 def chat(payload: dict) -> dict:
     """Grounded question answering over live state. No language model is involved."""
     w = ensure_world()
+    # Answers about what is booked read the solved plan and the daily routine jobs; make sure they exist (a no-op once built).
+    ensure_plan()
+    try:
+        from backend.api.routes_tasks import ensure_dayfill
+        ensure_dayfill()
+    except Exception:
+        pass
     a = chat_answer(str(payload.get("q", "")), w, STATE.plan, int(payload.get("at_s", 0) or 0))
     return a.to_dict()
 

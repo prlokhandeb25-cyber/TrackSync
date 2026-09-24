@@ -25,6 +25,7 @@ from __future__ import annotations
 import random
 import statistics
 
+from backend.planner.aging import effective_priority
 from backend.config import load_config
 from backend.data.synth_tasks import generate_demand_task
 from backend.domain.compatibility import check_allotment
@@ -57,11 +58,11 @@ def _endpoints(net, zone_ref: str) -> set[str]:
     return {zone_ref, sec.from_station, sec.to_station} if sec else {zone_ref}
 
 
-def fill(net, host_zone: str, freed_min: int, backlog: list, used: set[str]) -> list:
+def fill(net, host_zone: str, freed_min: int, backlog: list, used: set[str], now_s: int = 0) -> list:
     """Jobs to pull into `freed_min` minutes on `host_zone`: priority first, then longest, only while they fit."""
     ends = _endpoints(net, host_zone)
     cand = sorted((t for t in backlog if t.id not in used and t.zone.ref in ends and t.duration_min <= freed_min),
-                  key=lambda t: (t.priority, -t.duration_min))
+                  key=lambda t: (effective_priority(t, now_s), -t.duration_min))
     take, left = [], freed_min
     for t in cand:
         if t.duration_min <= left:

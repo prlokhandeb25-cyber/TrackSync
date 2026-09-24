@@ -17,6 +17,7 @@ import time
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from backend.planner.aging import age_carried
 from backend.api.routes import DAY_S, DAYS, _cluster_pool
 from backend.api.state import (
     STATE, creation_summary, ensure_interval_index, ensure_plan, ensure_world, make_creator,
@@ -576,6 +577,8 @@ def _build_month() -> None:
         pool, clusters, scores, cluster_of = _scored_pool()
         by_id = {t.id: t for t in w.tasks}
         weeks: list[dict] = []
+        waited: dict[str, int] = {}          # weeks each job has been carried over, for priority aging
+        aged_from: dict[str, int] = {}
 
         e0 = _entries(plan, by_id, cluster_of, 0, "W1")
         carried = [t.model_copy(deep=True) for t in w.tasks if t.id not in {e["task_id"] for e in e0}]
@@ -594,12 +597,20 @@ def _build_month() -> None:
                                  id_prefix=f"W{k}")
             for t in carried:
                 t.scheduled_start_s = t.scheduled_end_s = None
+                waited[t.id] = waited.get(t.id, 0) + 1
+            # A job left over from earlier weeks is planned one level more urgent for each week it has waited,
+            # so routine work is not outranked forever (backend/planner/aging.py, A-059).
+            aged_from.update({k: v for k, v in age_carried(carried, {t.id: 1 for t in carried}).items() if k not in aged_from})
             tasks = new + carried
             natural, res, created = solve_with_creation(w.net, tasks, w.windows, occ, rc, limit,
                                                         pax=get_pax())
             tby = {t.id: t for t in tasks}
             off = (k - 1) * 7 * DAY_S
             ek = _entries(res, tby, {}, off, f"W{k}")
+            for e in ek:
+                if e["task_id"] in aged_from:
+                    e["aged_from"] = aged_from[e["task_id"]]
+                    e["waited_weeks"] = waited.get(e["task_id"], 0)
             placed_ids = {e["task_id"] for e in ek}
             weeks.append({"week": k, "entries": ek, "n_tasks": len(tasks), "placed": len(ek),
                           "carried_in": len(carried),

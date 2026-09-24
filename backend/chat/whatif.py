@@ -258,6 +258,27 @@ def _date_day(low: str) -> tuple[int | None, str]:
     return off, (f"The plan covers {start:%a %d %b} to {end:%a %d %b}; {d:%d %b} is outside it.")
 
 
+# Everyday names for each kind of work, beside the words in its label ("welding" for rail renewal, "pantograph" for the mast job)
+_TYPE_ALIASES: dict[str, tuple[str, ...]] = {
+    "PWI_RAIL_RENEWAL": (r"\bweld\w*", r"rail (renewal|replacement|change)", r"track renewal", r"\brenewal\b", r"\brail\b(?! ?(way|road))"),
+    "PWI_TAMPING": (r"\btamp\w*",),
+    "PWI_BALLAST": (r"\bballast\b", r"\bscreening\b"),
+    "PWI_JOINT": (r"fish.?plate", r"\bjoints?\b"),
+    "PWI_POINTS": (r"points? (and|&) crossings?", r"\bcrossings?\b", r"\bturnouts?\b"),
+    "PWI_GAUGE": (r"\bgauge\b",),
+    "OWD_TENSION": (r"\bohe wire\b", r"\bcontact wire\b", r"\bcatenary\b", r"\btension\w*", r"overhead wire"),
+    "OWD_INSULATOR": (r"\binsulators?\b",),
+    "OWD_DROPPER": (r"\bdroppers?\b", r"\bjumpers?\b"),
+    "OWD_MAST": (r"\bmasts?\b", r"\bcantilevers?\b", r"\bpantograph\w*", r"\bohe (inspection|mast|structure)"),
+    "SNT_POINT_MACHINE": (r"points? machines?", r"\bpoint motor", r"machine (overhaul|servicing)"),
+    "SNT_TRACK_CIRCUIT": (r"track circuits?",),
+    "SNT_SIGNAL_LAMP": (r"\bsignal (lamps?|lights?|heads?|aspect)", r"\bleds?\b", r"\blamps?\b"),
+    "SNT_AXLE_COUNTER": (r"axle counters?",),
+    "SNT_CABLE_RELAY": (r"\bcabl\w+", r"\brelays?\b", r"relay room"),
+    "SNT_INTERLOCK": (r"interlock\w*",),
+}
+
+
 def parse(q: str, world, now_s: int) -> Slots:
     low = q.lower()
     s = Slots()
@@ -277,6 +298,10 @@ def parse(q: str, world, now_s: int) -> Slots:
     for tt in TASK_TYPES:
         words = [w for w in re.findall(r"[a-z]{5,}", tt.label.lower()) if w not in ("attention", "replacement")]
         pos = [low.find(w) for w in words if w in low]
+        for pat in _TYPE_ALIASES.get(tt.code, ()):          # the words people actually use for the work
+            mm = re.search(pat, low)
+            if mm:
+                pos.append(mm.start())
         if pos:
             s.types.append((min(pos), tt))  # type: ignore[arg-type]
     s.types = [tt for _, tt in sorted(s.types, key=lambda x: x[0])]   # type: ignore[misc]
@@ -322,6 +347,9 @@ def parse(q: str, world, now_s: int) -> Slots:
 def _remember(s: Slots) -> None:
     for key in ("zone", "duration_min", "priority"):
         if getattr(s, key):
+            _CTX[key] = getattr(s, key)
+    for key in ("day", "tod_s"):
+        if getattr(s, key) is not None:
             _CTX[key] = getattr(s, key)
     if s.depts:
         _CTX["depts"] = s.depts
@@ -738,8 +766,24 @@ def h_can_together(q: str, s: Slots, world, now_s: int) -> Answer:
         text += " An IWP is a permit, not a free pass: it costs coordination and the daily quota is two."
     else:
         text += " Sharing saves one protected block, which is what the clustering looks for."
-    ans = Answer(text, facts, ["rule engine (R0-R4)", "department declarations"], "together",
+    from backend.domain.risk import assess_pair
+    risk = assess_pair(tasks[0], tasks[1], verdict, r.zone_relation.value)
+    if risk["hazards"]:
+        text += (f"\n\n**Risk if worked together:** **{risk['inherent_band']}** before controls, **{risk['residual_band']}** after them "
+                 f"(likelihood × severity on a 5 × 5 scale; worst hazard: {risk['top'].lower()}).\n\n"
+                 + "\n".join(f"- **{h['name']}:** {h['likelihood']}×{h['severity']} = **{h['inherent']}** ({h['inherent_band']}) → **{h['residual']}** ({h['residual_band']}) with: {h['control']}"
+                             for h in risk["hazards"])
+                 + "\n\n*Rules-based, with assumed scales, not calibrated to incident data.*")
+        facts += [{"k": "risk before", "v": risk["inherent_band"].lower()}, {"k": "risk after", "v": risk["residual_band"].lower()}]
+    ans = Answer(text, facts, ["rule engine (R0-R4)", "department declarations", "risk matrix (assumed scales)"], "together",
                  suggestions=["what if it is a 90 minute job?", f"who is working on {zones[0].ref} tomorrow?"])
+    if risk["hazards"]:
+        items = []
+        for h in risk["hazards"]:
+            short = h["name"].split(" (")[0][:34]
+            items.append({"label": f"{short}: before", "value": h["inherent"], "best": False})
+            items.append({"label": f"{short}: after controls", "value": h["residual"], "best": True})
+        ans.visuals = [{"type": "bars", "title": "Risk score by hazard (25 = worst), before and after controls", "items": items}]
     ans.visual = {"type": "verdict", "title": "Can they share the block?", "verdict": verdict, "rule": r.rule_id or "",
                   "a": {"label": tts[0].label, "dept": tts[0].department.value}, "b": {"label": tts[1].label, "dept": tts[1].department.value},
                   "where": where}
@@ -1172,6 +1216,8 @@ def route(q: str, world, now_s: int) -> Answer | None:
         return h_sudden_status(q, s, world, now_s)
     if CLOSE.search(low) and (hypo or re.search(r"\b(if|happens?)\b", low)) and s.zone is not None:
         return h_whatif_close(q, s, world, now_s)
+    if re.search(r"\b(risk\w*|hazard\w*|danger\w*|safety|safe|unsafe)\b", low) and (len(s.types) >= 2 or len(s.depts) >= 2):
+        return h_can_together(q, s, world, now_s)                   # "how risky is OHE and tamping at Kurla?"
     if TOGETHER.search(low) and (len(s.types) >= 2 or len(s.depts) >= 2 or re.search(r"\bcan\b", low)):
         if len(s.types) >= 2 or len(s.depts) >= 2:
             return h_can_together(q, s, world, now_s)

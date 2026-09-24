@@ -130,6 +130,11 @@ clustering:                        # backend/planner/clustering.py (ASSUMPTIONS 
   small_job_min: 45                # a job this short or shorter can ride in a bigger job's block (A-054)
   rider_priority_gap: 1            # ... if it is within this many priority steps of the big job (A-054)
 
+aging:                             # backend/planner/aging.py (ASSUMPTIONS A-059)
+  enabled: true
+  hours_per_step: 48               # a job moves up one priority level for every 48 h it waits ...
+  floor: 2                         # ... but never above P2, so routine work cannot outrank a P1 emergency
+
 daily:                             # backend/planner/dayfill.py (ASSUMPTIONS A-055)
   jobs_per_day: 4                  # standing routine jobs raised each day
   max_job_min: 45                  # longest routine job

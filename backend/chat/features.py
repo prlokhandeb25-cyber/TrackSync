@@ -552,6 +552,31 @@ _CAT = re.compile(r"\b(what can you do|what do you do|features?|capabilit\w+|eve
 _EXPLAIN = re.compile(r"\b(explain|what is|what are|what's|how does|how do|how is|tell me about|describe)\b")
 
 
+def h_aging(q: str, s: W.Slots, world, now_s: int) -> Answer:
+    """How low-priority work is kept from starving: priority aging (planner/aging.py). Read-only."""
+    from backend.planner import aging as AG
+    hps, floor, enabled = AG._cfg()
+    booked = [t for t in W.booked_tasks(world) if not t.completed]
+    rows = [AG.explain(t, now_s) for t in booked]
+    moved = [r for r in rows if r["steps"] > 0]
+    pushed = [r for r in rows if r["pushed_aside"] > 0]
+    ladder = [(int(hps * k), max(floor, 5 - k)) for k in range(0, 5 - floor + 1)]
+    text = (f"Yes: routine work does not wait forever, because a job **moves up one priority level for every {int(hps)} hours it waits**"
+            f", or each time a more urgent job pushes it aside, and it **never rises above P{floor}**, so it can't outrank a P1 emergency.\n\n"
+            f"- **Where it applies:** a sudden task may push aside only jobs whose *current* priority is lower than its own, so a job that has waited or been moved before is protected.\n"
+            f"- **Carried over:** a job left unplaced at the end of a week is planned one level more urgent for each week it has waited (see the Month view).\n"
+            f"- **Early-finish reuse:** the waiting list is ranked by current priority, so aged jobs get the freed time first.\n"
+            f"- **Right now:** **{len(moved)}** of {len(booked)} booked jobs have aged at least one level and **{len(pushed)}** have been pushed aside before.\n\n"
+            f"*The {int(hps)}-hour step and the P{floor} ceiling are assumed values (A-059); with `aging.enabled: false` priorities are strict.*")
+    a = Answer(text, [{"k": "hours per step", "v": str(int(hps))}, {"k": "highest reachable", "v": f"P{floor}"},
+                      {"k": "aged now", "v": str(len(moved))}],
+               ["priority aging rule (assumed)", "booked jobs", "nothing was changed"], "aging",
+               suggestions=["what if a critical S&T fault at Kurla right now?", "what can you do?"])
+    a.visual = {"type": "bars", "title": "A P5 routine job's priority as it waits (lower P = more urgent)",
+                "items": [{"label": f"after {h} h: P{p}", "value": 6 - p, "best": p == floor} for h, p in ladder]}
+    return a
+
+
 def route(q: str, world, now_s: int) -> Answer | None:
     low = q.lower()
     s = W.parse(q, world, now_s)
@@ -561,6 +586,8 @@ def route(q: str, world, now_s: int) -> Answer | None:
         return h_clusters_run(q, s, world, now_s)
     if re.search(r"\b(alns|algorithms?|techniques?|really optimi[sz]|is it optimal|are you (sure|confident))\b", low):
         return h_algorithms(q, s, world, now_s)
+    if re.search(r"\b(aging|ageing|starv\w*|low.priority (job|task|work)s?|routine (job|task|work)s?.{0,25}(wait|never|ignored)|never (get|gets|got) (done|planned|placed)|keep (getting )?(bumped|pushed))\b", low):
+        return h_aging(q, s, world, now_s)
     from backend.chat import ops as _ops
     if re.search(r"\b(buffer|crew history|overrun)\w*\b", low) and not re.search(r"\bhow often\b", low) \
             and not (s.zone is not None and (s.tod_s is not None or _ops.time_range(low))):
@@ -571,6 +598,14 @@ def route(q: str, world, now_s: int) -> Answer | None:
     from backend.chat import ops
     tr_ = ops.time_range(low)
     slot_words = re.search(r"\b(gap|slot|window|free|available|availability|open)\b", low)
+    last_slot = getattr(ops, "LAST_SLOT_Q", None)
+    if s.zone is None and last_slot and re.search(r"\b(that|this|the same) (slot|gap|window)\b", low):
+        merged = last_slot + " " + q                     # "can OWD work in that slot?" means the slot just asked about
+        return ops.h_slot_check(merged, W.parse(merged, world, now_s), world, now_s)
+    if slot_words and s.zone is None and (tr_ or s.tod_s is not None) and re.search(r"\b(is|are) there\b|\bfree\b|\bavailable\b|\bopen\b", low)             and not re.search(r"\b(best|earliest|quietest|fit a|find (me )?a)\b", low):
+        if W._CTX.get("zone"):                           # no place named: the one being talked about
+            s.zone = W._CTX["zone"]
+        return ops.h_slot_check(q, s, world, now_s)
     if (slot_words and s.zone is not None and (tr_ or s.tod_s is not None) and not re.search(r"\b(best|earliest|quietest|fit a|find (me )?a)\b", low)) \
             or re.search(r"\b(can|could) (my|another|other|any) (dept|department)\b|\bwhat (should|would) (the )?buffer\b|\bdynamic buffer\b|\bbuffer (for|in|on)\b", low) and s.zone is not None:
         return ops.h_slot_check(q, s, world, now_s)
@@ -578,9 +613,14 @@ def route(q: str, world, now_s: int) -> Answer | None:
                  r"how (long|much longer|much faster|quickly)\b.*\b(take|with|if)|how (long|much time) (will|would|does) .*(take|need))", low) \
             and (s.depts or s.types or re.search(r"\b(job|task|block|work)\b", low)):
         return ops.h_crew_whatif(q, s, world, now_s)
-    if re.search(r"\b(resources?|manpower|equipment|crew|machines?|materials|gang|costs?|price|budget|expense|rupees|how much (will|would|does) it|who (is|are) needed|what (does|do) .* need)\b", low) \
+    if re.search(r"\b(resources?|manpower|equipment|crew|machines?|materials|gang|costs?|price|budget|expense|rupees|how much (will|would|does) it|who (is|are) needed|what (does|do) .* need)\b"
+                 r"|how many (workers?|people|men|staff|technicians?|maintainers?|persons?|machines?)\b"
+                 r"|\b(workers?|people|staff|manpower|men) (are |is )?(needed|required|necessary)\b|what (tools|equipment|machines?|materials) ", low) \
             and not re.search(r"\b(buffer|overrun)\b", low):
         return ops.h_resources(q, s, world, now_s)
+    if re.search(r"\bhow many (tasks?|jobs?|works?) (are |is |do we have |have we got )?(planned|scheduled|booked|on|there|happening)\b", low) \
+            and not re.search(r"\b(placed|unplaced|of 40|weekly plan)\b", low):
+        return ops.h_tasks(q, s, world, now_s)
     if (re.match(r"^\s*(show|list|display|view|see|give me)\b", low) and re.search(r"\b(tasks?|jobs?|work|maintenance|planned|scheduled|schedule|plan)\b", low)) \
             or re.search(r"\bwhat (tasks|jobs|work|maintenance) (is|are)\b", low):
         return ops.h_tasks(q, s, world, now_s)
