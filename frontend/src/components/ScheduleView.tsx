@@ -16,7 +16,7 @@ function tip(e: PlanEntry) {
     (e.source === 'USER' ? '\nraised by you' : '') + (e.source === 'SUDDEN' ? '\nsudden task' : '') + (e.source === 'DAILY' ? '\ndaily routine job' : '') + (e.tag === 'moved' ? '\nmoved by a sudden task' : '')
 }
 
-function WeekGrid({ entries, dayOffset = 0 }: { entries: PlanEntry[]; dayOffset?: number }) {
+function WeekGrid({ entries, dayOffset = 0, onPick, picked }: { entries: PlanEntry[]; dayOffset?: number; onPick: (e: PlanEntry) => void; picked?: PlanEntry | null }) {
   const H = 250
   return (
     <div className="weekgrid">
@@ -39,8 +39,8 @@ function WeekGrid({ entries, dayOffset = 0 }: { entries: PlanEntry[]; dayOffset?
             <div className="strip" style={{ height: H }}>
               {[6, 12, 18].map(h => <i key={h} style={{ top: (h / 24) * H }} />)}
               {day.map((e, i) => (
-                <div key={e.task_id + e.start_s} title={tip(e)}
-                     className={`blk ${e.created ? 'created' : ''} ${e.source === 'USER' ? 'user' : ''} ${e.source === 'SUDDEN' || e.tag === 'moved' ? 'sudden' : ''} ${e.source === 'DAILY' ? 'daily' : ''}`}
+                <div key={e.task_id + e.start_s} title={tip(e)} onClick={() => onPick(e)}
+                     className={`blk ${picked && picked.task_id === e.task_id && picked.start_s === e.start_s ? 'picked' : ''} ${e.created ? 'created' : ''} ${e.source === 'USER' ? 'user' : ''} ${e.source === 'SUDDEN' || e.tag === 'moved' ? 'sudden' : ''} ${e.source === 'DAILY' ? 'daily' : ''}`}
                      style={{ top: ((e.start_s % DAY) / DAY) * H, height: Math.max(5, ((e.end_s - e.start_s) / DAY) * H),
                               left: `calc(${(laneOf[i] / lanes) * 100}% + 2px)`, right: 'auto',
                               width: `calc(${100 / lanes}% - 3px)`, background: DEPT_COLOR[e.department] }} />
@@ -49,6 +49,22 @@ function WeekGrid({ entries, dayOffset = 0 }: { entries: PlanEntry[]; dayOffset?
           </div>
         )
       })}
+    </div>
+  )
+}
+
+function JobCard({ e, onClose }: { e: PlanEntry; onClose: () => void }) {
+  const mins = Math.round((e.end_s - e.start_s) / 60)
+  return (
+    <div className="job-card" style={{ borderLeftColor: DEPT_COLOR[e.department] }}>
+      <div className="jc-head"><span className={`badge dept ${e.department}`}>{DEPT_SHORT[e.department]}</span><b>{e.description || e.label}</b>
+        <button className="link" onClick={onClose} aria-label="Close">close</button></div>
+      <div className="jc-line"><span>When</span><b>{DAYS[Math.floor(e.start_s / DAY) % 7]} {hhmm(e.start_s)}–{hhmm(e.end_s)} ({mins} min)</b></div>
+      <div className="jc-line"><span>Where</span><b>{e.section_id} · {e.track}</b></div>
+      <div className="jc-line"><span>Slot</span><b>{e.gap_type.replace('_', ' ').toLowerCase()}{e.created ? ' · a gap opened for it' : ''}</b></div>
+      {(e.source === 'USER' || e.source === 'SUDDEN' || e.source === 'DAILY' || e.tag === 'moved') && (
+        <div className="jc-line"><span>Kind</span><b>{e.source === 'USER' ? 'raised by you' : e.source === 'SUDDEN' ? 'sudden task' : e.source === 'DAILY' ? 'daily routine job' : 'moved by a sudden task'}</b></div>
+      )}
     </div>
   )
 }
@@ -72,6 +88,7 @@ export default function ScheduleView() {
   const [mo, setMo] = useState<MonthSchedule | null>(null)
   const [pickDay, setPickDay] = useState<number | null>(null)
   const [pw, setPw] = useState<PaxWeekly | null>(null)
+  const [pick, setPick] = useState<PlanEntry | null>(null)
 
   useEffect(() => { api.scheduleWeek().then(setWk).catch(() => undefined) }, [])
   useEffect(() => {
@@ -119,7 +136,8 @@ export default function ScheduleView() {
             <div className="tile"><div className="v" style={{ color: 'var(--sick)' }}>+{Math.max(0, s!.plan_placed - s!.natural_only_placed)}</div>
               <div className="k">extra from gap creation</div></div>
           </div>
-          <div style={{ marginTop: 16 }}><WeekGrid entries={wk.entries} /></div>
+          <div style={{ marginTop: 16 }}><WeekGrid entries={wk.entries} onPick={e => setPick(p => p && p.task_id === e.task_id && p.start_s === e.start_s ? null : e)} picked={pick} /></div>
+          {pick ? <JobCard e={pick} onClose={() => setPick(null)} /> : <div className="hint keep">Click a coloured block to see what the job is.</div>}
           <Legend />
           {wk.unplaced.length > 0 && (
             <div className="reason" style={{ margin: '12px 0 0', borderLeftColor: 'var(--sick)' }}>

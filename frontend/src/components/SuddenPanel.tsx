@@ -19,13 +19,14 @@ const DEPTS = [['', 'Any department'], ['PWI', 'P.Way'], ['OWD', 'Overhead'], ['
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 const hh = (s: number) => `${String(Math.floor((s % 86400) / 3600)).padStart(2, '0')}:${String(Math.floor((s % 3600) / 60)).padStart(2, '0')}`
 
-export default function SuddenPanel({ net, clock, onResult, onWatch, onClear, tick }: {
+export default function SuddenPanel({ net, clock, onResult, onWatch, onClear, tick, expandKey = 0 }: {
   net: NetworkData
   clock: number
   onResult: (r: SuddenResult) => void
   onWatch: (r: SuddenResult) => void
   onClear: () => void
   tick: number
+  expandKey?: number
 }) {
   const [zone, setZone] = useState('')
   const [dept, setDept] = useState('')
@@ -48,6 +49,8 @@ export default function SuddenPanel({ net, clock, onResult, onWatch, onClear, ti
     return () => { alive = false }
   }, [last?.id, last?.window?.start_s])                             // eslint-disable-line
 
+  // opened from the AI dispatcher page: show the steps of how the new job was decided
+  useEffect(() => { if (expandKey > 0) setHow(true) }, [expandKey])
   const refresh = () => api.suddenMetrics().then(setM).catch(() => undefined)
   useEffect(() => { void refresh() }, [tick])                       // eslint-disable-line
   useEffect(() => {

@@ -265,10 +265,12 @@ export default function Impact() {
 
       */}
 
+      {/* "What this does not show" hidden on request
       <details className="fold">
         <summary>What this does not show</summary>
         <div><ul className="limits">{(sc?.limits ?? []).map((t, i) => <li key={i}>{t}</li>)}</ul></div>
       </details>
+      */}
     </div>
   )
 }

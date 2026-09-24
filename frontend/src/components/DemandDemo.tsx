@@ -7,15 +7,21 @@ import { api, type DemandReplanResult } from '../api'
    actually happened, including which dispatcher answered if the trained model is unavailable
    on this machine and it fell back to the greedy heuristic. */
 
+// kept across tab changes: the page is left as soon as the defect is injected, and the timing is here when you come back
+let lastResult: DemandReplanResult | null = null
+
 export default function DemandDemo() {
   const [busy, setBusy] = useState(false)
-  const [result, setResult] = useState<DemandReplanResult | null>(null)
+  const [result, setResult] = useState<DemandReplanResult | null>(lastResult)
   const [err, setErr] = useState<string | null>(null)
 
   const run = async () => {
     setBusy(true); setErr(null)
     try {
+      // the live system gets the same kind of defect and the app moves to Operations to show where and how it was placed
+      window.dispatchEvent(new CustomEvent('railblock:sudden-defect'))
       const r = await api.injectDemand()
+      lastResult = r
       setResult(r)
     } catch (e) {
       setErr(String(e))

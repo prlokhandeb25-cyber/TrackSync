@@ -283,6 +283,24 @@ export default function App() {
     setTick(t => t + 1)
     if (r.placed && r.window) watchSudden(r)
   }
+  // The AI dispatcher page's "inject defect" button: put a sudden task into the live plan and show it on Operations.
+  const [howKey, setHowKey] = useState(0)
+  const injectFromDispatcher = async () => {
+    try {
+      const r = await api.suddenInject({ level: 'high', zone_ref: null, department: null, at_s: Math.round(clockRef.current) })
+      onSudden(r)
+      setHowKey(k => k + 1)
+    } catch { /* the dispatcher page still shows its own timing */ }
+    setTab('operations')
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+  const injectRef = useRef(injectFromDispatcher)
+  injectRef.current = injectFromDispatcher
+  useEffect(() => {
+    const h = () => { void injectRef.current() }
+    window.addEventListener('railblock:sudden-defect', h)
+    return () => window.removeEventListener('railblock:sudden-defect', h)
+  }, [])
   const onSuddenClear = () => { setSuddenWins([]); setMovedIds(new Set()); setMovedWins([]); setTick(t => t + 1) }
   const watchSudden = (r: SuddenResult) => {
     if (!r.window) return
@@ -472,7 +490,7 @@ export default function App() {
 
             <div style={{ display: 'grid', gap: 16, alignContent: 'start' }}>
               <SuddenPanel net={net} clock={clock} tick={tick} onResult={onSudden} onWatch={watchSudden}
-                           onClear={onSuddenClear} />
+                           onClear={onSuddenClear} expandKey={howKey} />
               <YourJobs tick={tick} onWindows={setUserWindows}
                         onWatch={t => t.schedule && showJob(t.schedule.section_id, t.schedule.start_s, {
                           endS: t.schedule.end_s, label: t.description || t.label, dept: t.department,

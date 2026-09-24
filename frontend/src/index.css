@@ -957,3 +957,12 @@ tbody tr:nth-child(even) td { background: color-mix(in srgb, var(--panel-2) 55%,
 .tbs-t { height: 8px; background: var(--panel-3); border-radius: 4px; overflow: hidden; }
 .tbs-t i { display: block; height: 100%; border-radius: 4px; transform-origin: left; animation: grow-x .8s cubic-bezier(.2,.7,.2,1) backwards; }
 .sc-table .bad { color: var(--stopstart); font-weight: 700; }
+
+.weekgrid .blk { cursor: pointer; }
+.weekgrid .blk.picked { outline: 2px solid var(--text); outline-offset: 1px; z-index: 3; }
+.job-card { margin-top: 12px; padding: 10px 12px; border-left: 4px solid var(--accent); background: var(--panel-2); border-radius: 6px; display: grid; gap: 4px; font-size: 12.5px; animation: slide-in .25s ease backwards; }
+.job-card .jc-head { display: flex; gap: 8px; align-items: center; }
+.job-card .jc-head .link { margin-left: auto; }
+.job-card .jc-line { display: grid; grid-template-columns: 52px 1fr; gap: 8px; }
+.job-card .jc-line span { color: var(--text-mute); }
+.how-list { margin: 0; padding-left: 18px; display: grid; gap: 6px; font-size: 13px; line-height: 1.45; }

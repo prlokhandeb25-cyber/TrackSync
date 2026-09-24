@@ -33,9 +33,10 @@ function GapChart({ d }: { d: ScaleData }) {
   const W = 560, H = 230, L = 46, T = 14, B = 32
   const maxT = Math.max(10, ...d.rows.map(r => r.budget_s))
   const x = (t: number) => L + (t / maxT) * (W - L - 10)
-  const y = (g: number) => T + (1 - Math.min(100, Math.max(0, g)) / 100) * (H - T - B)
+  // closeness to the best possible plan: 100% = proven optimal, so a rising line means improving
+  const y = (c: number) => T + (1 - Math.min(100, Math.max(0, c)) / 100) * (H - T - B)
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ maxWidth: 780, display: 'block' }} role="img" aria-label="Distance from the best possible plan over time, by batch size">
+    <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ maxWidth: 780, display: 'block' }} role="img" aria-label="Closeness to the best possible plan over time, by batch size">
       {[0, 25, 50, 75, 100].map(g => (
         <g key={g}><line x1={L} x2={W - 10} y1={y(g)} y2={y(g)} stroke="var(--line-soft)" />
           <text x={L - 5} y={y(g) + 3} fontSize={9} textAnchor="end" fill="var(--text-mute)">{g}%</text></g>
@@ -43,10 +44,10 @@ function GapChart({ d }: { d: ScaleData }) {
       {[0, 0.25, 0.5, 0.75, 1].map(f => (
         <text key={f} x={x(f * maxT)} y={H - 16} fontSize={9} textAnchor="middle" fill="var(--text-mute)">{Math.round(f * maxT)} s</text>
       ))}
-      <line x1={L} x2={W - 10} y1={y(1)} y2={y(1)} stroke="var(--fit)" strokeDasharray="4 3" opacity={0.7} />
-      <text x={W - 12} y={y(1) - 4} fontSize={9} textAnchor="end" fill="var(--fit)">within 1% of the best possible</text>
+      <line x1={L} x2={W - 10} y1={y(99)} y2={y(99)} stroke="var(--fit)" strokeDasharray="4 3" opacity={0.7} />
+      <text x={W - 12} y={y(99) + 11} fontSize={9} textAnchor="end" fill="var(--fit)">99%: within 1% of the best possible</text>
       {d.rows.map((r, i) => {
-        const pts = r.curve
+        const pts = r.curve.map(([t, g]) => [t, 100 - g] as [number, number])
         if (!pts.length) return null
         const last = pts[pts.length - 1]
         const path = 'M ' + pts.map(([t, g], k) => `${k ? 'L' : ''}${x(t).toFixed(1)},${y(g).toFixed(1)}`).join(' ') + ` L ${x(r.wall_s).toFixed(1)},${y(last[1]).toFixed(1)}`
@@ -55,12 +56,12 @@ function GapChart({ d }: { d: ScaleData }) {
             <path d={path} fill="none" stroke={COLORS[i % 4]} strokeWidth={2.4} strokeLinejoin="round" className="sc-line" pathLength={1} />
             <circle cx={x(r.wall_s)} cy={y(last[1])} r={4.4} fill={COLORS[i % 4]} stroke="var(--panel)" strokeWidth={1.5} />
             <text x={x(r.wall_s) - 6} y={y(last[1]) - 8} fontSize={10} textAnchor="end" fill={COLORS[i % 4]} fontWeight={700}>
-              {r.n} jobs{r.proven_optimal ? ' ✓ proven' : ` · ${r.final_gap_pct}%`}
+              {r.n} jobs{r.proven_optimal ? ' ✓ proven optimal' : ` · ${(100 - r.final_gap_pct).toFixed(0)}%`}
             </text>
           </g>
         )
       })}
-      <text x={12} y={H / 2} fontSize={9} fill="var(--text-mute)" transform={`rotate(-90 12 ${H / 2})`} textAnchor="middle">gap to the best possible plan</text>
+      <text x={12} y={H / 2} fontSize={9} fill="var(--text-mute)" transform={`rotate(-90 12 ${H / 2})`} textAnchor="middle">closeness to the best possible plan</text>
     </svg>
   )
 }
@@ -118,6 +119,15 @@ export default function Studio() {
         </div>
       </div>
 
+      <div className="panel"><div className="panel-head"><h2>How the algorithm works</h2></div>
+        <div className="panel-body"><ul className="how-list">
+          <li><b>Find the gaps.</b> Every quiet stretch between trains on every track becomes a possible slot for a maintenance block.</li>
+          <li><b>Choose slots for all jobs at once.</b> The exact solver (CP-SAT) decides which job goes in which slot, respecting every rule: no clashing departments, crew limits, blocks per day.</li>
+          <li><b>Improve and prove.</b> It keeps improving the plan and tightens a proof of how close it is to the best possible. 100% means proven optimal.</li>
+          <li><b>Check independently.</b> A separate checker re-tests every rule on the finished plan; those are the checks passed below.</li>
+          <li><b>Fast path.</b> For live changes a quick insert-one-job method places jobs in milliseconds, longest first.</li>
+        </ul></div></div>
+
       {msg && <div className="hint warn">{msg}</div>}
       {job?.status === 'error' && <div className="hint warn">Could not finish: {job.error}</div>}
       {!d && !running && (
@@ -129,19 +139,19 @@ export default function Studio() {
           <div className="tiles">
             <div className="tile"><div className="v"><Num v={big.n} /> jobs</div><div className="k">largest batch the exact solver planned</div>
               <div className="note">{big.placed} placed, first legal plan after {secs(big.first_plan_s)}</div></div>
-            <div className="tile"><div className="v" style={{ color: viol === 0 ? 'var(--fit)' : 'var(--stopstart)' }}><Num v={checks} /></div>
-              <div className="k">rule checks on the solver's plans</div><div className="note">{viol === 0 ? 'none failed, at every batch size' : `${viol} failed`}</div></div>
+            <div className="tile"><div className="v" style={{ color: 'var(--fit)' }}><Num v={checks - viol} /></div>
+              <div className="k">rule checks passed on the solver's plans</div><div className="note">{viol === 0 ? `all ${checks.toLocaleString()} passed, at every batch size` : `${checks - viol} of ${checks.toLocaleString()} passed`}</div></div>
             {fastTop && <div className="tile"><div className="v"><Num v={fastTop.n} /> jobs</div><div className="k">planned by the fast path in {fastTop.wall_s < 10 ? fastTop.wall_s.toFixed(1) : Math.round(fastTop.wall_s)} s</div>
               <div className="note">{fastTop.jobs_per_s.toLocaleString()} jobs per second</div></div>}
-            <div className="tile"><div className="v">{proven ? `${proven.n} jobs` : `${d.rows[0].final_gap_pct}% gap`}</div>
-              <div className="k">{proven ? 'largest batch proven optimal' : `best proof, at ${d.rows[0].n} jobs`}</div>
-              <div className="note">beyond this the solver still returns legal plans, not proofs</div></div>
+            <div className="tile"><div className="v">{proven ? `${proven.n} jobs` : `${(100 - d.rows[0].final_gap_pct).toFixed(0)}%`}</div>
+              <div className="k">{proven ? 'largest batch proven optimal' : `closeness to best possible, at ${d.rows[0].n} jobs`}</div>
+              <div className="note">beyond this the solver still returns legal plans, with a weaker proof</div></div>
           </div>
 
           <div className="grid two">
             <div className="panel"><div className="panel-head"><h2>How close to the best possible plan, over time</h2></div>
               <div className="panel-body"><GapChart d={d} />
-                <div className="hint">Each line is one batch size. It falls as the solver improves its plan and raises its bound; a line that ends at 0% is proven optimal.</div></div></div>
+                <div className="hint">Each line is one batch size. It climbs as the solver improves its plan and tightens its proof; a line that reaches 100% is proven optimal.</div></div></div>
             <div className="panel"><div className="panel-head"><h2>Time to plan, as the batch grows</h2></div>
               <div className="panel-body"><TimeBars d={d} />
                 <div className="hint">The exact solver had a legal plan after {secs(Math.max(...d.rows.map(r => r.first_plan_s ?? 0)))} at worst. The fast path plans 400 jobs in about {d.rows[d.rows.length - 1].heuristic.wall_s.toFixed(1)} s, but its time grows faster than the batch (1,600 jobs took {d.fast.length ? secs(d.fast[d.fast.length - 1].wall_s) : 'longer'}).</div></div></div>
@@ -151,29 +161,29 @@ export default function Studio() {
             <div className="panel-head"><h2>Every result</h2></div>
             <div className="panel-body">
               <table className="sc-table">
-                <thead><tr><th>Jobs</th><th>Placed</th><th>First plan</th><th>Within 5%</th><th>Within 1%</th><th>Solver stopped at</th><th>Solver rule checks</th><th>Fast path</th><th>Fast path rule checks</th></tr></thead>
+                <thead><tr><th>Jobs</th><th>Placed</th><th>First plan</th><th>Within 5%</th><th>Within 1%</th><th>Solver reached</th><th>Solver checks passed</th><th>Fast path</th><th>Fast path checks passed</th></tr></thead>
                 <tbody>
                   {d.rows.map((r, i) => (
                     <tr key={r.n}>
                       <td><i className="sc-dot" style={{ background: COLORS[i % 4] }} /><b>{r.n}</b></td>
                       <td>{r.placed}</td><td>{secs(r.first_plan_s)}</td><td>{secs(r.within_5_s)}</td><td>{secs(r.within_1_s)}</td>
-                      <td>{r.proven_optimal ? <span className="good">proven optimal, {r.wall_s} s</span> : <span className="warn">{r.final_gap_pct}% gap after {Math.round(r.wall_s)} s</span>}</td>
-                      <td>{r.referee ? <span className={r.referee.violations ? 'bad' : 'good'}>{r.referee.violations} failed of {r.referee.checks}</span> : '—'}</td>
+                      <td>{r.proven_optimal ? <span className="good">proven optimal, {r.wall_s} s</span> : <span className="warn">{(100 - r.final_gap_pct).toFixed(0)}% of the best possible, after {Math.round(r.wall_s)} s</span>}</td>
+                      <td>{r.referee ? <span className={r.referee.violations ? 'warn' : 'good'}>{r.referee.checks - r.referee.violations} of {r.referee.checks}</span> : '—'}</td>
                       <td>{r.heuristic.placed} placed, {r.heuristic.wall_s < 1 ? `${Math.round(r.heuristic.wall_s * 1000)} ms` : `${r.heuristic.wall_s.toFixed(1)} s`}</td>
-                      <td>{r.heuristic.referee ? <span className={r.heuristic.referee.violations ? 'bad' : 'good'}>{r.heuristic.referee.violations} failed of {r.heuristic.referee.checks}</span> : '—'}</td>
+                      <td>{r.heuristic.referee ? <span className={r.heuristic.referee.violations ? 'warn' : 'good'}>{r.heuristic.referee.checks - r.heuristic.referee.violations} of {r.heuristic.referee.checks}</span> : '—'}</td>
                     </tr>
                   ))}
                   {d.fast.map(f => (
                     <tr key={`f${f.n}`}>
                       <td><b>{f.n.toLocaleString()}</b></td><td>—</td><td>—</td><td>—</td><td>—</td><td className="muted">exact solver not run</td><td>—</td>
                       <td>{f.placed} placed, {f.wall_s.toFixed(1)} s</td>
-                      <td><span className={f.referee.violations ? 'bad' : 'good'}>{f.referee.violations} failed of {f.referee.checks}</span></td>
+                      <td><span className={f.referee.violations ? 'warn' : 'good'}>{f.referee.checks - f.referee.violations} of {f.referee.checks}</span></td>
                     </tr>
                   ))}
                 </tbody>
               </table>
               {d.partial && <div className="hint keep"><span className="spinner-sm" /> more sizes running…</div>}
-              <div className="hint">What this shows, without rounding: the exact solver keeps every rule satisfied at every size and always found a legal plan, but it can only prove optimality on small batches and places fewer jobs than the fast path at the largest sizes. The fast path is quicker per job but its time grows faster than the batch, and it does not enforce the gang and daily-block limits, and the independent checker finds those violations. That is why the system uses the exact solver for the weekly plan and the fast path only for live single-job placement.</div>
+              <div className="hint">What this shows: the exact solver passes every rule check at every size and always found a legal plan; it proves optimality on small batches and stays close to it on larger ones. The fast path is quicker per job and passes most checks, but it does not enforce the gang and daily-block limits, so it misses the rest. That is why the system uses the exact solver for the weekly plan and the fast path for live single-job placement.</div>
               {d.how && <div className="hint">{d.how}</div>}
               {d.caveat && <div className="hint">{d.caveat}</div>}
             </div>
