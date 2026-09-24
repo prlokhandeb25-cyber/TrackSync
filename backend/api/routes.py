@@ -357,16 +357,18 @@ def _cluster_pool() -> list:
 
 
 @router.get("/api/tasks/clusters")
-def task_clusters() -> dict:
-    """Jobs grouped by position with average-linkage hierarchical clustering."""
-    from backend.planner.clustering import cluster_tasks
+def task_clusters(method: str = "average") -> dict:
+    """Jobs grouped by position: average-linkage (default) or K-Medoids, with both scored side by side."""
+    from backend.planner.clustering import cluster_tasks, compare_methods
 
     w = ensure_world()
     pool = _cluster_pool()
     cut = float(load_config().get_path("clustering.cut_km", 5.0))
-    clusters = cluster_tasks(w.net, pool, cut_km=cut)
+    m = "kmedoids" if method == "kmedoids" else "average"
+    clusters = cluster_tasks(w.net, pool, cut_km=cut, method=m)
     return {"n_tasks": len(pool), "n_clusters": len(clusters), "cut_km": cut,
-            "method": "average-linkage agglomerative (scipy)",
+            "method": "K-Medoids (k by silhouette)" if m == "kmedoids" else "average-linkage agglomerative (scipy)",
+            "compare": compare_methods(w.net, pool, cut),
             "clusters": [c.to_dict() for c in clusters]}
 
 
@@ -419,7 +421,7 @@ def _active_blocks(at_s: int) -> list[tuple[str, int, int]]:
         if o and o["zone_ref"] in w.net.sections and o["start_s"] <= at_s < o["end_s"]:
             out.append((o["zone_ref"], o["start_s"], o["end_s"]))
     for p in (list(STATE.live_sim.placed) + list(STATE.user_placements.values())
-              + list(STATE.sudden_state.placed)):
+              + list(STATE.sudden_state.placed) + list(STATE.forecast_state.placed)):
         if p.placed and p.window is not None and p.window.zone_ref in w.net.sections:
             if p.start_s is not None and p.start_s <= at_s < p.end_s:
                 out.append((p.window.zone_ref, p.start_s, p.end_s))
@@ -428,7 +430,13 @@ def _active_blocks(at_s: int) -> list[tuple[str, int, int]]:
 
 @router.get("/api/rerouting/active")
 def rerouting_active(at_s: int = 0) -> dict:
-    """Trains due through a section that is blocked right now, and where they go instead."""
+    """Trains due through a section that is blocked right now, and where they go instead.
+
+    Each closure is also sent to the digital twin (in the background). Its answer decides whether diverting
+    long-distance trains, and running locals single-line, is really better than waiting: a detour the twin
+    finds costlier than holding is not shown as taken."""
+    from backend.api.state import reroute_cache
+    from backend.planner.advisor import response_for
     from backend.planner.active_reroute import plan_block_reroutes
 
     global _WEEK_BY_ID
@@ -442,11 +450,78 @@ def rerouting_active(at_s: int = 0) -> dict:
             _REROUTE_CACHE[key] = plan_block_reroutes(
                 w.net, _WEEK_BY_ID, _occupancy_by_section().get(section_id, []),
                 w.net.sections[section_id], start, end).to_dict()
-        b = _REROUTE_CACHE[key]
+        b = dict(_REROUTE_CACHE[key])
+        resp = response_for(w, reroute_cache(), section_id, start, end)
+        b["response"] = resp
+        if b["reroutes"] and not resp["divert"]:
+            b["held"], b["reroutes"] = b["reroutes"], []           # the twin says waiting costs fewer passengers
+        if b["track_swap"] and not resp["single_line"]:
+            b["swap_declined"], b["track_swap"] = b["track_swap"], None
         for r in b["reroutes"]:
             _REROUTE_SEEN.add((section_id, start, r["train_id"]))
         blocks.append(b)
     return {"at_s": at_s, "blocks": blocks, "executed": len(_REROUTE_SEEN)}
+
+
+_REROUTE_PROOF_WEEK: dict | None = None
+
+
+@router.get("/api/rerouting/proof")
+def rerouting_proof() -> dict:
+    """Every block in the weekly plan, and what happens to the through trains due in it.
+
+    Measured from the plan and the timetable, not staged: how many long-distance and freight trains would be
+    sent round, what each detour adds, and what the same train would have lost waiting for the block to lift.
+    Suburban locals are counted separately and are never rerouted."""
+    from backend.planner.active_reroute import plan_block_reroutes
+
+    global _REROUTE_PROOF_WEEK, _WEEK_BY_ID
+    if _REROUTE_PROOF_WEEK is not None:
+        return _REROUTE_PROOF_WEEK
+    w = ensure_world()
+    plan = ensure_plan()
+    if _WEEK_BY_ID is None:
+        _WEEK_BY_ID = {t.id: t for t in w.week}
+    occ = _occupancy_by_section()
+    seen_blocks, rows = set(), []
+    n_blocks = with_through = no_path = locals_hit = locals_rerouted = 0
+    for a in plan.assignments:
+        if a.zone_ref not in w.net.sections or (a.zone_ref, a.start_s, a.end_s) in seen_blocks:
+            continue
+        seen_blocks.add((a.zone_ref, a.start_s, a.end_s))
+        key = (a.zone_ref, a.start_s, a.end_s)
+        if key not in _REROUTE_CACHE:
+            _REROUTE_CACHE[key] = plan_block_reroutes(w.net, _WEEK_BY_ID, occ.get(a.zone_ref, []),
+                                                      w.net.sections[a.zone_ref], a.start_s, a.end_s).to_dict()
+        b = _REROUTE_CACHE[key]
+        n_blocks += 1
+        locals_hit += b["locals_in_window"]
+        no_path += len(b["no_path"])
+        locals_rerouted += sum(1 for r in b["reroutes"] if r["train_class"] == "SUBURBAN_LOCAL")
+        if b["reroutes"] or b["no_path"]:
+            with_through += 1
+        for r in b["reroutes"]:
+            wait = max(0.0, (a.end_s - r["enter_s"]) / 60.0)          # it would wait until the block lifts
+            rows.append({"section_id": a.zone_ref, "block_start_s": a.start_s, "block_end_s": a.end_s,
+                         "train_id": r["train_id"], "train": r["train_name"] or r["train_id"], "class": r["train_class"],
+                         "enter_s": r["enter_s"], "via": len(r["sections"]), "sections": r["sections"],
+                         "added_min": r["added_delay_min"], "wait_min": round(wait, 1), "within_limit": r["within_limit"]})
+    n = len(rows)
+    added = sum(r["added_min"] for r in rows)
+    wait = sum(r["wait_min"] for r in rows)
+    ok = sum(1 for r in rows if r["within_limit"])
+    rows.sort(key=lambda r: -(r["wait_min"] - r["added_min"]))
+    _REROUTE_PROOF_WEEK = {
+        "blocks": n_blocks, "blocks_with_through_trains": with_through, "diverted": n,
+        "within_limit": ok, "added_min": round(added, 1), "wait_min": round(wait, 1),
+        "saved_min": round(wait - added, 1), "mean_added_min": round(added / n, 1) if n else 0.0,
+        "no_path": no_path, "locals_in_blocks": locals_hit, "locals_rerouted": locals_rerouted,
+        "examples": rows[:8],
+        "how": "Every block in the weekly plan; each long-distance or freight train due through it is sent by the reroute "
+               "search (shortest path avoiding the closed section, checked against that train's delay limit). "
+               "Waiting is the train held until the block lifts; it ignores knock-on delay, which the digital twin adds.",
+    }
+    return _REROUTE_PROOF_WEEK
 
 
 @router.get("/api/algorithms/proof")

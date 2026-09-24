@@ -28,22 +28,23 @@ interface Turn { role: 'user' | 'bot'; text: string; answer?: ChatAnswer }
 
 const OPENING: Turn = {
   role: 'bot',
-  text: "Namaste! I'm RailMitra. Ask me what would happen — a job, a closure, two kinds of work sharing a "
-    + "place — and I run the real gap finder, rule engine and passenger model on a copy of the schedule. "
-    + "No language model, and nothing I try changes the plan. The line under each answer shows what I read.",
+  text: "Namaste! I'm RailMitra. I know every feature here — planning, sudden tasks, early warnings, the digital twin, "
+    + "rerouting, job grouping — and I can run any of them on a copy of the schedule and show you the result. "
+    + "No language model, and nothing I try changes the real plan. Ask *what can you do?* to start.",
 }
 
 const STARTERS = [
-  'What if a 60 minute PWI job at Dadar to Matunga?',
-  'What if Dadar to Matunga is closed at 14:00 for an hour?',
-  'Can OHE insulator work and tamping happen together at Kurla?',
-  'Best time for a 45 minute S&T job at Thane',
-  'How busy is Thane at 9am?',
-  "Why can't S&T work on NRL-BVS?",
+  'What can you do?',
+  'What if we act on early warnings at 50% risk?',
+  'What is the best response if Dadar to Matunga is closed at 9am?',
+  'How are trains rerouted around a block?',
+  'What if a critical S&T fault at Kurla right now?',
+  'Compare the two ways of grouping jobs',
 ]
 
-function render(text: string) {
+function render(raw: string) {
   // Bold and italic, so the backend can emphasise the figures that matter and footnote its method.
+  const text = raw.replace(/^- /gm, '• ')
   const parts = text.split(/(\*\*[^*]+\*\*|\*[^*\n]+\*)/g)
   return parts.map((p, i) =>
     p.startsWith('**') && p.endsWith('**') && p.length > 4

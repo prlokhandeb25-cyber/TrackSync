@@ -42,11 +42,23 @@ reacting to an unplanned defect mid-week possible at all.
 - **Plans for a bad day.** Each block is simulated against late trains and overrunning work; the
   solver avoids fragile windows and each start time is centred where the line is most likely to be
   handed back before the next train.
-- **Tests four proposed methods** on the *Advanced methods* tab, each against doing it without, with a
-  verdict derived from the numbers: predictive blocks (early warning vs emergency), a digital twin that
-  replays a closure through the next 12 h under each response, multi-department bundling, and adaptive
-  buffers learned from crew history. Two rest on assumed inputs and say so; bundling turned out to add
-  almost nothing and is reported that way.
+- **Acts on early warnings without over-planning.** A watch list of (simulated) condition-monitoring
+  warnings becomes ordinary blocks days ahead, in gaps that already exist: no train is held, retimed
+  or rerouted for a block that may not be needed, one visit per section per day, at most six a day.
+  On the same 40 warnings, waiting for failures costs 1,331 train-minutes and 23 emergencies; acting
+  at 30% risk and above costs about 75 and 4, and no proactive block made a train change. A table
+  shows the trade at each threshold and on a noisier feed. The warnings are simulated (A-048).
+- **A digital twin picks the response to a closure.** Each closure in force is replayed through the
+  next 12 hours of the real timetable; the twin can overrule a detour that would cost passengers more
+  than waiting, and shows the three responses side by side on the map page, in the sudden-task
+  result and in RailMitra.
+- **Proves the rerouting.** Across the week's 28 blocks, 10 long-distance and freight trains are sent
+  round (+4 min on average against about 41 min waiting), 39 more have no other route, and 0 of 93
+  local movements are rerouted (locals serve fixed stations; they run single-line on their own pair).
+  Each example has a Watch button that flies the map to the closure with the whole detour in view.
+- **Groups jobs two ways** (average-linkage, and K-Medoids with the group count chosen by silhouette),
+  scored side by side; on today's jobs average-linkage scores higher (0.62 against 0.58), so it
+  stays the default.
 - Takes **sudden tasks** (low to critical) that were never in the plan: fits them into an existing
   gap, or opens one, or moves lower-priority work aside and re-places it, in milliseconds, with the
   cost in train-minutes and passengers shown.

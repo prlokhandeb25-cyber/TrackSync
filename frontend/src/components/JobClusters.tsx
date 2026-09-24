@@ -13,8 +13,9 @@ export default function JobClusters({ tick, onHalos }: { tick: number; onHalos: 
   const [d, setD] = useState<ClustersData | null>(null)
   const [sel, setSel] = useState<number | null>(null)
   const [show, setShow] = useState(true)
+  const [method, setMethod] = useState<'average' | 'kmedoids'>('average')
 
-  useEffect(() => { api.clusters().then(setD).catch(() => { /* next tick retries */ }) }, [tick])
+  useEffect(() => { api.clusters(method).then(setD).catch(() => { /* next tick retries */ }) }, [tick, method])
 
   useEffect(() => {
     if (!d || !show) { onHalos([]); return }
@@ -37,6 +38,20 @@ export default function JobClusters({ tick, onHalos }: { tick: number; onHalos: 
                 onClick={() => setShow(s => !s)}>{show ? 'Hide on map' : 'Show on map'}</button>
       </div>
       <div className="panel-body">
+        <div className="segc" style={{ marginBottom: 10 }}>
+          <button className={method === 'average' ? 'on' : ''} onClick={() => { setSel(null); setMethod('average') }}>Average-linkage</button>
+          <button className={method === 'kmedoids' ? 'on' : ''} onClick={() => { setSel(null); setMethod('kmedoids') }}>K-Medoids</button>
+        </div>
+        {d.compare && d.compare.methods.length === 2 && (
+          <div className="cl-cmp">
+            {d.compare.methods.map(m => (
+              <div key={m.method} className={m.method.startsWith(method === 'average' ? 'Average' : 'K-Medoids') ? 'on' : ''}>
+                <b>{m.silhouette.toFixed(2)}</b><span>{m.method.split(' (')[0]} · {m.groups} groups · {m.mean_km_to_centre} km to centre</span>
+              </div>
+            ))}
+          </div>
+        )}
+        {method === 'kmedoids' && <div className="hint" style={{ margin: '0 0 8px' }}>Silhouette: 1 is tight and well separated. ◎ marks each group's centre job, an actual place a shared block could go.</div>}
         <div className="chips" style={{ marginTop: 0 }}>
           {groups.map(c => {
             const color = PALETTE[(c.id - 1) % PALETTE.length]
@@ -47,7 +62,7 @@ export default function JobClusters({ tick, onHalos }: { tick: number; onHalos: 
                       onClick={() => setSel(sel === c.id ? null : c.id)}>
                 <i style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%',
                             background: color, marginRight: 6 }} />
-                <b>{c.size}</b> · {c.label}
+                <b>{c.size}</b> · {c.label}{c.medoid_id ? <em className="mono muted"> ◎{c.medoid_id}</em> : null}
               </button>
             )
           })}

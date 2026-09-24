@@ -45,7 +45,7 @@ const TRAIN = { local: '#111827', intercity: '#f59e0b', freight: '#92400e', rero
 const LANE_RANK: Record<string, number> = {
   DN_SLOW: 0, DN_FAST: 1, UP_FAST: 2, UP_SLOW: 3, DN: 1, UP: 2,
 }
-const LANE_GAP = 3.7          // screen px between adjacent tracks when zoomed out
+const LANE_GAP = 5.6          // screen px between adjacent tracks when zoomed out (wide enough that four lanes read as four)
 const laneList = (tracks: string[]) =>
   [...tracks].sort((a, b) => (LANE_RANK[a] ?? 9) - (LANE_RANK[b] ?? 9))
 
@@ -78,6 +78,7 @@ export interface FocusReq {
   dept?: string
   track?: string
   id?: string
+  fit?: string[]       // more sections to keep in view (a detour), besides the closed one
 }
 
 const fmtWhen = (s: number) => `${DAYS[Math.floor(s / 86400) % 7]} ${hhmm(s)}`
@@ -211,19 +212,20 @@ export default function NetworkMap({
   }
 
   // Fit one section on screen, a little above centre so the caption card never covers it.
-  const viewForSection = (id: string): View | null => {
-    const g = secGeom[id]
-    if (!g) return null
-    const bw = Math.max(14, Math.abs(g.x2 - g.x1)), bh = Math.max(14, Math.abs(g.y2 - g.y1))
+  const viewForSection = (id: string, more: string[] = []): View | null => {
+    const gs = [id, ...more].map(i => secGeom[i]).filter(Boolean)
+    if (!secGeom[id] || !gs.length) return null
+    const xs = gs.flatMap(g => [g.x1, g.x2]), ys = gs.flatMap(g => [g.y1, g.y2])
+    const bw = Math.max(14, Math.max(...xs) - Math.min(...xs)), bh = Math.max(14, Math.max(...ys) - Math.min(...ys))
     const s = Math.min(maxScale, Math.min((W - 300) / bw, (H - 260) / bh))
-    const cx = (g.x1 + g.x2) / 2, cy = (g.y1 + g.y2) / 2
+    const cx = (Math.min(...xs) + Math.max(...xs)) / 2, cy = (Math.min(...ys) + Math.max(...ys)) / 2
     return { scale: s, tx: W / 2 - cx * s, ty: H * 0.44 - cy * s }
   }
 
   const focusKey = focus?.key
   useEffect(() => {
     if (!focus) return
-    const v = viewForSection(focus.section)
+    const v = viewForSection(focus.section, focus.fit)
     if (v) flyTo(v)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusKey])
@@ -290,7 +292,7 @@ export default function NetworkMap({
   const zoomedIn = zoomRatio > 1.55
   const detail = zoomRatio > 3           // close enough to draw the work site itself
   // Tracks spread apart as you zoom, so a crew has room to be drawn between them.
-  const laneGap = LANE_GAP * (1 + Math.min(2.4, Math.max(0, zoomRatio - 1) * 0.3))
+  const laneGap = LANE_GAP * (1 + Math.min(2.2, Math.max(0, zoomRatio - 1) * 0.3))
   const laneOffset = (n: number, k: number) => ((k - (n - 1) / 2) * laneGap) / view.scale
   const inv = 1 / view.scale
 
@@ -567,7 +569,7 @@ export default function NetworkMap({
           <div className="fc-row"><span>Status</span><b className="fc-state">{fState}</b></div>
           <div className="fc-bar"><i style={{ width: `${Math.min(100, Math.max(0, ((clockS - focus.startS) / Math.max(60, fEnd - focus.startS)) * 100))}%` }} /></div>
           <button className="action" style={{ marginTop: 8, padding: '4px 10px', fontSize: 11.5 }}
-                  onClick={() => { const v = viewForSection(focus.section); if (v) flyTo(v) }}>Zoom to job</button>
+                  onClick={() => { const v = viewForSection(focus.section, focus.fit); if (v) flyTo(v) }}>Zoom to job</button>
         </div>
       )}
 

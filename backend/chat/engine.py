@@ -458,7 +458,12 @@ def answer(question: str, world, plan=None, at_s: int = 0) -> Answer:
     if not q:
         return _h_help(q, Entities(), world)
 
-    # Live analysis and hypotheticals first: they run the real planner machinery on copies.
+    # Feature questions first (explain a feature, or run it in a sandbox), then live analysis and
+    # hypotheticals: all of them run the real planner machinery on copies.
+    from backend.chat.features import route as feature_route
+    feat = feature_route(q, world, int(at_s or 0))
+    if feat is not None:
+        return feat
     from backend.chat.whatif import route as whatif_route
     live = whatif_route(q, world, int(at_s or 0))
     if live is not None:

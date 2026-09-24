@@ -58,9 +58,13 @@ export interface EventItem { at_s: number; text: string; kind: string }
 
 export interface ChatAction { label: string; section: string | null; start_s: number }
 export type ChatVisual =
-  | { type: 'schedule'; title: string; days: string[]
+  | { type: 'schedule'; title: string; days: string[]; legend?: { new?: string }
       blocks: { id: string; dept: string; start_s: number; end_s: number; kind: 'stay' | 'moved' | 'new' | 'dropped'
                 label: string; from?: { start_s: number; end_s: number } }[] }
+  | { type: 'route'; title: string
+      closed: { from: [number, number]; to: [number, number]; id: string; names: [string, string] }
+      detour: [number, number][]; stops: { name: string; at: [number, number] }[] }
+  | { type: 'scatter'; title: string; points: { x: number; y: number; g: number; medoid: boolean }[] }
   | { type: 'profile'; title: string; unit: string; day: string; highlight: [number, number] | null
       hours: { hour: number; value: number; passengers: number }[] }
   | { type: 'bars'; title: string; items: { label: string; value: number; best: boolean }[] }
@@ -144,11 +148,57 @@ export interface RerouteView {
   sections: string[]; added_delay_min: number; within_limit: boolean
   enter_s?: number; exit_s?: number; track?: string
 }
+export interface TwinResponse {
+  status: 'ready' | 'checking' | 'error'; divert: boolean; single_line: boolean
+  best?: 'HOLD' | 'DIVERT' | 'DIVERT_SINGLE'; label?: string
+  pax_hours?: Record<'HOLD' | 'DIVERT' | 'DIVERT_SINGLE', number>
+  train_min?: Record<'HOLD' | 'DIVERT' | 'DIVERT_SINGLE', number>
+  scenarios?: number; horizon_h?: number
+}
 export interface RerouteBlock {
   section_id: string; start_s: number; end_s: number
   reroutes: RerouteView[]; no_path: string[]
   track_swap: { blocked_track: string; swap_to_track: string; max_single_line_min: number } | null
   locals_in_window: number
+  response?: TwinResponse
+  held?: RerouteView[]
+  swap_declined?: { blocked_track: string; swap_to_track: string; max_single_line_min: number } | null
+}
+export interface RerouteProofRow {
+  section_id: string; block_start_s: number; block_end_s: number; train_id: string; train: string; class: string
+  enter_s: number; via: number; sections: string[]; added_min: number; wait_min: number; within_limit: boolean
+}
+export interface RerouteProof {
+  blocks: number; blocks_with_through_trains: number; diverted: number; within_limit: number
+  added_min: number; wait_min: number; saved_min: number; mean_added_min: number; no_path: number
+  locals_in_blocks: number; locals_rerouted: number; examples: RerouteProofRow[]; how: string
+}
+export interface ForecastRow {
+  id: string; section: string; type: string; label: string; cue: string; department: string
+  risk: number; warn_s: number; fail_s: number
+  decision: 'planned' | 'watch' | 'covered' | 'budget' | 'no gap'; why: string
+  start_s: number | null; end_s: number | null; track: string | null; method: 'gap' | 'created' | null
+  reach?: number; zone_ref?: string
+}
+export interface PolicyRow {
+  policy: string; threshold: number; allow_create: boolean; warnings: number; failures: number; blocks_added: number
+  false_alarm_blocks: number; prevented: number; emergencies: number; gaps_made_proactive: number; gaps_made_emergency: number
+  train_min: number; pax_hours: number; block_hours: number; wasted_hours: number; peak_blocks_a_day: number
+  in_peak: number; recall: number; precision: number
+}
+export interface ForecastData {
+  summary: { threshold: number; warnings: number; planned: number; watch: number; covered: number; budget: number
+             no_gap: number; block_hours: number; gaps_made: number; train_min: number; peak_blocks_a_day: number; max_per_day: number }
+  rows: ForecastRow[]
+  sweep: { scales: { scale: number; warnings: number; failures: number; table: PolicyRow[] }[]
+           in_use_threshold: number; how: string; caveat: string } | null
+  sweep_status: 'idle' | 'running' | 'done' | 'error'; sweep_error: string | null; feed: string
+}
+export interface TwinResult {
+  policies: Record<'HOLD' | 'DIVERT' | 'DIVERT_SINGLE', { pax_min: number; train_min: number; late5: number; sections: number
+                                                          cancelled: number; label: string }>
+  best: 'HOLD' | 'DIVERT' | 'DIVERT_SINGLE'; scenarios: number; horizon_h: number; section: string
+  start_s: number; duration_min: number; how: string; caveat: string
 }
 export interface ReroutingActive { at_s: number; blocks: RerouteBlock[]; executed: number }
 
@@ -156,9 +206,13 @@ export interface JobCluster {
   id: number; size: number; task_ids: string[]; zones: string[]; departments: string[]
   total_min: number; label: string; lat: number; lon: number
   compatible: number; requires_iwp: number; incompatible: number; cross_pairs: number
+  medoid_id?: string | null
 }
+export interface ClusterScore { method: string; groups: number; shared_groups: number; silhouette: number
+                                mean_km_to_centre: number; widest_group_km: number }
 export interface ClustersData {
   n_tasks: number; n_clusters: number; cut_km: number; method: string; clusters: JobCluster[]
+  compare?: { n: number; methods: ClusterScore[] }
 }
 
 export interface ProofData {
@@ -198,7 +252,11 @@ export const api = {
   simTick: (atS: number) => j<SimTickData>(`/api/sim/tick?at_s=${Math.round(atS)}`, { method: 'POST' }),
   sectionBrief: (id: string, atS: number) =>
     j<SectionBrief>(`/api/sections/${encodeURIComponent(id)}/brief?at_s=${Math.round(atS)}`),
-  clusters: () => j<ClustersData>('/api/tasks/clusters'),
+  clusters: (method: 'average' | 'kmedoids' = 'average') => j<ClustersData>(`/api/tasks/clusters?method=${method}`),
+  reroutingProof: () => j<RerouteProof>('/api/rerouting/proof'),
+  forecast: () => j<ForecastData>('/api/forecast'),
+  twin: (section: string, startS: number, durationMin: number, scenarios = 10) =>
+    j<TwinResult>(`/api/methods/twin?section=${encodeURIComponent(section)}&start_s=${Math.round(startS)}&duration_min=${Math.round(durationMin)}&scenarios=${scenarios}`),
   reroutingActive: (atS: number) => j<ReroutingActive>(`/api/rerouting/active?at_s=${Math.round(atS)}`),
   proof: () => j<ProofData>('/api/algorithms/proof'),
   formOptions: () => j<FormOptions>('/api/form/options'),

@@ -359,12 +359,13 @@ def _now_label(t: int) -> str:
     return f"{DAY_ABBR[(t // DAY_S) % 7]} {s_to_hhmm(t % DAY_S)}"
 
 
-def booked_tasks(world) -> list[Task]:
-    """Everything with a slot right now: planned, raised by a user, simulated, or sudden."""
+def booked_tasks(world, include_forecast: bool = True) -> list[Task]:
+    """Everything with a slot right now: planned, raised by a user, simulated, sudden, or a proactive block."""
     st = _live()
     out = [t for t in world.tasks if t.scheduled_start_s is not None]
     seen = {t.id for t in out}
-    for p in list(st.STATE.live_sim.placed) + list(st.STATE.sudden_state.placed):
+    for p in (list(st.STATE.live_sim.placed) + list(st.STATE.sudden_state.placed)
+              + (list(st.STATE.forecast_state.placed) if include_forecast else [])):
         if p.placed and p.task.id not in seen and p.task.scheduled_start_s is not None:
             out.append(p.task)
             seen.add(p.task.id)

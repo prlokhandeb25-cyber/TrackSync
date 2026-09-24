@@ -53,6 +53,13 @@ Gang capacity is currently a flat cumulative constraint. Real planning must also
 right gang with the right competence and the right material at the right site, which turns the
 scheduling problem into a joint one.
 
+### Early-warning feed and full ALNS
+
+The predictive-blocks panel runs on a simulated watch list (A-048); connecting a real condition-monitoring feed
+(image analysis on inspection-vehicle or drone video, track-recording cars, telemetry) is the one missing input.
+The scheduler for live arrivals is ALNS-lite: repair, one bounded destroy step, no learned operator weights and no
+run to convergence; a full ALNS with several destroy operators and adaptive weights would be the next step.
+
 ### Signalling-level digital twin
 
 Microsimulation at signal-section granularity, to verify block clearance rather than assume it.
@@ -86,8 +93,10 @@ busier. Worth doing once real depot/fleet data exists to model against.
 
 Job clustering itself now exists (`backend/planner/clustering.py`, shown on the Operations tab as
 "Job clusters"). What is still not built is surfacing the same grouping inside the
-compatibility matrix on the Department-coordination tab, and K-Medoids as an alternative to the
-average-linkage method used today.
+compatibility matrix on the Department-coordination tab (the matrix itself is now hidden there). K-Medoids
+now exists as an alternative to the average-linkage method, with both scored on the same jobs (A-050);
+average-linkage stays the default because it scored higher on the live pool. Not yet done: using the medoid
+job's zone as the proposed site for a shared block.
 
 ---
 

@@ -125,6 +125,7 @@ adapters:
 
 clustering:                        # backend/planner/clustering.py (ASSUMPTIONS A-029)
   cut_km: 5.0                      # average-linkage distance at which job groups stop merging
+  method: average                  # average | kmedoids (K-Medoids chooses its group count by silhouette)
 
 gap_creation:                      # backend/gaps/creation.py (ASSUMPTIONS A-032)
   max_hold_min: 4                  # longest any one train may be held to widen a gap
@@ -159,8 +160,12 @@ twin:                              # backend/planner/twin.py (ASSUMPTIONS A-046)
   cancel_after_min: 90             # a train later than this is cancelled or short-terminated: its delay stops counting
   lateness_scale: 0.3              # share of the configured random lateness applied, so the closure's own effect dominates
 
-predictive:                        # backend/planner/predictive.py (ASSUMPTIONS A-047)
+predictive:                        # backend/planner/predictive.py and forecast.py (ASSUMPTIONS A-047, A-048)
   p_detect: 0.8                    # assumed share of failures an inspection system warns of in advance
+  warnings: 40                     # simulated monitoring warnings over the week
+  act_threshold: 0.3               # plan a proactive block only for warnings at or above this risk (a setting; the sweep shows the alternatives)
+  max_blocks_per_day: 6            # proactive blocks in one day: about the routine plan's own daily load (40 jobs / 7 days)
+  max_blocks_per_section_day: 1    # one crew visit per section per day covers every flagged asset there
 
 chat:                              # backend/chat/whatif.py: other names people use for a station
   aliases:

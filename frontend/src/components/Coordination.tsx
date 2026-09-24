@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   api, type FormOptions, type MatrixData, type ScoredTask, type ScoresData, type SubmitResult,
 } from '../api'
-import CompatMatrix from './CompatMatrix'
+// import CompatMatrix from './CompatMatrix'   // pair-by-pair matrix: hidden
 import type { FocusReq } from './NetworkMap'
 
 /* Department coordination: a department raises a job on the left; on the right the system scores
@@ -246,7 +246,7 @@ function ScoreCard({ t, open, onToggle, onShow }: {
 
 /* ------------------------------------------------------------------------------------- page */
 
-export default function Coordination({ mat, clock, onShow }: {
+export default function Coordination({ mat: _mat, clock, onShow }: {
   mat: MatrixData | null; clock: number; onShow: ShowFn
 }) {
   const [opts, setOpts] = useState<FormOptions | null>(null)
@@ -255,7 +255,6 @@ export default function Coordination({ mat, clock, onShow }: {
   const [open, setOpen] = useState<string | null>(null)
   const [mine, setMine] = useState(false)
   const [sim, setSim] = useState(false)
-  const [showMatrix, setShowMatrix] = useState(false)
 
   const load = useCallback(() => {
     api.taskScores(sim).then(setData).catch(() => { /* next refresh retries */ })
@@ -341,6 +340,7 @@ export default function Coordination({ mat, clock, onShow }: {
           </div>
         </div>
 
+        {/* pair-by-pair matrix behind the scores: hidden
         {mat && (
           <div>
             <button className="action" onClick={() => setShowMatrix(s => !s)}>
@@ -349,6 +349,7 @@ export default function Coordination({ mat, clock, onShow }: {
             {showMatrix && <div style={{ marginTop: 12 }}><CompatMatrix data={mat} /></div>}
           </div>
         )}
+        */}
       </div>
     </div>
   )

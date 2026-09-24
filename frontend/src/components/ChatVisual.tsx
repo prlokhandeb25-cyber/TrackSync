@@ -31,7 +31,7 @@ function Schedule({ v }: { v: Extract<ChatVisual, { type: 'schedule' }> }) {
     const w = (colW - 4) / li.lanes
     const x = L + (day % 7) * colW + 2 + li.lane * w
     const h = Math.max(3, Math.min(((e - s) / DAY) * innerH, T + innerH - y(s)))
-    return <rect key={key} x={x} y={y(s)} width={Math.max(3, w - 1)} height={h} rx={2} {...style} />
+    return <rect key={key} className="cv-blk" x={x} y={y(s)} width={Math.max(3, w - 1)} height={h} rx={2} {...style} />
   }
   const order = { stay: 0, dropped: 1, moved: 2, new: 3 } as Record<string, number>
   const blocks = [...v.blocks].sort((a, b) => order[a.kind] - order[b.kind])
@@ -62,7 +62,7 @@ function Schedule({ v }: { v: Extract<ChatVisual, { type: 'schedule' }> }) {
         <rect x={L} y={H - 4} width={8} height={4} fill="var(--text-mute)" opacity={0.4} /><text x={L + 11} y={H}>unchanged</text>
         <rect x={L + 70} y={H - 4} width={8} height={4} fill="var(--amber)" /><text x={L + 81} y={H}>moved</text>
         <rect x={L + 120} y={H - 4} width={8} height={4} fill="none" stroke="var(--amber)" strokeDasharray="2 1" /><text x={L + 131} y={H}>where it was</text>
-        <rect x={L + 200} y={H - 4} width={8} height={4} fill="var(--accent)" stroke="var(--text)" /><text x={L + 211} y={H}>your block</text>
+        <rect x={L + 200} y={H - 4} width={8} height={4} fill="var(--accent)" stroke="var(--text)" /><text x={L + 211} y={H}>{v.legend?.new ?? 'your block'}</text>
       </g>
     </svg>
   )
@@ -82,7 +82,7 @@ function Profile({ v }: { v: Extract<ChatVisual, { type: 'profile' }> }) {
         const bh = (h.value / max) * (H - T - B)
         return (
           <g key={h.hour}>
-            <rect x={L + h.hour * bw + 1.5} y={H - B - bh} width={bw - 3} height={Math.max(1, bh)} rx={1.5} fill="var(--accent)" opacity={0.85}>
+            <rect className="cv-col" x={L + h.hour * bw + 1.5} y={H - B - bh} width={bw - 3} height={Math.max(1, bh)} rx={1.5} fill="var(--accent)" opacity={0.85} style={{ animationDelay: `${h.hour * 18}ms` }}>
               <title>{`${String(h.hour).padStart(2, '0')}:00 · ${h.value} trains · ~${h.passengers.toLocaleString()} passengers`}</title>
             </rect>
           </g>
@@ -111,11 +111,81 @@ function Bars({ v }: { v: Extract<ChatVisual, { type: 'bars' }> }) {
   )
 }
 
+const PALETTE = ['#0284c7', '#65a30d', '#d97706', '#dc2626', '#c026d3', '#4f46e5', '#0d9488', '#ea580c', '#7c3aed', '#16a34a']
+
+/* A closed section with the long way round drawn beside it; a marker travels the detour. */
+function Route({ v }: { v: Extract<ChatVisual, { type: 'route' }> }) {
+  const W = 452, H = 170, P = 26
+  const pts = [v.closed.from, v.closed.to, ...v.detour]
+  const lat0 = Math.min(...pts.map(p => p[0])), lat1 = Math.max(...pts.map(p => p[0]))
+  const lon0 = Math.min(...pts.map(p => p[1])), lon1 = Math.max(...pts.map(p => p[1]))
+  const k = Math.cos(((lat0 + lat1) / 2) * Math.PI / 180)
+  const dx = Math.max(1e-4, (lon1 - lon0) * k), dy = Math.max(1e-4, lat1 - lat0)
+  const sc = Math.min((W - 2 * P) / dx, (H - 2 * P) / dy)
+  const ox = (W - dx * sc) / 2, oy = (H - dy * sc) / 2
+  const pj = (p: [number, number]): [number, number] => [ox + (p[1] - lon0) * k * sc, H - oy - (p[0] - lat0) * sc]
+  const a = pj(v.closed.from), b = pj(v.closed.to)
+  const path = 'M ' + v.detour.map(pj).map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(' L ')
+  const mid: [number, number] = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img" aria-label={v.title} className="cv-route">
+      <rect x={0} y={0} width={W} height={H} rx={6} fill="var(--panel-2)" />
+      <line x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke="var(--text-mute)" strokeWidth={5} strokeDasharray="2 6" strokeLinecap="round" />
+      <g transform={`translate(${mid[0]},${mid[1]})`}>
+        <circle r={8} fill="var(--panel)" stroke="var(--stopstart)" strokeWidth={1.4} />
+        <path d="M-3.4 -3.4L3.4 3.4M3.4 -3.4L-3.4 3.4" stroke="var(--stopstart)" strokeWidth={1.8} strokeLinecap="round" />
+      </g>
+      <path d={path} fill="none" stroke="#0891b2" strokeWidth={9} strokeOpacity={0.16} strokeLinecap="round" strokeLinejoin="round" />
+      <path className="cv-detour" d={path} fill="none" stroke="#0891b2" strokeWidth={2.6} strokeDasharray="7 5" strokeLinecap="round" strokeLinejoin="round" />
+      <g>
+        <animateMotion path={path} dur="4.5s" repeatCount="indefinite" rotate="auto" />
+        <circle r={9} fill="#0891b2" fillOpacity={0.25} />
+        <circle r={5} fill="#0891b2" stroke="#fff" strokeWidth={1.5} />
+      </g>
+      {[v.closed.from, v.closed.to].map((p, i) => {
+        const [x, y] = pj(p)
+        return (
+          <g key={i}>
+            <circle cx={x} cy={y} r={4.5} fill="var(--panel)" stroke="var(--text)" strokeWidth={1.6} />
+            <text x={x + (i === 0 ? -9 : 9)} y={y + 3.5} fontSize={9.5} textAnchor={i === 0 ? 'end' : 'start'} fill="var(--text)" fontWeight={600}>{v.closed.names[i]}</text>
+          </g>
+        )
+      })}
+      <g fontSize={9} fill="var(--text-dim)">
+        <line x1={P} x2={P + 16} y1={H - 10} y2={H - 10} stroke="var(--text-mute)" strokeWidth={3} strokeDasharray="2 4" /><text x={P + 21} y={H - 7}>closed section</text>
+        <line x1={P + 110} x2={P + 126} y1={H - 10} y2={H - 10} stroke="#0891b2" strokeWidth={2.4} strokeDasharray="5 3" /><text x={P + 131} y={H - 7}>the long way round</text>
+      </g>
+    </svg>
+  )
+}
+
+/* Jobs by position (km), coloured by group; a ring marks a K-Medoids centre job. */
+function Scatter({ v }: { v: Extract<ChatVisual, { type: 'scatter' }> }) {
+  const W = 220, H = 150, P = 12
+  const mx = Math.max(1, ...v.points.map(p => p.x)), my = Math.max(1, ...v.points.map(p => p.y))
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img" aria-label={v.title}>
+      <rect x={0} y={0} width={W} height={H} rx={5} fill="var(--panel-2)" />
+      {v.points.map((p, i) => {
+        const x = P + (p.x / mx) * (W - 2 * P), y = H - P - (p.y / my) * (H - 2 * P)
+        const c = PALETTE[(p.g - 1) % PALETTE.length]
+        return (
+          <g key={i} className="cv-pt" style={{ animationDelay: `${Math.min(600, i * 12)}ms` }}>
+            {p.medoid && <circle cx={x} cy={y} r={7} fill="none" stroke={c} strokeWidth={1.6} />}
+            <circle cx={x} cy={y} r={3.2} fill={c} />
+          </g>
+        )
+      })}
+    </svg>
+  )
+}
+
 export default function ChatVisualView({ v }: { v: ChatVisual }) {
   return (
     <div className="cv">
       <div className="cv-title">{v.title}</div>
-      {v.type === 'schedule' ? <Schedule v={v} /> : v.type === 'profile' ? <Profile v={v} /> : <Bars v={v} />}
+      {v.type === 'schedule' ? <Schedule v={v} /> : v.type === 'profile' ? <Profile v={v} />
+        : v.type === 'route' ? <Route v={v} /> : v.type === 'scatter' ? <Scatter v={v} /> : <Bars v={v} />}
     </div>
   )
 }

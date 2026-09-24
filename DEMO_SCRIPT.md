@@ -100,14 +100,20 @@ Open the chat button and ask:
 > trains and overrunning work; the solver avoids fragile windows, so blocks clear before the next
 > train far more often than when the solver plans alone."
 
-## 5c · Advanced methods (60 s) — Advanced methods tab
+## 5c · Predicted blocks and the digital twin (75 s) — Operations tab, right column
 
-> "Four ideas we tested against doing it without. Predictive: if a warning works for 80% of failures,
-> emergencies drop from 40 to 12 on this timetable — the warning is assumed, and the card says so.
-> Digital twin: we replay a closure through the next 12 hours; the best response depends on the moment —
-> divert long-distance trains at night, hold by day, and single-line working is worse at midday on this
-> section. Bundling added almost nothing and the card says 'no gain'. Buffers learned from crew history
-> make blocks clear more often, at a cost of a couple of jobs."
+> "Warnings from condition monitoring become blocks days ahead, in gaps that already exist. Waiting for
+> the failure: 1,331 train-minutes and 23 emergencies on this feed. Acting at 30% risk: about 75 and 4,
+> and not one train was held or rerouted for a proactive block. Act on everything and you book more
+> blocks that turn out unneeded, so the table shows each threshold and a noisier feed. The warnings are
+> simulated and the panel says so."
+>
+> Inject a **Critical** sudden task: "It made a gap by sending a long-distance train another way — and the
+> digital twin replays the next 12 hours to say which response costs passengers least: hold everything,
+> divert, or divert and run locals single-line."
+>
+> Click **Watch** on a rerouting example: "The map flies to the closure with the whole detour in view.
+> Long-distance and freight trains go round; locals never do, they run single-line."
 
 ## 6 · Why adopt (45 s) — Before / after
 

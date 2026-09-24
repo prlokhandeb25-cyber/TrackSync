@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { api, type NetworkData, type SuddenMetrics, type SuddenResult } from '../api'
+import { api, type NetworkData, type SuddenMetrics, type SuddenResult, type TwinResult } from '../api'
+import { TwinBars } from './Viz'
 
 /* A job nobody planned. Pick how urgent it is and inject it; the system fits it into the live
    schedule and shows, with measured numbers, how: a gap that already existed, a gap it opened by a
@@ -33,6 +34,19 @@ export default function SuddenPanel({ net, clock, onResult, onWatch, onClear, ti
   const [m, setM] = useState<SuddenMetrics | null>(null)
   const [how, setHow] = useState(false)
   const [err, setErr] = useState<string | null>(null)
+  const [twin, setTwin] = useState<TwinResult | 'busy' | null>(null)
+
+  // A block that closes track to trains is a closure: ask the digital twin which response costs passengers least.
+  useEffect(() => {
+    setTwin(null)
+    const w = last?.window
+    if (!last || !w || !w.section_id || !(last.created || (last.reroutes && (last.reroutes.diverted > 0 || last.reroutes.locals > 0)))) return
+    let alive = true
+    setTwin('busy')
+    api.twin(w.section_id, w.start_s, Math.max(15, Math.round((w.end_s - w.start_s) / 60)), 8)
+      .then(r => { if (alive) setTwin(r) }).catch(() => { if (alive) setTwin(null) })
+    return () => { alive = false }
+  }, [last?.id, last?.window?.start_s])                             // eslint-disable-line
 
   const refresh = () => api.suddenMetrics().then(setM).catch(() => undefined)
   useEffect(() => { void refresh() }, [tick])                       // eslint-disable-line
@@ -110,6 +124,15 @@ export default function SuddenPanel({ net, clock, onResult, onWatch, onClear, ti
                   <span>{last.reroutes.locals} locals stay on their track pair</span></div>
               )}
             </div>
+
+            {twin === 'busy' && <div className="hint"><span className="spinner-sm" /> digital twin replaying the next 12 hours…</div>}
+            {twin && twin !== 'busy' && (
+              <div className="twin-box">
+                <div className="tw-head">Best response to this closure · digital twin, extra passenger-hours of delay</div>
+                <TwinBars hours={{ HOLD: Math.round(twin.policies.HOLD.pax_min / 60), DIVERT: Math.round(twin.policies.DIVERT.pax_min / 60),
+                                   DIVERT_SINGLE: Math.round(twin.policies.DIVERT_SINGLE.pax_min / 60) }} best={twin.best} compact />
+              </div>
+            )}
 
             {last.bumped.length > 0 && (
               <div className="sd-moved">

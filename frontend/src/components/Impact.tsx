@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
-  api, type ImpactData, type MethodsSummary, type PaxExperiment, type PaxWeekly, type PlanVerify, type Robustness, type ScoreCardData,
+  api, type ForecastData, type ImpactData, type MethodsSummary, type RerouteProof, type PaxExperiment, type PaxWeekly, type PlanVerify, type Robustness, type ScoreCardData,
   type SuddenMetrics,
 } from '../api'
 
@@ -79,6 +79,8 @@ export default function Impact() {
   const [rb, setRb] = useState<Robustness | null>(null)
   const [mt, setMt] = useState<MethodsSummary | null>(null)
   const [vf, setVf] = useState<PlanVerify | null>(null)
+  const [fc, setFc] = useState<ForecastData | null>(null)
+  const [rp, setRp] = useState<RerouteProof | null>(null)
   const [err, setErr] = useState<string | null>(null)
   const [hours, setHours] = useState(4)
   const [wait, setWait] = useState(7)
@@ -92,6 +94,9 @@ export default function Impact() {
     api.planVerify().then(setVf).catch(() => undefined)
     const pollMt = () => api.methodsSummary().then(r => { setMt(r); if (r.status === 'running') setTimeout(pollMt, 5000) }).catch(() => undefined)
     void pollMt()
+    api.reroutingProof().then(setRp).catch(() => undefined)
+    const pollFc = () => api.forecast().then(r => { setFc(r); if (r.sweep_status !== 'done' && r.sweep_status !== 'error') setTimeout(pollFc, 3000) }).catch(() => undefined)
+    void pollFc()
     let alive = true
     const pollRb = () => api.planRobustness().then(r => { if (alive) { setRb(r); if (r.ablation_status === 'running') setTimeout(pollRb, 4000) } }).catch(() => undefined)
     void pollRb()
@@ -151,12 +156,25 @@ export default function Impact() {
     if (rb?.ablation) out.push({ id: 'rb', title: 'Blocks that clear before the next train', kind: 'pct', better: 'higher',
       bars: [{ who: 'Solver alone', v: rb.ablation.raw.mean * 100, tone: 'before' }, { who: 'RailBlock', v: rb.plan.mean * 100, tone: 'after' }],
       how: `${rb.how} "Solver alone" is the same week solved without the fragile-window cost.`, repro: 'GET /api/plan/robustness' })
-    const pr = mt?.results.predictive
-    const p8 = pr?.predictive.find(x => Math.abs(x.p_detect - 0.8) < 1e-6)
-    if (pr && p8) out.push({ id: 'pred', title: `Train-minutes lost to ${pr.failures} failures`, kind: 'n', better: 'lower', assumed: true,
-      chip: 'if warning works',
-      bars: [{ who: 'Emergency response', v: pr.reactive.train_min, tone: 'before' }, { who: 'Early warning (80%)', v: p8.train_min, tone: 'after' }],
-      how: `${pr.how} ${pr.caveat}`, repro: 'GET /api/methods/summary' })
+    const sw = fc?.sweep?.scales[0]
+    const inUse = sw?.table.find(r => !r.allow_create && r.threshold > 0 && Math.abs(r.threshold - (fc?.sweep?.in_use_threshold ?? -1)) < 1e-9)
+    if (sw && inUse) out.push({ id: 'pred', title: `Train-minutes lost to ${sw.failures} failures`, kind: 'n', better: 'lower', assumed: true,
+      chip: 'warnings are simulated',
+      bars: [{ who: 'Wait for the failure', v: sw.table[0].train_min, tone: 'before' },
+             { who: `Act on warnings (${Math.round(inUse.threshold * 100)}%+)`, v: inUse.train_min, tone: 'after' }],
+      how: `${fc?.sweep?.how} ${fc?.sweep?.caveat} Emergencies ${sw.table[0].emergencies} to ${inUse.emergencies}; trains held or rerouted for proactive blocks: ${inUse.gaps_made_proactive}.`,
+      repro: 'GET /api/forecast' })
+    const tw = mt?.results.twin
+    const tc = tw?.cases.filter(c => c.policies.HOLD.pax_min >= 600).sort((x, y) => y.policies.HOLD.pax_min - x.policies.HOLD.pax_min)[0]
+    if (tw && tc) out.push({ id: 'twin', title: `Passenger-hours of delay after a closure (${tc.label})`, kind: 'n', better: 'lower', assumed: true,
+      chip: 'modelled recovery',
+      bars: [{ who: 'Hold everything', v: Math.round(tc.policies.HOLD.pax_min / 60), tone: 'before' },
+             { who: `Twin's choice`, v: Math.round(tc.policies[tc.best].pax_min / 60), tone: 'after' }],
+      how: `${tw.how} ${tw.caveat}`, repro: 'GET /api/methods/summary' })
+    if (rp && rp.diverted > 0) out.push({ id: 'rr', title: `Delay to ${rp.diverted} long-distance trains when a block closes their route`, kind: 'n', better: 'lower',
+      chip: 'locals never rerouted',
+      bars: [{ who: 'Wait for the block to lift', v: Math.round(rp.wait_min), tone: 'before' }, { who: 'Sent round', v: Math.round(rp.added_min), tone: 'after' }],
+      how: `${rp.how} ${rp.no_path} more through trains meet a block with no other route and wait either way.`, repro: 'GET /api/rerouting/proof' })
     const bf = mt?.results.buffers
     if (bf) out.push({ id: 'buf', title: 'Blocks that clear on time, with crew-history buffers', kind: 'pct', better: 'higher', assumed: true,
       chip: `costs ${Math.max(0, bf.jobs_lost)} jobs placed`,
@@ -173,7 +191,7 @@ export default function Impact() {
              { who: 'RailBlock (median)', v: sd.median_ms, tone: 'after' }],
       how: `Median of ${sd.n} sudden task(s) injected on the Operations page.`, repro: 'GET /api/sudden/metrics' })
     return out
-  }, [sc, d, px, sd, pw, rb, mt])
+  }, [sc, d, px, sd, pw, rb, mt, fc, rp])
 
   if (err) return <div className="panel"><div className="panel-body muted">Could not load impact metrics: {err}</div></div>
   if (!d) return <div className="loading"><div className="spinner" />Measuring the manual baseline and every algorithm…</div>

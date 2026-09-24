@@ -56,6 +56,10 @@ class AppState:
     sudden_seq: int = 0
     sudden_log: list = field(default_factory=list)
     overrides: dict = field(default_factory=dict)
+    # predictive blocks: the watch list, and the proactive blocks booked from it (kept apart from the planned week)
+    forecast_state: LiveSimState = field(default_factory=LiveSimState)
+    forecast_rows: list = field(default_factory=list)
+    forecast_summary: dict = field(default_factory=dict)
 
     def log(self, at_s: int, text: str, kind: str = "info") -> None:
         self.event_log.append({"at_s": at_s, "text": text, "kind": kind})
@@ -228,3 +232,6 @@ def reset() -> None:
         STATE.sudden_seq = 0
         STATE.sudden_log = []
         STATE.overrides = {}
+        STATE.forecast_state = LiveSimState()
+        STATE.forecast_rows = []
+        STATE.forecast_summary = {}

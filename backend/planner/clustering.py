@@ -43,9 +43,11 @@ class TaskCluster:
     requires_iwp: int = 0
     incompatible: int = 0
     cross_pairs: int = 0
+    medoid_id: str | None = None      # K-Medoids only: the job at the group's centre
 
     def to_dict(self) -> dict:
         return {
+            "medoid_id": self.medoid_id,
             "id": self.id, "size": len(self.task_ids), "task_ids": self.task_ids,
             "zones": sorted(set(self.zones)), "departments": self.departments,
             "total_min": self.total_min, "label": self.label, "lat": self.lat, "lon": self.lon,
@@ -68,16 +70,124 @@ def _to_km(lat: float, lon: float) -> tuple[float, float]:
     return lon * 111.32 * math.cos(math.radians(lat)), lat * 110.57
 
 
-def cluster_tasks(net: Network, tasks: list[Task], cut_km: float | None = None) -> list[TaskCluster]:
-    """Average-linkage agglomerative clustering of jobs by position, cut at `cut_km`."""
+def _dist(pts: np.ndarray) -> np.ndarray:
+    d = pts[:, None, :] - pts[None, :, :]
+    return np.sqrt((d ** 2).sum(-1))
+
+
+def pam(D: np.ndarray, k: int, seed: int = 0, restarts: int = 6) -> tuple[np.ndarray, list[int]]:
+    """K-Medoids by partitioning around medoids: greedy build, then swap until no swap lowers the cost.
+
+    A medoid is an actual job, not an average point, so the group's "centre" is a real place where
+    a shared block could go. Restarts guard against a poor start; the best total distance wins.
+    """
+    n = len(D)
+    rng = np.random.default_rng(seed)
+    best_cost, best = float("inf"), None
+    for r in range(restarts):
+        med = [int(np.argmin(D.sum(1)))] if r == 0 else [int(rng.integers(n))]
+        while len(med) < k:                                   # BUILD: add the job that helps most
+            cur = D[:, med].min(1)
+            gain = np.array([(cur - np.minimum(cur, D[:, j])).sum() if j not in med else -1.0 for j in range(n)])
+            med.append(int(np.argmax(gain)))
+        cost = D[:, med].min(1).sum()
+        improved = True
+        while improved:                                       # SWAP: try each (medoid, non-medoid) exchange
+            improved = False
+            for mi in range(k):
+                for j in range(n):
+                    if j in med:
+                        continue
+                    trial = med[:mi] + [j] + med[mi + 1:]
+                    c = D[:, trial].min(1).sum()
+                    if c < cost - 1e-9:
+                        med, cost, improved = trial, c, True
+        if cost < best_cost:
+            best_cost, best = cost, list(med)
+    labels = D[:, best].argmin(1)
+    return labels, best
+
+
+def silhouette(D: np.ndarray, labels: np.ndarray) -> float:
+    """Mean silhouette: 1 = tight and well separated, 0 = borderline, below 0 = probably misplaced."""
+    n = len(D)
+    uniq = np.unique(labels)
+    if len(uniq) < 2 or len(uniq) >= n:
+        return 0.0
+    s = np.zeros(n)
+    for i in range(n):
+        same = (labels == labels[i])
+        if same.sum() <= 1:
+            continue                                          # a singleton scores 0 by convention
+        a = D[i, same].sum() / (same.sum() - 1)
+        b = min(D[i, labels == u].mean() for u in uniq if u != labels[i])
+        s[i] = (b - a) / max(a, b, 1e-9)
+    return float(s.mean())
+
+
+def kmedoids_auto(pts: np.ndarray, k_max: int = 12) -> tuple[np.ndarray, list[int], int]:
+    """K-Medoids with the number of groups chosen by silhouette rather than by a fixed distance cut."""
+    D = _dist(pts)
+    n = len(pts)
+    if n < 3:
+        return np.zeros(n, dtype=int), [0], 1
+    best = None
+    for k in range(2, min(k_max, n - 1) + 1):
+        labels, med = pam(D, k)
+        sc = silhouette(D, labels)
+        if best is None or sc > best[0] + 1e-9:
+            best = (sc, labels, med, k)
+    return best[1], best[2], best[3]
+
+
+def compare_methods(net: Network, tasks: list[Task], cut_km: float | None = None) -> dict:
+    """Both groupings on the same jobs, scored the same way: silhouette, group count, and how far
+    the jobs in a group sit from the group's centre (mean km) and from each other (widest km)."""
+    cut = float(cut_km if cut_km is not None else load_config().get_path("clustering.cut_km", 5.0))
+    if len(tasks) < 4:
+        return {"n": len(tasks), "methods": []}
+    pts = np.array([_to_km(*_position(net, t)) for t in tasks])
+    D = _dist(pts)
+    out = []
+
+    def score(name: str, labels: np.ndarray, centres: dict[int, int | None]) -> dict:
+        groups = {int(u): np.where(labels == u)[0] for u in np.unique(labels)}
+        multi = [g for g in groups.values() if len(g) > 1]
+        to_centre = []
+        for u, g in groups.items():
+            c = centres.get(u)
+            centre = pts[c] if c is not None else pts[g].mean(0)
+            to_centre += [float(np.hypot(*(pts[i] - centre))) for i in g]
+        return {"method": name, "groups": len(groups), "shared_groups": len(multi),
+                "silhouette": round(silhouette(D, labels), 3),
+                "mean_km_to_centre": round(float(np.mean(to_centre)), 2),
+                "widest_group_km": round(max((float(D[np.ix_(g, g)].max()) for g in multi), default=0.0), 2)}
+
+    lab_h = fcluster(linkage(pts, method="average"), t=cut, criterion="distance")
+    out.append(score("Average-linkage (hierarchical)", lab_h, {}))
+    lab_k, med, k = kmedoids_auto(pts)
+    out.append(score("K-Medoids (k by silhouette)", lab_k, {int(u): int(med[int(u)]) for u in np.unique(lab_k)}))
+    return {"n": len(tasks), "cut_km": cut, "methods": out}
+
+
+def cluster_tasks(net: Network, tasks: list[Task], cut_km: float | None = None,
+                  method: str | None = None) -> list[TaskCluster]:
+    """Group jobs by position: average-linkage cut at `cut_km` (default), or K-Medoids (`method="kmedoids"`)."""
     if not tasks:
         return []
     cut = float(cut_km if cut_km is not None
                 else load_config().get_path("clustering.cut_km", 5.0))
+    method = method or str(load_config().get_path("clustering.method", "average"))
 
     pos = [_position(net, t) for t in tasks]
+    medoid_of: dict[int, int] = {}
     if len(tasks) == 1:
         labels = np.array([1])
+    elif method == "kmedoids" and len(tasks) >= 3:
+        pts = np.array([_to_km(la, lo) for la, lo in pos])
+        lab0, med, _ = kmedoids_auto(pts)
+        labels = lab0 + 1
+        medoid_of = {int(u) + 1: int(med[int(u)]) for u in np.unique(lab0)}
     else:
         pts = np.array([_to_km(la, lo) for la, lo in pos])
         labels = fcluster(linkage(pts, method="average"), t=cut, criterion="distance")
@@ -94,9 +204,13 @@ def cluster_tasks(net: Network, tasks: list[Task], cut_km: float | None = None) 
         ).name
 
     clusters: list[TaskCluster] = []
-    for members in sorted(groups.values(), key=len, reverse=True):
-        lat = sum(pos[i][0] for i in members) / len(members)
-        lon = sum(pos[i][1] for i in members) / len(members)
+    for lab, members in sorted(groups.items(), key=lambda kv: len(kv[1]), reverse=True):
+        mi = medoid_of.get(lab)
+        if mi is not None:                    # K-Medoids: the group's centre is one of its own jobs
+            lat, lon = pos[mi]
+        else:
+            lat = sum(pos[i][0] for i in members) / len(members)
+            lon = sum(pos[i][1] for i in members) / len(members)
         c = TaskCluster(
             id=len(clusters) + 1,
             task_ids=[tasks[i].id for i in members],
@@ -104,7 +218,7 @@ def cluster_tasks(net: Network, tasks: list[Task], cut_km: float | None = None) 
             departments=sorted({tasks[i].department.value for i in members}),
             total_min=sum(tasks[i].duration_min for i in members),
             label=nearest_station_name(lat, lon),
-            lat=lat, lon=lon,
+            lat=lat, lon=lon, medoid_id=None if mi is None else tasks[mi].id,
         )
         # The rule engine decides what may actually share a block; report its verdicts.
         unscheduled = {

@@ -96,7 +96,8 @@ def _make_task(net, rng: random.Random, p: SuddenReq, priority: int, tid: str) -
 
 def _committed(w) -> list[Task]:
     """Everything already booked, whatever its origin: planned, user-raised, simulated."""
-    return list(w.tasks) + [x.task for x in STATE.live_sim.placed if x.placed]
+    return (list(w.tasks) + [x.task for x in STATE.live_sim.placed if x.placed]
+            + [x.task for x in STATE.forecast_state.placed if x.placed])
 
 
 def _apply_moves(res, at_s: int, sudden_id: str) -> list[dict]:
@@ -115,6 +116,15 @@ def _apply_moves(res, at_s: int, sudden_id: str) -> list[dict]:
             else:
                 STATE.user_placements.pop(tid, None)
                 STATE.user_unplaced[tid] = f"deferred by sudden task {sudden_id}"
+        elif tid.startswith("PRD-"):
+            STATE.forecast_state.placed = [x for x in STATE.forecast_state.placed if x.task.id != tid]
+            if new is not None:
+                STATE.forecast_state.add(new)
+            for row in STATE.forecast_rows:
+                if row["id"] == tid:
+                    row.update(start_s=None if new is None else new.start_s, end_s=None if new is None else new.end_s,
+                               why="moved by a sudden task" if new is not None else "pushed out by a sudden task; back on the watch list",
+                               decision="planned" if new is not None else "watch")
         elif tid.startswith("SUD-"):
             STATE.sudden_state.placed = [x for x in STATE.sudden_state.placed if x.task.id != tid]
             if new is not None:
