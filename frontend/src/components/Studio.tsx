@@ -31,7 +31,7 @@ function usePoll(fetcher: () => Promise<StudioJob<ScaleData>>) {
 
 function GapChart({ d }: { d: ScaleData }) {
   const W = 560, H = 230, L = 46, T = 14, B = 32
-  const maxT = Math.max(10, ...d.rows.map(r => r.budget_s))
+  const maxT = Math.max(10, ...d.rows.map(r => Math.max(r.budget_s, r.wall_s)))
   const x = (t: number) => L + (t / maxT) * (W - L - 10)
   // closeness to the best possible plan: 100% = proven optimal, so a rising line means improving
   const y = (c: number) => T + (1 - Math.min(100, Math.max(0, c)) / 100) * (H - T - B)
@@ -50,12 +50,17 @@ function GapChart({ d }: { d: ScaleData }) {
         const pts = r.curve.map(([t, g]) => [t, 100 - g] as [number, number])
         if (!pts.length) return null
         const last = pts[pts.length - 1]
-        const path = 'M ' + pts.map(([t, g], k) => `${k ? 'L' : ''}${x(t).toFixed(1)},${y(g).toFixed(1)}`).join(' ') + ` L ${x(r.wall_s).toFixed(1)},${y(last[1]).toFixed(1)}`
+        const end = 100 - r.final_gap_pct
+        const path = 'M ' + pts.map(([t, g], k) => `${k ? 'L' : ''}${x(t).toFixed(1)},${y(g).toFixed(1)}`).join(' ')
+        // after the last improvement the solver kept searching without finding a better plan: drawn dashed, to where it ended
+        const stalled = r.wall_s - last[0] > 0.04 * maxT
         return (
           <g key={r.n}>
             <path d={path} fill="none" stroke={COLORS[i % 4]} strokeWidth={2.4} strokeLinejoin="round" className="sc-line" pathLength={1} />
-            <circle cx={x(r.wall_s)} cy={y(last[1])} r={4.4} fill={COLORS[i % 4]} stroke="var(--panel)" strokeWidth={1.5} />
-            <text x={x(r.wall_s) - 6} y={y(last[1]) - 8} fontSize={10} textAnchor="end" fill={COLORS[i % 4]} fontWeight={700}>
+            {stalled && <line x1={x(last[0])} y1={y(last[1])} x2={x(r.wall_s)} y2={y(end)} stroke={COLORS[i % 4]} strokeWidth={2} strokeDasharray="5 4" opacity={0.75} />}
+            {stalled && <circle cx={x(last[0])} cy={y(last[1])} r={3.6} fill="var(--panel)" stroke={COLORS[i % 4]} strokeWidth={2} />}
+            <circle cx={x(r.wall_s)} cy={y(end)} r={4.4} fill={COLORS[i % 4]} stroke="var(--panel)" strokeWidth={1.5} />
+            <text x={x(r.wall_s) - 6} y={y(end) - 8} fontSize={10} textAnchor="end" fill={COLORS[i % 4]} fontWeight={700}>
               {r.n} jobs{r.proven_optimal ? ' ✓ proven optimal' : ` · ${(100 - r.final_gap_pct).toFixed(0)}%`}
             </text>
           </g>
@@ -151,7 +156,15 @@ export default function Studio() {
           <div className="grid two">
             <div className="panel"><div className="panel-head"><h2>How close to the best possible plan, over time</h2></div>
               <div className="panel-body"><GapChart d={d} />
-                <div className="hint">Each line is one batch size. It climbs as the solver improves its plan and tightens its proof; a line that reaches 100% is proven optimal.</div></div></div>
+                <div className="hint">Each line is one batch size. It climbs as the solver improves its plan and tightens its proof; a line that reaches 100% is proven optimal.</div>
+                <div className="flat-why">
+                  <b>Why a line goes flat:</b> a hollow dot marks the solver's last better plan; the dashed part is time it kept searching without finding one, up to the end of its time budget.
+                  <ul>
+                    {d.rows.map((r, i) => { const l = r.curve[r.curve.length - 1]; return r.proven_optimal || !l ? null : (
+                      <li key={r.n}><i className="sc-dot" style={{ background: COLORS[i % 4] }} /><b>{r.n} jobs:</b> last improvement at {l[0].toFixed(0)} s of {Math.round(r.wall_s)} s{r.wall_s - l[0] < 0.1 * r.wall_s ? ', still improving when time ran out' : ', then no better plan in the remaining time'}</li>) })}
+                  </ul>
+                  Two things hold the line down, and neither is a rule being broken. The number of ways to combine jobs and gaps grows much faster than the batch, so the solver's proof (the upper part of the gap) tightens slowly. And the solver stops at its time budget, not when the plan is as good as it can be, so the plan may already be closer to the best than the line shows. Giving it more time, or splitting a big week into days solved separately, would lift the line; this test uses fixed budgets to show the cost of size honestly.
+                </div></div></div>
             <div className="panel"><div className="panel-head"><h2>Time to plan, as the batch grows</h2></div>
               <div className="panel-body"><TimeBars d={d} />
                 <div className="hint">The exact solver had a legal plan after {secs(Math.max(...d.rows.map(r => r.first_plan_s ?? 0)))} at worst. The fast path plans 400 jobs in about {d.rows[d.rows.length - 1].heuristic.wall_s.toFixed(1)} s, but its time grows faster than the batch (1,600 jobs took {d.fast.length ? secs(d.fast[d.fast.length - 1].wall_s) : 'longer'}).</div></div></div>

@@ -19,30 +19,17 @@ export default function ProofStrip({ tick }: { tick: number }) {
 
   const tiles: { v: string; label: string; sub: string; tip: string; color?: string }[] = [
     { v: k(p.gaps.total), label: 'gaps found', color: 'var(--accent)',
-      sub: `${k(p.gaps.micro)} between trains · ${p.gaps.usable_hours.toLocaleString()} h usable`,
+      sub: '',
       tip: `${p.gaps.micro} gaps between trains, ${p.gaps.night} night windows, ${p.gaps.megablock} megablock windows` },
-    { v: `${p.interval_tree.speedup_x}×`, label: 'faster gap lookup', color: 'var(--fit)',
-      sub: p.interval_tree.identical ? 'same answers as full scan ✓' : 'MISMATCH',
-      tip: `${p.interval_tree.queries} range queries: full scan ${p.interval_tree.scan_ms} ms, interval tree ${p.interval_tree.tree_ms} ms` },
-    { v: `${p.clusters.clusters}`, label: 'job clusters',
-      sub: `from ${p.clusters.tasks} jobs · ${p.clusters.compatible}/${p.clusters.cross_pairs} pairs compatible`,
-      tip: 'Average-linkage hierarchical clustering by location; compatibility from the rule engine' },
-    { v: p.cpsat.status === 'OPTIMAL' ? 'Optimal' : p.cpsat.status.replace('_', ' ').toLowerCase(),
-      label: 'weekly plan', color: 'var(--fit)',
-      sub: `${Math.round(p.cpsat.gap_pct * 10) / 10}% gap · ${p.cpsat.placed}/${p.cpsat.n_tasks} placed`,
-      tip: `CP-SAT solve, ${p.cpsat.wall_s}s wall time` },
+    { v: `${p.cpsat.placed}/${p.cpsat.n_tasks}`, label: 'jobs in the weekly plan', color: 'var(--fit)',
+      sub: '',
+      tip: `CP-SAT solve, ${p.cpsat.status.toLowerCase()}, ${Math.round(p.cpsat.gap_pct * 10) / 10}% gap, ${p.cpsat.wall_s}s wall time` },
     ...(p.rl ? [{ v: `${p.rl.speedup_x}×`, label: 'faster re-plan', color: 'var(--accent)',
-      sub: `${p.rl.policy} · ${Math.round(p.rl.gap_pct * 10) / 10}% from optimal`,
+      sub: '',
       tip: `Held-out benchmark over ${p.rl.instances} instances` }] : []),
-    { v: `${p.live_sim.placed}/${p.live_sim.arrived}`, label: 'placed live',
-      sub: p.live_sim.moved_aside ? `${p.live_sim.moved_aside} moved aside` : 'longest job first',
-      tip: 'Max-to-Min ordering + ALNS-lite insertion on simulated arrivals' },
     { v: `${p.rerouting.executed}`, label: 'trains rerouted', color: '#0891b2',
-      sub: 'sent around live blocks',
+      sub: '',
       tip: 'Long-distance and freight trains due through a section while it was closed. Locals are never rerouted.' },
-    { v: `${p.rerouting.with_lever}/${p.rerouting.unplaced}`, label: 'unplaced with a fix',
-      sub: `${p.rerouting.reroute_paths} reroutes · ${p.rerouting.track_swaps} track swaps`,
-      tip: 'Unplaced jobs for which a reroute or single-line working could open a window' },
   ]
 
   return (
@@ -54,7 +41,7 @@ export default function ProofStrip({ tick }: { tick: number }) {
             <div className="tile" key={t.label} title={t.tip}>
               <div className="v" style={{ color: t.color }}>{t.v}</div>
               <div className="k">{t.label}</div>
-              <div className="note">{t.sub}</div>
+              {t.sub && <div className="note">{t.sub}</div>}
             </div>
           ))}
         </div>

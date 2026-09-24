@@ -966,3 +966,6 @@ tbody tr:nth-child(even) td { background: color-mix(in srgb, var(--panel-2) 55%,
 .job-card .jc-line { display: grid; grid-template-columns: 52px 1fr; gap: 8px; }
 .job-card .jc-line span { color: var(--text-mute); }
 .how-list { margin: 0; padding-left: 18px; display: grid; gap: 6px; font-size: 13px; line-height: 1.45; }
+
+.flat-why { margin-top: 10px; font-size: 12px; line-height: 1.5; color: var(--text-mute); }
+.flat-why ul { margin: 6px 0; padding-left: 4px; list-style: none; display: grid; gap: 3px; color: var(--text); }
