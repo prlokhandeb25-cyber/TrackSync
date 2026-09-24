@@ -87,7 +87,7 @@ def test_the_assistant_talks_plainly_runs_the_new_features_and_changes_nothing(l
         "can you predict failures?"]}
     assert sandbox_fingerprint() == before
     r = qa["what does a 3 hour tamping job need?"]
-    assert r.intent == "resources" and "people" in r.text and "planning norms" in r.text and r.visual["type"] == "bars"
+    assert r.intent == "resources" and "people" in r.text and "planning norms" in r.text and r.visual["type"] == "crew" and r.visuals[0]["type"] == "bars"
     e = qa["what if a 10 hour block on Kurla to Sion finishes in 8 hours?"]
     assert e.intent == "reclaim" and e.visual["type"] == "blockbar" and e.visual["planned_min"] == 600 and e.visual["actual_min"] == 480
     assert sum(j["min"] for j in e.visual["jobs"]) <= 120

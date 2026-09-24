@@ -90,7 +90,7 @@ def test_slot_questions_tasks_and_crew_answers_are_structured_and_change_nothing
     assert sandbox_fingerprint() == before
     assert slot.intent == "slot" and slot.visual["type"] == "daystrip" and "Who can use it?" in slot.text and "Dynamic buffer" in slot.text
     assert slot.text.count("- **") >= 5
-    assert crew.intent == "crew" and "**180 min** →" in crew.text and crew.visual["type"] == "bars"
+    assert crew.intent == "crew" and "**180 min** →" in crew.text and crew.visual["type"] == "crew" and crew.visuals[0]["type"] == "bars"
     assert cost.intent == "resources" and "₹" in cost.text and "**Cost:**" in cost.text
     assert tasks.intent == "tasks" and tasks.visual["type"] == "tasks" and tasks.visual["rows"]
     assert "\n- **" in plain.text                                      # the older plan-a-block answer is bulleted too
