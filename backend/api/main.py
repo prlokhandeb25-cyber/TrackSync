@@ -80,6 +80,12 @@ def require_valid_data() -> None:
 def _startup() -> None:
     seed = seed_everything()
     app.state.seed = seed
+    # Build the week and the gap index now, so the first page load does not wait for it.
+    try:
+        from backend.api.state import ensure_world
+        ensure_world()
+    except Exception:
+        pass    # the routes build it on first use, as before
 
 
 @app.get("/api/health")

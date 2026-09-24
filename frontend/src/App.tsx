@@ -54,6 +54,20 @@ type Win = { zone_ref: string; start_s: number; end_s: number; id?: string; dept
 const PROTECT_S = 15 * 60      // protection goes up before the work starts ...
 const HANDBACK_S = 10 * 60     // ... and comes down after it ends
 
+const CLOCK_KEY = 'rb-clock'
+const WEEK_S = 7 * 86400
+// Where the simulation clock starts: where it was last left, moved on by the time away if it was running.
+const initialClock = (): number => {
+  try {
+    const v = JSON.parse(localStorage.getItem(CLOCK_KEY) ?? 'null')
+    if (v && typeof v.c === 'number' && typeof v.at === 'number') {
+      const away = v.playing ? Math.max(0, (Date.now() - v.at) / 1000) * 60 : 0     // running at the normal 60x pace
+      return (v.c + away) % WEEK_S
+    }
+  } catch { /* storage can be blocked or hold something else */ }
+  return 7 * 3600
+}
+
 const initialTheme = (): 'light' | 'dark' => {
   try {
     const t = localStorage.getItem('rb-theme')
@@ -80,7 +94,7 @@ export default function App() {
   const [movedWins, setMovedWins] = useState<Win[]>([])
   const [focus, setFocus] = useState<FocusReq | null>(null)
   const [theme, setTheme] = useState<'light' | 'dark'>(initialTheme)
-  const [clock, setClock] = useState(7 * 3600)
+  const [clock, setClock] = useState(initialClock)
   const [speed, setSpeed] = useState(1)
   const [tick, setTick] = useState(0)
   const [halos, setHalos] = useState<Halo[]>([])
@@ -143,6 +157,17 @@ export default function App() {
   // it resolves, so train positions never land.
   const clockRef = useRef(clock)
   clockRef.current = clock
+  // Remember the clock so a reload or a return to the page carries on from where it was, not from 07:00.
+  const playingRef = useRef(playing)
+  playingRef.current = playing
+  useEffect(() => {
+    const save = () => {
+      try { localStorage.setItem(CLOCK_KEY, JSON.stringify({ c: clockRef.current, at: Date.now(), playing: playingRef.current })) } catch { /* storage can be blocked */ }
+    }
+    const id = setInterval(save, 1000)
+    window.addEventListener('beforeunload', save)
+    return () => { clearInterval(id); window.removeEventListener('beforeunload', save) }
+  }, [])
   useEffect(() => {
     if (!net) return
     let alive = true

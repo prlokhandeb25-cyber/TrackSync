@@ -356,6 +356,10 @@ def _cluster_pool() -> list:
     return [t for t in w.tasks if not t.completed] + live
 
 
+_CLUSTER_CACHE: dict = {}
+_CLUSTER_LOCK = __import__("threading").Lock()
+
+
 @router.get("/api/tasks/clusters")
 def task_clusters(method: str = "average") -> dict:
     """Jobs grouped by position: average-linkage (default) or K-Medoids, with both scored side by side."""
@@ -365,11 +369,27 @@ def task_clusters(method: str = "average") -> dict:
     pool = _cluster_pool()
     cut = float(load_config().get_path("clustering.cut_km", 5.0))
     m = "kmedoids" if method == "kmedoids" else "average"
+    # The grouping only depends on the jobs (where, how urgent, which department), and this is polled every
+    # tick, so an unchanged pool is answered from memory instead of being re-clustered and re-scored (~1 s).
+    key = (m, cut, tuple((t.id, t.zone.ref, t.priority, t.department.value, t.completed) for t in pool))
+    with _CLUSTER_LOCK:                 # two identical requests at once: the second waits for the first, then reads it
+        hit = _CLUSTER_CACHE.get(key)
+        if hit is not None:
+            return hit
+        out = _cluster_answer(w, pool, cut, m, cluster_tasks, compare_methods)
+        if len(_CLUSTER_CACHE) > 8:
+            _CLUSTER_CACHE.clear()
+        _CLUSTER_CACHE[key] = out
+        return out
+
+
+def _cluster_answer(w, pool, cut, m, cluster_tasks, compare_methods) -> dict:
     clusters = cluster_tasks(w.net, pool, cut_km=cut, method=m)
-    return {"n_tasks": len(pool), "n_clusters": len(clusters), "cut_km": cut,
-            "method": "K-Medoids (k by silhouette)" if m == "kmedoids" else "average-linkage agglomerative (scipy)",
-            "compare": compare_methods(w.net, pool, cut),
-            "clusters": [c.to_dict() for c in clusters]}
+    out = {"n_tasks": len(pool), "n_clusters": len(clusters), "cut_km": cut,
+           "method": "K-Medoids (k by silhouette)" if m == "kmedoids" else "average-linkage agglomerative (scipy)",
+           "compare": compare_methods(w.net, pool, cut),
+           "clusters": [c.to_dict() for c in clusters]}
+    return out
 
 
 _PROOF_STATIC: dict | None = None
