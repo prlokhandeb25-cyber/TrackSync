@@ -13,7 +13,7 @@ import re
 
 from backend.chat import whatif as W
 from backend.chat.engine import DAY_ABBR, DAY_S, Answer
-from backend.config import load_config
+from backend.config import REPO_ROOT, load_config
 from backend.domain.compatibility import Verdict, check_allotment
 from backend.domain.models import WorkZoneKind, s_to_hhmm
 from backend.domain.scoring import pair_verdict
@@ -153,9 +153,9 @@ def h_resources(q: str, s: W.Slots, world, now_s: int) -> Answer:
                       {"k": "cost", "v": INR(c["cost"]["total"])}], ["planning norms and rates (assumed)", "nothing was changed"], "resources",
                suggestions=[f"how long would it take with {c['norm_workers'] + 4} workers?", f"how long with 2 {'machines' if c['norm_machines'] else 'workers'}?",
                             f"best time for a {dur} minute {tt.department.value} job?"])
-    a.visual = {"type": "bars", "title": f"People on site ({e['people_per_shift']} in all)",
-                "items": [{"label": r["role"], "value": r["n"], "best": False} for r in e["roles"]]}
-    a.visuals = [_cost_visual(c)]
+    a.visual = _crew_visual(tt, dur, c["norm_workers"], c["norm_machines"])
+    a.visuals = [{"type": "bars", "title": f"People on site ({e['people_per_shift']} in all)",
+                  "items": [{"label": r["role"], "value": r["n"], "best": False} for r in e["roles"]]}, _cost_visual(c)]
     return a
 
 
@@ -193,12 +193,13 @@ def h_crew_whatif(q: str, s: W.Slots, world, now_s: int) -> Answer:
     a = Answer(text, [{"k": "work time", "v": f"{new['work_min']} min"}, {"k": "cost", "v": INR(new["cost"]["total"])}],
                ["crew scaling model (assumed)", "planning rates (assumed)", "gap finder", "nothing was changed"], "crew",
                suggestions=[f"what does a {dur} minute {tt.label.lower()} need?", "is there a free gap tomorrow at 14:00?"])
-    a.visual = {"type": "bars", "title": "Work time by crew size (minutes)",
+    a.visual = _crew_visual(tt, dur, new["workers"], new["machines"])
+    a.visuals = [{"type": "bars", "title": "Work time by crew size (minutes)",
                 "items": [{"label": f"{r['workers']} workers", "value": r["work_min"], "best": r["workers"] == new["workers"]}
-                          for r in RS.crew_curve(tt, dur, machines=m)]}
-    a.visuals = [{"type": "bars", "title": "Cost by crew size (₹ thousand)",
-                  "items": [{"label": f"{r['workers']} workers", "value": round(r["cost"]["total"] / 1000, 1), "best": r["workers"] == new["workers"]}
-                            for r in RS.crew_curve(tt, dur, machines=m)]}]
+                          for r in RS.crew_curve(tt, dur, machines=m)]}]
+    a.visuals.append({"type": "bars", "title": "Cost by crew size (₹ thousand)",
+                      "items": [{"label": f"{r['workers']} workers", "value": round(r["cost"]["total"] / 1000, 1), "best": r["workers"] == new["workers"]}
+                                for r in RS.crew_curve(tt, dur, machines=m)]})
     return a
 
 
@@ -347,3 +348,128 @@ def _day_visual(st, section: str, day: int, t0: int, t1: int, world) -> dict:
     return {"type": "daystrip", "title": f"{section}: trains and gaps on {W._day_label(day)}",
             "range": [t0, t1], "tracks": [{"track": tk, "trains": [[o.enter_s % DAY_S, o.exit_s % DAY_S, o.train_class.value] for o in occ if o.track == tk]}
                                           for tk in tracks]}
+
+
+# ---------------------------------------------------------------------------------------- the crew slider
+
+
+def _crew_visual(tt, dur: int, workers: int, machines: int) -> dict:
+    """An interactive picture: the page moves the sliders and asks /api/resources/whatif for the effect, so the
+    numbers always come from the same model as the written answer."""
+    base = RS.costed(tt, dur)
+    return {"type": "crew", "title": "Slide the crew up or down", "task_type": tt.code, "label": tt.label, "duration_min": dur,
+            "norm_workers": base["norm_workers"], "norm_machines": base["norm_machines"], "machine_names": base["machine_names"],
+            "workers": workers, "machines": machines, "max_workers": 3 * base["norm_workers"]}
+
+
+def crew_whatif_payload(task_type: str, duration_min: int, workers: int | None, machines: int | None) -> dict:
+    base = RS.costed(task_type, duration_min)
+    new = RS.costed(task_type, duration_min, workers=workers, machines=machines)
+    n0 = base["norm_workers"]
+    curve = [{"workers": n, "work_min": RS.costed(task_type, duration_min, workers=n, machines=machines)["work_min"]}
+             for n in range(1, 3 * n0 + 1)]
+    return {"base": base, "new": new, "curve": curve, "cap_workers": 2 * n0}
+
+
+# ------------------------------------------------------------------ a quick picture for every answer that has a shape
+
+
+def _num(v: str) -> float | None:
+    m = re.match(r"\s*([\d,]+(?:\.\d+)?)", str(v))
+    return float(m.group(1).replace(",", "")) if m else None
+
+
+def _fact_bars(a: Answer, title: str, keys: list[str] | None = None, best: str | None = None) -> dict | None:
+    items = []
+    for f in a.facts:
+        if keys is not None and f["k"] not in keys:
+            continue
+        n = _num(f["v"])
+        if n is not None:
+            items.append({"label": str(f["k"]).replace("_", " "), "value": n, "best": False})
+    if len(items) < 2:
+        return None
+    if best == "min":
+        min(items, key=lambda i: i["value"])["best"] = True
+    elif best == "max":
+        max(items, key=lambda i: i["value"])["best"] = True
+    return {"type": "bars", "title": title, "items": items}
+
+
+def _build(a: Answer, q: str, world, plan, now_s: int) -> dict | None:
+    it = a.intent
+    st = W._live()
+    if it == "gaps":
+        use: dict[str, float] = {}
+        for w in world.gaps.windows:
+            use[w.gap_type.value] = use.get(w.gap_type.value, 0) + w.usable_min() / 60.0
+        names = {"MICRO_GAP": "Between trains", "NIGHT_WINDOW": "Night windows", "MEGABLOCK": "Sunday megablock"}
+        return {"type": "bars", "title": "Usable maintenance hours in the week, by kind of gap",
+                "items": [{"label": names.get(k, k), "value": round(v), "best": k == "MICRO_GAP"} for k, v in use.items()]}
+    if it == "plan" and plan is not None:
+        by = [0] * 7
+        for x in plan.assignments:
+            by[x.day % 7] += 1
+        return {"type": "bars", "title": "Blocks planned per day", "items": [{"label": DAY_ABBR[i], "value": by[i], "best": by[i] == max(by)} for i in range(7)]}
+    if it == "status":
+        return _fact_bars(a, "Sections by condition")
+    if it == "compatibility":
+        return _fact_bars(a, "Pairs of jobs by verdict", ["compatible", "needs IWP", "incompatible"])
+    if it == "rl":
+        return _fact_bars(a, "Distance from the exact solver's plan (%, lower is better)", best="min")
+    if it == "sudden":
+        m: dict[str, int] = {}
+        for e in st.STATE.sudden_log:
+            m[e["method"]] = m.get(e["method"], 0) + 1
+        if len(m) >= 1 and sum(m.values()) >= 1:
+            nm = {"gap": "Existing gap", "created": "Gap opened", "bumped": "Work moved aside", "late": "Booked late", "none": "Not placed"}
+            return {"type": "bars", "title": "How sudden tasks were placed", "items": [{"label": nm.get(k, k), "value": v, "best": k == "gap"} for k, v in m.items()]}
+    if it == "when":
+        return _fact_bars(a, "Gap length, raw against usable", ["raw", "usable"], best="max")
+    if it == "creation":
+        for f in a.facts:
+            if "->" in str(f["v"]):
+                x, y = [float(n) for n in re.findall(r"\d+", f["v"])[:2]]
+                return {"type": "bars", "title": "Urgent jobs placed in time", "items": [{"label": "Existing gaps only", "value": x, "best": False},
+                                                                                       {"label": "With gap creation", "value": y, "best": True}]}
+    if it == "mine":
+        return _fact_bars(a, "Compatibility score of your jobs", best="max")
+    if it == "whos_working":
+        s = W.parse(q, world, now_s)
+        return h_tasks(q, s, world, now_s).visual
+    if it == "explain":
+        s = W.parse(q, world, now_s)
+        t = next((x for x in W.booked_tasks(world) if x.id == s.task_id), None) or next((x for x in world.tasks if x.id == s.task_id), None)
+        if t is not None and t.scheduled_start_s is not None:
+            return {"type": "tasks", "title": f"{t.id} in its day", "day": None, "rows": [{
+                "id": t.id, "dept": t.department.value, "label": t.label, "zone": t.zone.ref, "priority": t.priority,
+                "start_s": t.scheduled_start_s, "end_s": t.scheduled_end_s or t.scheduled_start_s + t.duration_min * 60, "source": t.source}]}
+    if it in ("whatif", "planblock") and a.action and a.action.get("section") in world.net.sections and a.action.get("start_s") is not None:
+        s = W.parse(q, world, now_s)
+        t0s = int(a.action["start_s"])
+        day = t0s // DAY_S
+        dur = (s.duration_min or 60) * 60
+        return _day_visual(st, a.action["section"], day % 7, t0s % DAY_S, min(24 * 3600, t0s % DAY_S + dur), world)
+    if it == "algorithms":
+        import json
+        path = REPO_ROOT / "artifacts" / "rl_comparison.json"
+        if path.exists():
+            d = json.loads(path.read_text(encoding="utf-8"))
+            best = min(d["table"], key=lambda r: r["mean_gap_vs_cpsat_pct"])
+            return {"type": "bars", "title": "Time to re-plan after a defect (milliseconds)",
+                    "items": [{"label": "Full exact solve", "value": round(d["cpsat_mean_ms"]), "best": False},
+                              {"label": "Learned dispatcher", "value": round(best["mean_full_replan_ms"]), "best": True}]}
+    return None
+
+
+def visualise(a: Answer, q: str, world, plan, now_s: int) -> Answer:
+    """Give an answer that has a shape a small picture drawn from the same numbers it quotes. Never replaces one."""
+    if a.visual is not None or a.visuals:
+        return a
+    try:
+        v = _build(a, q, world, plan, now_s)
+    except Exception:
+        v = None
+    if v:
+        a.visual = v
+    return a

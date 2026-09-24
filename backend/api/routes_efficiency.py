@@ -39,6 +39,16 @@ def resources_estimate(task_type: str, duration_min: int = 60) -> dict:
     return RS.estimate(task_type, max(10, min(720, duration_min)))
 
 
+@router.get("/api/resources/whatif")
+def resources_whatif(task_type: str, duration_min: int = 120, workers: int | None = None, machines: int | None = None) -> dict:
+    """The job with a different number of workers or machines: the same model the chatbot's written answer uses."""
+    from backend.chat.ops import crew_whatif_payload
+    if task_type not in TASK_TYPES_BY_CODE:
+        raise HTTPException(status_code=404, detail="unknown task type")
+    return crew_whatif_payload(task_type, max(10, min(720, duration_min)),
+                               None if workers is None else max(1, min(60, workers)), None if machines is None else max(0, min(6, machines)))
+
+
 @router.get("/api/efficiency")
 def efficiency() -> dict:
     from backend.api.routes import _cluster_pool, rerouting_proof

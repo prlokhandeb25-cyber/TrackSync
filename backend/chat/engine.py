@@ -452,7 +452,7 @@ INTENTS: list[tuple[str, re.Pattern, Callable]] = [
 ]
 
 
-def answer(question: str, world, plan=None, at_s: int = 0) -> Answer:
+def _answer(question: str, world, plan=None, at_s: int = 0) -> Answer:
     q = (question or "").strip()
     if not q:
         return _h_help(q, Entities(), world)
@@ -487,4 +487,16 @@ def answer(question: str, world, plan=None, at_s: int = 0) -> Answer:
 
     a = _h_help(q, e, world)
     a.text = ("Hmm, I'm not sure I followed that one. " + a.text)
+    return a
+
+
+def answer(question: str, world, plan=None, at_s: int = 0) -> Answer:
+    """The answer, bulleted, and drawn if it has a shape. Tidying and drawing only ever add to an answer."""
+    a = _answer(question, world, plan, at_s)
+    try:
+        from backend.chat.ops import neaten, visualise
+        a.text = neaten(a.text)
+        visualise(a, question, world, plan, int(at_s or 0))
+    except Exception:                                    # a picture is a bonus; never lose the answer over it
+        pass
     return a

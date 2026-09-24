@@ -68,6 +68,10 @@ export type ChatVisual =
   | { type: 'tasks'; title: string; day: number | null
       rows: { id: string; dept: string; label: string; zone: string; priority: number; start_s: number; end_s: number; source: string }[] }
   | { type: 'daystrip'; title: string; range: [number, number]; tracks: { track: string; trains: [number, number, string][] }[] }
+  | { type: 'verdict'; title: string; verdict: 'COMPATIBLE' | 'REQUIRES_IWP' | 'INCOMPATIBLE'; rule: string; where: string
+      a: { label: string; dept: string }; b: { label: string; dept: string } }
+  | { type: 'crew'; title: string; task_type: string; label: string; duration_min: number; norm_workers: number; norm_machines: number
+      machine_names: string[]; workers: number; machines: number; max_workers: number }
   | { type: 'blockbar'; title: string; planned_min: number; actual_min: number; jobs: { label: string; min: number }[] }
   | { type: 'profile'; title: string; unit: string; day: string; highlight: [number, number] | null
       hours: { hour: number; value: number; passengers: number }[] }
@@ -260,6 +264,8 @@ export const api = {
   sectionBrief: (id: string, atS: number) =>
     j<SectionBrief>(`/api/sections/${encodeURIComponent(id)}/brief?at_s=${Math.round(atS)}`),
   clusters: (method: 'average' | 'kmedoids' = 'average') => j<ClustersData>(`/api/tasks/clusters?method=${method}`),
+  resourcesWhatif: (taskType: string, durationMin: number, workers: number, machines: number | null) =>
+    j<CrewWhatif>(`/api/resources/whatif?task_type=${encodeURIComponent(taskType)}&duration_min=${Math.round(durationMin)}&workers=${workers}${machines === null ? '' : `&machines=${machines}`}`),
   efficiency: () => j<EfficiencyData>('/api/efficiency'),
   studioScale: () => j<StudioJob<ScaleData>>('/api/studio/scale'),
   studioScaleRun: () => j<{ started: boolean; busy_with?: string }>('/api/studio/scale/run', { method: 'POST' }),
@@ -617,3 +623,7 @@ export interface LearningData {
   recent: { task_id: string; department: string; rain: boolean; planned_min: number; actual_min: number; ratio: number }[]
   n_real: number; n_simulated: number; note: string
 }
+
+export interface CrewCost { workers: number; machines: number; norm_workers: number; norm_machines: number; work_min: number; block_min: number
+                            overhead_min: number; people: number; person_hours: number; cost: { labour: number; equipment: number; materials: number; total: number } }
+export interface CrewWhatif { base: CrewCost; new: CrewCost; curve: { workers: number; work_min: number }[]; cap_workers: number }

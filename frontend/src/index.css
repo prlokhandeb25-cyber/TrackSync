@@ -927,3 +927,17 @@ tbody tr:nth-child(even) td { background: color-mix(in srgb, var(--panel-2) 55%,
 .prop-sum { font-size: 11.5px; color: var(--text-dim); margin-top: 3px; }
 .prop-act { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; } .prop-act input { flex: 1; min-width: 160px; }
 .audit-row { font-size: 11.5px; padding: 4px 0; border-top: 1px solid var(--line-soft); }
+
+/* slider and verdict pictures in the chat */
+.cv-crew { display: grid; gap: 8px; }
+.cvc-sliders { display: grid; gap: 6px; }
+.cvc-sliders label { display: grid; gap: 2px; font-size: 11.5px; }
+.cvc-sliders input[type=range] { width: 100%; accent-color: var(--accent); }
+.cvc-out { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
+.cvc-t { background: var(--panel-2); border: 1px solid var(--line-soft); border-radius: 6px; padding: 6px 9px; font-size: 11px; color: var(--text-dim); display: grid; }
+.cvc-t b { font-size: 17px; color: var(--text); font-variant-numeric: tabular-nums; }
+.cvc-t em { font-style: normal; font-size: 10.5px; color: var(--text-mute); } .cvc-t em.good { color: var(--fit); font-weight: 700; } .cvc-t em.bad { color: var(--stopstart); font-weight: 700; }
+.cv-verdict { display: grid; grid-template-columns: 1fr auto 1fr; gap: 8px; align-items: center; padding: 6px 0; }
+.cvv-box { border: 1.5px solid var(--line); border-radius: 8px; padding: 7px 9px; display: grid; font-size: 11.5px; background: var(--panel-2); text-align: center; }
+.cvv-box span { font-size: 10px; color: var(--text-mute); font-family: var(--mono); }
+.cvv-link { display: grid; justify-items: center; font-size: 10.5px; } .cvv-link em { font-style: normal; font-weight: 700; }

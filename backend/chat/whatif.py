@@ -738,8 +738,12 @@ def h_can_together(q: str, s: Slots, world, now_s: int) -> Answer:
         text += " An IWP is a permit, not a free pass: it costs coordination and the daily quota is two."
     else:
         text += " Sharing saves one protected block, which is what the clustering looks for."
-    return Answer(text, facts, ["rule engine (R0-R4)", "department declarations"], "together",
-                  suggestions=["what if it is a 90 minute job?", f"who is working on {zones[0].ref} tomorrow?"])
+    ans = Answer(text, facts, ["rule engine (R0-R4)", "department declarations"], "together",
+                 suggestions=["what if it is a 90 minute job?", f"who is working on {zones[0].ref} tomorrow?"])
+    ans.visual = {"type": "verdict", "title": "Can they share the block?", "verdict": verdict, "rule": r.rule_id or "",
+                  "a": {"label": tts[0].label, "dept": tts[0].department.value}, "b": {"label": tts[1].label, "dept": tts[1].department.value},
+                  "where": where}
+    return ans
 
 
 # ------------------------------------------------------------------- who is working, and traffic

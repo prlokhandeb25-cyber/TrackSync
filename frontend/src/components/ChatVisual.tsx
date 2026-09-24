@@ -1,4 +1,5 @@
-import type { ChatVisual } from '../api'
+import { useEffect, useRef, useState } from 'react'
+import { api, type ChatVisual, type CrewWhatif } from '../api'
 
 /* The small chart RailMitra draws under an answer when the answer has a shape: the week with a new
    block dropped into it (what stays, what moves, where the new block sits), or a section's trains
@@ -190,6 +191,80 @@ function DayStrip({ v }: { v: Extract<ChatVisual, { type: 'daystrip' }> }) {
   )
 }
 
+/* Two jobs and the rule engine's verdict between them. */
+function Verdict({ v }: { v: Extract<ChatVisual, { type: 'verdict' }> }) {
+  const col = v.verdict === 'COMPATIBLE' ? 'var(--fit)' : v.verdict === 'REQUIRES_IWP' ? 'var(--amber)' : 'var(--stopstart)'
+  const word = v.verdict === 'COMPATIBLE' ? 'can share' : v.verdict === 'REQUIRES_IWP' ? 'only with a joint permit' : 'must be apart'
+  const dc: Record<string, string> = { PWI: 'var(--d-pwi)', OWD: 'var(--d-owd)', S_AND_T: 'var(--d-snt)' }
+  return (
+    <div className="cv-verdict">
+      <div className="cvv-box" style={{ borderColor: dc[v.a.dept] }}><b>{v.a.label}</b><span>{v.a.dept.replace('S_AND_T', 'S&T')}</span></div>
+      <div className="cvv-link" style={{ color: col }}>
+        <svg viewBox="0 0 90 22" width="90" height="22"><line className="cv-grow" x1={2} y1={11} x2={88} y2={11} stroke={col} strokeWidth={3}
+             strokeDasharray={v.verdict === 'INCOMPATIBLE' ? '6 5' : v.verdict === 'REQUIRES_IWP' ? '2 4' : '0'} strokeLinecap="round" />
+          {v.verdict === 'INCOMPATIBLE' && <path d="M40 5l10 12M50 5l-10 12" stroke={col} strokeWidth={2.4} strokeLinecap="round" />}</svg>
+        <em>{word}</em>
+      </div>
+      <div className="cvv-box" style={{ borderColor: dc[v.b.dept] }}><b>{v.b.label}</b><span>{v.b.dept.replace('S_AND_T', 'S&T')}</span></div>
+    </div>
+  )
+}
+
+/* Slide the number of workers or machines and see what it does. The numbers come from the same model as the written answer. */
+function Crew({ v }: { v: Extract<ChatVisual, { type: 'crew' }> }) {
+  const [n, setN] = useState(v.workers)
+  const [m, setM] = useState(v.machines)
+  const [d, setD] = useState<CrewWhatif | null>(null)
+  const seq = useRef(0)
+  useEffect(() => {
+    const id = ++seq.current
+    const t = setTimeout(() => api.resourcesWhatif(v.task_type, v.duration_min, n, v.norm_machines ? m : null)
+      .then(r => { if (seq.current === id) setD(r) }).catch(() => undefined), 120)
+    return () => clearTimeout(t)
+  }, [n, m, v.task_type, v.duration_min, v.norm_machines])
+  const b = d?.base, x = d?.new
+  const dt = b && x ? x.work_min - b.work_min : 0
+  const dc = b && x ? x.cost.total - b.cost.total : 0
+  const W = 452, H = 84, L = 6
+  const curve = d?.curve ?? []
+  const mx = Math.max(1, ...curve.map(c => c.work_min))
+  const px = (w: number) => L + ((w - 1) / Math.max(1, v.max_workers - 1)) * (W - 2 * L)
+  const py = (mm: number) => 8 + (1 - mm / mx) * (H - 20)
+  const path = curve.map((c, i) => `${i ? 'L' : 'M'}${px(c.workers).toFixed(1)},${py(c.work_min).toFixed(1)}`).join(' ')
+  const money = (r: number) => `₹${Math.round(r).toLocaleString()}`
+  return (
+    <div className="cv-crew">
+      <div className="cvc-sliders">
+        <label><span>Workers <b>{n}</b><i className="muted"> (usual {v.norm_workers})</i></span>
+          <input type="range" min={1} max={v.max_workers} value={n} onChange={e => setN(Number(e.target.value))} aria-label="Number of workers" /></label>
+        {v.norm_machines > 0 && (
+          <label><span>{v.machine_names[0] ?? 'Machines'} <b>{m}</b><i className="muted"> (usual {v.norm_machines})</i></span>
+            <input type="range" min={1} max={4} value={m} onChange={e => setM(Number(e.target.value))} aria-label="Number of machines" /></label>
+        )}
+        <button className="link" onClick={() => { setN(v.norm_workers); setM(v.norm_machines) }}>back to the usual crew</button>
+      </div>
+      {x && b && (
+        <div className="cvc-out">
+          <div className="cvc-t"><b>{x.work_min}</b> min of work<em className={dt < 0 ? 'good' : dt > 0 ? 'bad' : ''}>{dt === 0 ? 'as usual' : `${dt < 0 ? '' : '+'}${dt} min`}</em></div>
+          <div className="cvc-t"><b>{x.block_min}</b> min on the track<em>{x.overhead_min} min set-up and hand-back</em></div>
+          <div className="cvc-t"><b>{money(x.cost.total)}</b> cost<em className={dc < 0 ? 'good' : dc > 0 ? 'bad' : ''}>{dc === 0 ? 'as usual' : `${dc < 0 ? '−' : '+'}${money(Math.abs(dc))}`}</em></div>
+          <div className="cvc-t"><b>{x.people}</b> people on site<em>{x.person_hours} person-hours</em></div>
+        </div>
+      )}
+      {curve.length > 1 && (
+        <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img" aria-label="Work time against crew size">
+          <path d={path} fill="none" stroke="var(--accent)" strokeWidth={2.2} strokeLinejoin="round" opacity={0.85} />
+          {d && <line x1={px(d.cap_workers)} x2={px(d.cap_workers)} y1={6} y2={H - 12} stroke="var(--line)" strokeDasharray="3 3" />}
+          {d && <text x={px(d.cap_workers) + 4} y={16} fontSize={8.5} fill="var(--text-mute)">no faster beyond here</text>}
+          <circle cx={px(n)} cy={py(curve.find(c => c.workers === n)?.work_min ?? 0)} r={5} fill="var(--accent)" stroke="var(--panel)" strokeWidth={1.6} />
+          <text x={L} y={H - 2} fontSize={9} fill="var(--text-mute)">1 worker</text>
+          <text x={W - L} y={H - 2} fontSize={9} textAnchor="end" fill="var(--text-mute)">{v.max_workers} workers</text>
+        </svg>
+      )}
+    </div>
+  )
+}
+
 const DEPT_C: Record<string, string> = { PWI: 'var(--d-pwi)', OWD: 'var(--d-owd)', S_AND_T: 'var(--d-snt)' }
 
 /* The jobs themselves: who, what, where, when, and how urgent, each on its own 24-hour line. */
@@ -266,7 +341,7 @@ export default function ChatVisualView({ v }: { v: ChatVisual }) {
     <div className="cv">
       <div className="cv-title">{v.title}</div>
       {v.type === 'schedule' ? <Schedule v={v} /> : v.type === 'profile' ? <Profile v={v} />
-        : v.type === 'route' ? <Route v={v} /> : v.type === 'scatter' ? <Scatter v={v} /> : v.type === 'daystrip' ? <DayStrip v={v} /> : v.type === 'tasks' ? <Tasks v={v} /> : v.type === 'blockbar' ? <BlockBar v={v} /> : <Bars v={v} />}
+        : v.type === 'route' ? <Route v={v} /> : v.type === 'scatter' ? <Scatter v={v} /> : v.type === 'crew' ? <Crew v={v} /> : v.type === 'verdict' ? <Verdict v={v} /> : v.type === 'daystrip' ? <DayStrip v={v} /> : v.type === 'tasks' ? <Tasks v={v} /> : v.type === 'blockbar' ? <BlockBar v={v} /> : <Bars v={v} />}
     </div>
   )
 }
