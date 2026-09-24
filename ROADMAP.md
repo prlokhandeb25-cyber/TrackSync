@@ -60,6 +60,31 @@ The predictive-blocks panel runs on a simulated watch list (A-048); connecting a
 The scheduler for live arrivals is ALNS-lite: repair, one bounded destroy step, no learned operator weights and no
 run to convergence; a full ALNS with several destroy operators and adaptive weights would be the next step.
 
+
+### Assessed and left out: rolling-stock assignment, short-turning and skip-stop (arXiv 2404.04233)
+
+Salode and Ramamoorthy design the timetable of a bidirectional metro line: which services run, when, and how the
+trains are assigned to them, to cut passenger waiting time and operating cost. Assessed against this project's problem
+(placing maintenance blocks into the gaps of a given timetable):
+
+- **Rolling-stock assignment** decides which physical train runs which service. The timetable is an input here and
+  rake circulation and depots are outside block planning, so it does not help.
+- **Skip-stop** redesigns which stations a service serves to cut waiting time. It needs origin-destination demand, which
+  this project does not have (passenger loads are an assumed per-train figure, A-040), and it changes the timetable that
+  block planning takes as given. Mumbai's fast and slow lines already are a form of it. It does not help.
+- **Short-turning** is the one idea with a place here: when a section is fully closed, locals could turn back at the
+  last open station on each side instead of queueing (the paper cites Ghaemi et al. 2018 for this). Not integrated,
+  because it cannot be done honestly yet: the network config has no data on which stations can turn a train back, the
+  timetable does not link a terminating train to the service it forms next, and the digital twin has no back-pressure
+  on the approach side, so it would count a short-turned train's passengers once but a held train's at every section
+  and show a benefit that is an artefact of counting. The timetable already includes the turn-back patterns locals run
+  every day (`suburban.patterns`, e.g. CSTM to TNA, DI, ABH, BUD).
+- **Scale:** the paper's exact models reach the 4-hour time limit on instances of 30-60 trains and some find nothing;
+  this system plans a week for hundreds of trains, which is why it plans against a fixed timetable.
+
+Would need before revisiting: turn-back capable stations and turn-back times per station, the train-to-service linking
+for terminating trains, and queue spill-back on the approach side in the twin.
+
 ### Signalling-level digital twin
 
 Microsimulation at signal-section granularity, to verify block clearance rather than assume it.
