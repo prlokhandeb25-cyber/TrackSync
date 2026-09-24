@@ -210,38 +210,63 @@ function Verdict({ v }: { v: Extract<ChatVisual, { type: 'verdict' }> }) {
   )
 }
 
-/* Slide the number of workers or machines and see what it does. The numbers come from the same model as the written answer. */
+/* Try a scenario from any department: pick the kind of work, its length, and slide the number of workers or machines.
+   The numbers come from the same model as the written answer. */
 function Crew({ v }: { v: Extract<ChatVisual, { type: 'crew' }> }) {
-  const [n, setN] = useState(v.workers)
-  const [m, setM] = useState(v.machines)
+  const first = v.scenarios.find(x => x.task_type === v.task_type)
+  const [dept, setDept] = useState(first?.department ?? 'PWI')
+  const [type, setType] = useState(v.task_type)
+  const [dur, setDur] = useState(v.duration_min)
+  const [n, setN] = useState<number | null>(v.workers)
+  const [m, setM] = useState<number | null>(v.machines || null)
   const [d, setD] = useState<CrewWhatif | null>(null)
   const seq = useRef(0)
   useEffect(() => {
     const id = ++seq.current
-    const t = setTimeout(() => api.resourcesWhatif(v.task_type, v.duration_min, n, v.norm_machines ? m : null)
+    const t = setTimeout(() => api.resourcesWhatif(type, dur, n, m)
       .then(r => { if (seq.current === id) setD(r) }).catch(() => undefined), 120)
     return () => clearTimeout(t)
-  }, [n, m, v.task_type, v.duration_min, v.norm_machines])
+  }, [n, m, type, dur])
+  const list = v.scenarios.filter(x => x.department === dept)
+  const depts = [...new Map(v.scenarios.map(x => [x.department, x.dept_title])).entries()]
   const b = d?.base, x = d?.new
+  const normN = b?.norm_workers ?? v.norm_workers, normM = b?.norm_machines ?? 0
+  const curN = n ?? normN
   const dt = b && x ? x.work_min - b.work_min : 0
   const dc = b && x ? x.cost.total - b.cost.total : 0
   const W = 452, H = 84, L = 6
   const curve = d?.curve ?? []
+  const maxW = 3 * normN
   const mx = Math.max(1, ...curve.map(c => c.work_min))
-  const px = (w: number) => L + ((w - 1) / Math.max(1, v.max_workers - 1)) * (W - 2 * L)
+  const px = (w: number) => L + ((w - 1) / Math.max(1, maxW - 1)) * (W - 2 * L)
   const py = (mm: number) => 8 + (1 - mm / mx) * (H - 20)
   const path = curve.map((c, i) => `${i ? 'L' : 'M'}${px(c.workers).toFixed(1)},${py(c.work_min).toFixed(1)}`).join(' ')
   const money = (r: number) => `₹${Math.round(r).toLocaleString()}`
+  const sc = v.scenarios.find(y => y.task_type === type)
+  const pick = (t: string) => {
+    const s2 = v.scenarios.find(y => y.task_type === t)
+    setType(t); setN(null); setM(null); if (s2) setDur(s2.default_min)
+  }
   return (
     <div className="cv-crew">
+      <div className="cvc-tabs">
+        {depts.map(([k, label]) => (
+          <button key={k} className={dept === k ? 'on' : ''} onClick={() => { setDept(k); const f = v.scenarios.find(y => y.department === k); if (f) pick(f.task_type) }}>{label}</button>
+        ))}
+      </div>
+      <div className="cvc-chips">
+        {list.map(y => <button key={y.task_type} className={type === y.task_type ? 'on' : ''} onClick={() => pick(y.task_type)}>{y.label}</button>)}
+      </div>
       <div className="cvc-sliders">
-        <label><span>Workers <b>{n}</b><i className="muted"> (usual {v.norm_workers})</i></span>
-          <input type="range" min={1} max={v.max_workers} value={n} onChange={e => setN(Number(e.target.value))} aria-label="Number of workers" /></label>
-        {v.norm_machines > 0 && (
-          <label><span>{v.machine_names[0] ?? 'Machines'} <b>{m}</b><i className="muted"> (usual {v.norm_machines})</i></span>
-            <input type="range" min={1} max={4} value={m} onChange={e => setM(Number(e.target.value))} aria-label="Number of machines" /></label>
+        <label><span>Length of the job <b>{dur} min</b></span>
+          <input type="range" min={15} max={480} step={15} value={dur} onChange={e => { setDur(Number(e.target.value)); setN(null); setM(null) }} aria-label="Length of the job in minutes" /></label>
+        <label><span>Workers <b>{curN}</b><i className="muted"> (usual {normN})</i></span>
+          <input type="range" min={1} max={maxW} value={curN} onChange={e => setN(Number(e.target.value))} aria-label="Number of workers" /></label>
+        {normM > 0 && (
+          <label><span>{b?.machine_names[0] ?? 'Machines'} <b>{m ?? normM}</b><i className="muted"> (usual {normM})</i></span>
+            <input type="range" min={1} max={4} value={m ?? normM} onChange={e => setM(Number(e.target.value))} aria-label="Number of machines" /></label>
         )}
-        <button className="link" onClick={() => { setN(v.norm_workers); setM(v.norm_machines) }}>back to the usual crew</button>
+        <button className="link" onClick={() => { setN(null); setM(null) }}>back to the usual crew</button>
       </div>
       {x && b && (
         <div className="cvc-out">
@@ -251,14 +276,21 @@ function Crew({ v }: { v: Extract<ChatVisual, { type: 'crew' }> }) {
           <div className="cvc-t"><b>{x.people}</b> people on site<em>{x.person_hours} person-hours</em></div>
         </div>
       )}
+      {d && (
+        <div className="cvc-bill">
+          <b>{sc?.label ?? d.estimate.label}</b>: {d.estimate.roles.map(r => `${r.n} ${r.role.toLowerCase()}`).join(', ')}.
+          <span> Bring {d.estimate.equipment.join(', ').toLowerCase()}.</span>
+          {d.estimate.power_block && <span> Needs a power block.</span>}
+        </div>
+      )}
       {curve.length > 1 && (
         <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img" aria-label="Work time against crew size">
           <path d={path} fill="none" stroke="var(--accent)" strokeWidth={2.2} strokeLinejoin="round" opacity={0.85} />
           {d && <line x1={px(d.cap_workers)} x2={px(d.cap_workers)} y1={6} y2={H - 12} stroke="var(--line)" strokeDasharray="3 3" />}
           {d && <text x={px(d.cap_workers) + 4} y={16} fontSize={8.5} fill="var(--text-mute)">no faster beyond here</text>}
-          <circle cx={px(n)} cy={py(curve.find(c => c.workers === n)?.work_min ?? 0)} r={5} fill="var(--accent)" stroke="var(--panel)" strokeWidth={1.6} />
+          <circle cx={px(curN)} cy={py(curve.find(c => c.workers === curN)?.work_min ?? 0)} r={5} fill="var(--accent)" stroke="var(--panel)" strokeWidth={1.6} />
           <text x={L} y={H - 2} fontSize={9} fill="var(--text-mute)">1 worker</text>
-          <text x={W - L} y={H - 2} fontSize={9} textAnchor="end" fill="var(--text-mute)">{v.max_workers} workers</text>
+          <text x={W - L} y={H - 2} fontSize={9} textAnchor="end" fill="var(--text-mute)">{maxW} workers</text>
         </svg>
       )}
     </div>

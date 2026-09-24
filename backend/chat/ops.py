@@ -130,8 +130,35 @@ def _cost_visual(c: dict) -> dict:
                       {"label": "Materials", "value": k["materials"], "best": False}]}
 
 
+def h_departments_compare(q: str, s: W.Slots, world, now_s: int) -> Answer:
+    """One typical job from each department side by side, with the slider ready to switch between all of them."""
+    from backend.domain.task import TASK_TYPES_BY_CODE
+    picks = [("PWI", "PWI_TAMPING"), ("OWD", "OWD_INSULATOR"), ("S_AND_T", "SNT_POINT_MACHINE")]
+    dur = s.duration_min or 90
+    rows = []
+    for dept, code in picks:
+        tt = TASK_TYPES_BY_CODE[code]
+        c = RS.costed(tt, dur)
+        rows.append((dept, tt, c))
+    text = (f"Here is a typical **{dur}-minute** job from each department:\n\n"
+            + "\n".join(f"- **{DEPT_TITLE[d]}:** {tt.label.lower()}, **{c['people']}** people, **{c['block_min']} min** on the track, about **{INR(c['cost']['total'])}**"
+                        for d, tt, c in rows)
+            + "\n\nUse the slider below to switch to any other kind of work in these three departments, change its length, and add or remove workers."
+            + "\n\n*Typical planning norms and assumed rates, not measured figures.*")
+    a = Answer(text, [{"k": DEPT_TITLE[d].split(" (")[0].lower(), "v": f"{c['people']} people"} for d, tt, c in rows],
+               ["planning norms and rates (assumed)", "nothing was changed"], "resources",
+               suggestions=["what does a 3 hour tamping job need?", "how long would an OHE mast job take with 8 workers?"])
+    first = rows[0][1]
+    a.visual = _crew_visual(first, dur, rows[0][2]["norm_workers"], rows[0][2]["norm_machines"])
+    a.visuals = [{"type": "bars", "title": f"People on site for a {dur}-minute job", "items": [{"label": DEPT_TITLE[d].split(" (")[0], "value": c["people"], "best": False} for d, tt, c in rows]},
+                 {"type": "bars", "title": "Cost (₹ thousand)", "items": [{"label": DEPT_TITLE[d].split(" (")[0], "value": round(c["cost"]["total"] / 1000, 1), "best": False} for d, tt, c in rows]}]
+    return a
+
+
 def h_resources(q: str, s: W.Slots, world, now_s: int) -> Answer:
     low = q.lower()
+    if re.search(r"\b(each|every|all( three| the)?|different|various)\b.*\b(dept|departments?|branches|disciplines)\b|\b(ohe|engineering|signalling|signaling|s&t).*\b(and|vs|versus|compare)\b.*\b(ohe|engineering|signalling|signaling|s&t|p\.?way)\b", low):
+        return h_departments_compare(q, s, world, now_s)
     tt = _tt(s)
     dur = s.duration_min or max(tt.min_duration_min, min(90, tt.max_duration_min))
     e = RS.estimate(tt, dur)
@@ -353,13 +380,27 @@ def _day_visual(st, section: str, day: int, t0: int, t1: int, world) -> dict:
 # ---------------------------------------------------------------------------------------- the crew slider
 
 
+DEPT_TITLE = {"PWI": "Engineering (P.Way)", "OWD": "OHE (overhead)", "S_AND_T": "Signalling (S&T)"}
+
+
+def scenarios() -> list[dict]:
+    """Every kind of work in the three departments, with a typical length: what the slider can be switched to."""
+    from backend.domain.task import TASK_TYPES
+    out = []
+    for t in TASK_TYPES:
+        mid = (t.min_duration_min + t.max_duration_min) / 2
+        out.append({"task_type": t.code, "label": t.label, "department": t.department.value, "dept_title": DEPT_TITLE[t.department.value],
+                    "default_min": int(max(15, round(mid / 15.0) * 15)), "min_min": t.min_duration_min, "max_min": t.max_duration_min})
+    return out
+
+
 def _crew_visual(tt, dur: int, workers: int, machines: int) -> dict:
     """An interactive picture: the page moves the sliders and asks /api/resources/whatif for the effect, so the
     numbers always come from the same model as the written answer."""
     base = RS.costed(tt, dur)
     return {"type": "crew", "title": "Slide the crew up or down", "task_type": tt.code, "label": tt.label, "duration_min": dur,
             "norm_workers": base["norm_workers"], "norm_machines": base["norm_machines"], "machine_names": base["machine_names"],
-            "workers": workers, "machines": machines, "max_workers": 3 * base["norm_workers"]}
+            "workers": workers, "machines": machines, "max_workers": 3 * base["norm_workers"], "scenarios": scenarios()}
 
 
 def crew_whatif_payload(task_type: str, duration_min: int, workers: int | None, machines: int | None) -> dict:
@@ -368,7 +409,10 @@ def crew_whatif_payload(task_type: str, duration_min: int, workers: int | None, 
     n0 = base["norm_workers"]
     curve = [{"workers": n, "work_min": RS.costed(task_type, duration_min, workers=n, machines=machines)["work_min"]}
              for n in range(1, 3 * n0 + 1)]
-    return {"base": base, "new": new, "curve": curve, "cap_workers": 2 * n0}
+    est = RS.estimate(task_type, duration_min)
+    return {"base": base, "new": new, "curve": curve, "cap_workers": 2 * n0,
+            "estimate": {"label": est["label"], "department": est["department"], "roles": est["roles"], "equipment": est["equipment"],
+                         "materials": est["materials"], "power_block": est["power_block"]}}
 
 
 # ------------------------------------------------------------------ a quick picture for every answer that has a shape

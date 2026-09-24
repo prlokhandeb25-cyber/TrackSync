@@ -78,3 +78,26 @@ def test_the_slider_agrees_with_the_written_answer_and_never_gets_slower_with_mo
     assert resources_whatif(crew["task_type"], 180, 1, 1)["new"]["work_min"] > resources_whatif(crew["task_type"], 180, 20, 1)["new"]["work_min"]
     with pytest.raises(Exception):
         resources_whatif("NOT_A_TYPE", 60, 3, None)
+
+
+def test_the_crew_widget_offers_every_kind_of_work_in_all_three_departments(live):
+    from backend.api.routes_efficiency import resources_whatif
+    from backend.domain.task import TASK_TYPES
+    w, plan = live
+    a = answer("what does a 3 hour tamping job need?", w, plan, 9 * 3600)
+    sc = a.visual["scenarios"]
+    assert {s["task_type"] for s in sc} == {t.code for t in TASK_TYPES}
+    assert {s["department"] for s in sc} == {"PWI", "OWD", "S_AND_T"}
+    assert all(s["min_min"] <= s["default_min"] <= max(s["max_min"], 15) + 15 for s in sc)
+    for s in sc:                                                       # every scenario the widget can switch to answers, with its own bill
+        r = resources_whatif(s["task_type"], s["default_min"], None, None)
+        assert r["estimate"]["roles"] and r["estimate"]["equipment"] and r["new"]["work_min"] == r["base"]["work_min"]
+
+
+def test_asking_about_each_department_compares_them_and_keeps_the_slider(live):
+    w, plan = live
+    a = answer("what do jobs from each department need?", w, plan, 9 * 3600)
+    assert a.intent == "resources" and a.visual["type"] == "crew"
+    for name in ("Engineering", "OHE", "Signalling"):
+        assert name in a.text
+    assert a.visuals[0]["type"] == "bars" and len(a.visuals[0]["items"]) == 3
