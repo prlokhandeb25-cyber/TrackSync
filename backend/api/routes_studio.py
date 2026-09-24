@@ -71,13 +71,20 @@ def _state(name: str) -> dict:
 def _scale(progress):
     w = ensure_world()
     pax = get_pax()
-    rows = []
+    occ = occupancy_by_section()
+    rows, fast = [], []
+    total = len(SC.SIZES) + len(SC.FAST_SIZES)
     for i, n in enumerate(SC.SIZES):
-        rows.append(SC.run_size(w, pax, n, SC.BUDGET_S[n]))
+        rows.append(SC.run_size(w, pax, n, SC.BUDGET_S[n], occ=occ))
         with _LOCK:
-            _S["scale"]["data"] = {"rows": list(rows), "partial": True}
-        progress(i + 1, len(SC.SIZES))
-    return {"rows": rows, "partial": False,
+            _S["scale"]["data"] = {"rows": list(rows), "fast": [], "partial": True}
+        progress(i + 1, total)
+    for j, n in enumerate(SC.FAST_SIZES):
+        fast.append(SC.run_fast(w, pax, occ, n))
+        with _LOCK:
+            _S["scale"]["data"] = {"rows": list(rows), "fast": list(fast), "partial": True}
+        progress(len(SC.SIZES) + j + 1, total)
+    return {"rows": rows, "fast": fast, "partial": False,
             "how": "Random jobs on the live network and timetable, solved by the exact solver with a fixed time budget per size; the solver's own progress "
                    "is logged. 'Proven optimal' only if the gap closed to zero inside the budget. The per-day block cap grows with the workload. The fast "
                    "heuristic ignores the gang and daily-block limits, so its count is an upper bound on what it could place legally.",

@@ -27,7 +27,7 @@ const TAB_LABEL: Record<Tab, string> = {
   operations: 'Operations',
   coordination: 'Department coordination',
   plan: 'Weekly block plan',
-  studio: 'Planning studio',
+  studio: 'Scaling studio',
   // capacity: 'Corridor capacity',
   impact: 'Before / after',
   ai: 'AI dispatcher',
@@ -250,11 +250,6 @@ export default function App() {
       setClock(Math.max(0, startS - PROTECT_S - 90)); setSpeed(1); setPlaying(true)
     }
     setFocus({ key: Date.now(), section, startS: startS ?? clockRef.current, ...extra })
-  }
-
-  // After a coordinator applies or reverts a plan, everything on screen that came from the plan is fetched again.
-  const refreshPlan = () => {
-    Promise.all([api.plan(), api.tasks()]).then(([p, t]) => { setPlan(p); setTasks(t.tasks); setTick(x => x + 1) }).catch(() => undefined)
   }
 
   // Take the map to a diversion: the closed section and the whole detour in view, clock just before the
@@ -581,7 +576,7 @@ export default function App() {
         )}
         */}
 
-        {tab === 'studio' && <Studio onPlanChanged={refreshPlan} />}
+        {tab === 'studio' && <Studio />}
         {tab === 'impact' && <Impact />}
         {tab === 'ai' && <AlgoLab />}
         {/* {tab === 'integration' && <Integration />}   IR integration tab: commented out */}

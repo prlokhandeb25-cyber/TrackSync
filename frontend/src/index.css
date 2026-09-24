@@ -948,3 +948,12 @@ tbody tr:nth-child(even) td { background: color-mix(in srgb, var(--panel-2) 55%,
 .cvc-chips { display: flex; gap: 4px; flex-wrap: wrap; }
 .cvc-chips button.on { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); font-weight: 600; }
 .cvc-bill { font-size: 11px; color: var(--text-dim); line-height: 1.45; } .cvc-bill b { color: var(--text); }
+
+.tb-scale { display: grid; gap: 10px; }
+.tbs-row { display: grid; grid-template-columns: 78px 1fr; gap: 10px; align-items: center; animation: slide-in .35s ease backwards; }
+.tbs-lines { display: grid; gap: 4px; }
+.tbs-l { display: grid; grid-template-columns: 150px 1fr 62px; gap: 8px; align-items: center; font-size: 10.5px; color: var(--text-mute); }
+.tbs-l em { font-style: normal; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; text-align: right; }
+.tbs-t { height: 8px; background: var(--panel-3); border-radius: 4px; overflow: hidden; }
+.tbs-t i { display: block; height: 100%; border-radius: 4px; transform-origin: left; animation: grow-x .8s cubic-bezier(.2,.7,.2,1) backwards; }
+.sc-table .bad { color: var(--stopstart); font-weight: 700; }

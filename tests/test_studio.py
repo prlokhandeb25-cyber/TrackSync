@@ -142,3 +142,13 @@ def test_scale_timing_is_recorded_honestly(live):
     assert gaps == sorted(gaps, reverse=True)                            # a proven gap only ever tightens
     assert r["proven_optimal"] == (r["status"] == "OPTIMAL")
     assert r["heuristic"]["wall_s"] < r["wall_s"] + 5
+
+
+def test_scale_runs_are_checked_by_the_independent_referee(live):
+    from backend.planner import scale as SC
+    w, plan, pax, occ = live
+    r = SC.run_size(w, pax, 40, 6.0, occ=occ)
+    assert r["referee"]["violations"] == 0 and r["referee"]["checks"] > 100        # the exact solver's plan passes every rule
+    assert r["heuristic"]["referee"]["checks"] > 100                                # the fast path is checked the same way
+    f = SC.run_fast(w, pax, occ, 120)
+    assert f["n"] == 120 and f["placed"] <= 120 and f["jobs_per_s"] > 0 and f["referee"]["checks"] > 0

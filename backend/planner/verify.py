@@ -70,7 +70,7 @@ def _peak_overlap(spans: list[tuple[int, int]]) -> int:
 
 
 def verify_plan(net: Network, tasks: list[Task], assignments: list, windows: list,
-                occ_by_section: dict[str, list[SectionOccupancy]]) -> VerifyReport:
+                occ_by_section: dict[str, list[SectionOccupancy]], max_blocks_per_day: int | None = None) -> VerifyReport:
     cfg = load_config()
     g = cfg["gaps"]
     rep = VerifyReport()
@@ -167,7 +167,7 @@ def verify_plan(net: Network, tasks: list[Task], assignments: list, windows: lis
     per_day: dict[int, int] = defaultdict(int)
     for _, a in placed:
         per_day[a.start_s // DAY_S] += 1
-    cap_day = int(cfg.get_path("planner.max_blocks_per_day", 8))
+    cap_day = int(max_blocks_per_day if max_blocks_per_day is not None else cfg.get_path("planner.max_blocks_per_day", 8))
     rep.count("daily", len(per_day))
     for d, n in per_day.items():
         if n > cap_day:
