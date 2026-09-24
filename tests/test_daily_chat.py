@@ -107,3 +107,9 @@ def test_the_dynamic_buffer_reaches_its_target_on_the_simulation(live):
     if b["spare_min"] is not None:
         assert dict(b["curve"])[b["spare_min"]] >= b["target"]
         assert all(p < b["target"] for sp, p in b["curve"] if sp < b["spare_min"])      # the smallest spare that works
+
+
+def test_the_plan_summary_question_answers_instead_of_crashing(live):
+    w, plan = live
+    a = answer("how many blocks are planned this week?", w, plan, 9 * 3600)
+    assert a.intent == "plan" and "jobs" in a.text

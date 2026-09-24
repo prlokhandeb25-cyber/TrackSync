@@ -93,6 +93,35 @@ norms, not a prediction (A-052).
 An offline-RL policy trained on the exact solver's own plans. Illegal actions are masked before the choice, so
 rule violations are zero by construction, and this is asserted in evaluation. It re-plans in milliseconds.
 
+## 14. Scale test
+The same weekly model is built for 40, 100, 200 and 400 random jobs (the per-day block cap grows with the
+workload) and solved with a fixed time budget while the solver's own progress is logged: when it first had a
+plan, when its plan was provably within 10%, 5% and 1% of the best possible, and where it stopped. "Proven
+optimal" appears only if the gap closed to zero; otherwise the gap reached is shown. A fast heuristic runs on
+the same jobs for comparison (quick, no proof).
+
+## 15. Trade-off plans
+Five plans, each the exact solver's answer to a different weighting of the same model, starting from the plan in
+force and paying a small cost per job moved, so a difference between plans is a real trade-off, not noise. Each
+is scored on jobs placed, passengers within reach and how often blocks clear before the next train; a plan another
+beats on all three is marked beaten. Choosing one only proposes it.
+
+## 16. Machines and travel
+Each machine kind has a small pool. In the solver, every machine job takes one machine while it runs and any two
+jobs on the same machine are separated by the travel time between their sections. A checker applies the same rule
+to any plan, so the live plan can be scored (it has a conflict today) and the machine-aware plan shown to have none.
+
+## 17. Approvals and audit
+A proposal is a whole alternative plan with what it changes. It needs a stated reason to approve or reject, only
+an approved one can be applied, applying keeps a snapshot, and a revert restores the previous plan exactly. Apply
+is refused while sudden tasks are booked against the current plan. Every step is appended, with who and when, to
+`artifacts/audit_log.jsonl`.
+
+## 18. Learning from execution
+Each logged completion (planned versus actual minutes, dry or rain) moves that group's estimate from a neutral
+prior toward the data, and the buffer follows. No data means no buffer. Real logs and a labelled simulated stream
+are kept apart.
+
 ## What is not claimed
 - Early-warning prediction was removed: the feed was simulated, so accuracy could not be measured.
 - The assumed inputs (crew timing, waiting list, passenger loads, recovery per hop, task data) are listed in

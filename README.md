@@ -55,6 +55,12 @@ reacting to an unplanned defect mid-week possible at all.
 - **RailMitra answers slot questions** (is a gap free, who may use it, what buffer to leave), **crew and cost
   what-ifs** (how long and how much with different workers or machines, assumed rates A-056), and shows jobs
   on screen, as short bullet lists.
+- **Planning studio tab.** (1) A timing curve: the exact solver on random 40, 100, 200 and 400 jobs, with the
+  point where it stops proving optimality shown as the gap it reached. (2) Trade-off plans: five exact
+  solutions favouring jobs done, passengers affected or robustness, a slider between them, and exactly which
+  jobs move against the plan in force. (3) Machines that can be in only one place at a time, with travel time
+  (A-057). (4) Propose, approve or reject with a reason, apply, revert, and an append-only audit trail. (5) A
+  learning loop: log planned versus actual duration and the crew buffers follow the data (A-058).
 - **Says what a job needs on site** (people by role, machines, materials) from planning norms, not a
   prediction (A-052).
 - **Early-warning predictions were removed.** The feed was simulated, so its accuracy could not be

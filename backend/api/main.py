@@ -22,6 +22,7 @@ from backend.api.routes_quality import router as quality_router
 from backend.api.routes_methods import router as methods_router
 # from backend.api.routes_forecast import router as forecast_router   # predictive blocks: removed from the live system (accuracy cannot be measured)
 from backend.api.routes_efficiency import router as efficiency_router
+from backend.api.routes_studio import router as studio_router
 from backend.config import REPO_ROOT, load_config, seed_everything
 
 app = FastAPI(title="RailBlock AI", version="0.1.0")
@@ -39,6 +40,7 @@ app.include_router(quality_router)
 app.include_router(methods_router)
 # app.include_router(forecast_router)
 app.include_router(efficiency_router)
+app.include_router(studio_router)
 
 VALIDATION_REPORT = REPO_ROOT / "data" / "validation_report.json"
 

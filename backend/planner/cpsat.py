@@ -152,6 +152,9 @@ def build_and_solve(
     weights: dict | None = None,
     anchor: dict[str, tuple[str, int]] | None = None,
     hard_due: set[str] | None = None,
+    extra=None,
+    max_blocks_per_day: int | None = None,
+    progress: list | None = None,
 ) -> PlanResult:
     cfg = load_config()
     w = {**cfg["planner"]["weights"], **(weights or {})}
@@ -313,12 +316,17 @@ def build_and_solve(
             if len(ivs) > cap:
                 model.AddCumulative(ivs, [1] * len(ivs), cap)
 
+    # ---- Optional extra constraints supplied by the caller (e.g. machines and travel, planner/resource_plan.py).
+    # None (the default) leaves the model exactly as it was.
+    if extra is not None:
+        extra(model, live, interval, start, end, scheduled)
+
     # ---- Blocks granted per day, corridor-wide
     # Without this the optimiser puts almost the whole week's work on Monday night, because
     # finishing sooner is cheaper and nothing forbids it. No control office grants twenty-five
     # blocks in one night: the number of blocks a division can protect, staff and supervise in
     # a day is finite, and it is the real reason weekly plans are spread rather than stacked.
-    max_per_day = int(cfg.get_path("planner.max_blocks_per_day", 8))
+    max_per_day = int(max_blocks_per_day if max_blocks_per_day is not None else cfg.get_path("planner.max_blocks_per_day", 8))
     if "drop_daily_block_cap" not in relax and live:
         for d in range(horizon_days):
             on_day = []
@@ -410,7 +418,16 @@ def build_and_solve(
     solver.parameters.num_search_workers = int(cfg["planner"]["num_search_workers"])
     solver.parameters.random_seed = int(cfg["seed"]) % (2**31 - 1)
     solver.parameters.log_search_progress = bool(log)
-    status = solver.Solve(model)
+    if progress is not None:
+        class _Log(cp_model.CpSolverSolutionCallback):        # (seconds, best objective, best bound) at every improvement
+            def __init__(self):
+                super().__init__()
+
+            def on_solution_callback(self):
+                progress.append((round(time.time() - t0, 2), self.ObjectiveValue(), self.BestObjectiveBound()))
+        status = solver.Solve(model, _Log())
+    else:
+        status = solver.Solve(model)
 
     wall = time.time() - t0
     name = solver.StatusName(status)

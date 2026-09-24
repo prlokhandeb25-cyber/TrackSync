@@ -194,3 +194,12 @@ chat:                              # backend/chat/whatif.py: other names people 
     "Lower Parel": ["parel"]
     "Prabhadevi": ["elphinstone", "elphinstone road"]
     "Mansarovar": ["mansarover"]
+
+resources:                         # backend/planner/resource_plan.py (ASSUMPTIONS A-057)
+  machines: {tamping_machine: 1, ballast_cleaning_machine: 1, tower_wagon: 2}   # machines available to the whole corridor
+  machine_speed_kmph: 25           # a machine travelling between sections
+  machine_shunt_min: 15            # fixed time to get a machine on or off the track
+
+learning:                          # backend/planner/learning.py (ASSUMPTIONS A-058)
+  prior_weight: 5                  # the neutral prior counts as this many past jobs
+  min_n: 10                        # below this many logged jobs in a group, fall back to the spread of all logged jobs

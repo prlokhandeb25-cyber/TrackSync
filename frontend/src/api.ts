@@ -261,6 +261,29 @@ export const api = {
     j<SectionBrief>(`/api/sections/${encodeURIComponent(id)}/brief?at_s=${Math.round(atS)}`),
   clusters: (method: 'average' | 'kmedoids' = 'average') => j<ClustersData>(`/api/tasks/clusters?method=${method}`),
   efficiency: () => j<EfficiencyData>('/api/efficiency'),
+  studioScale: () => j<StudioJob<ScaleData>>('/api/studio/scale'),
+  studioScaleRun: () => j<{ started: boolean; busy_with?: string }>('/api/studio/scale/run', { method: 'POST' }),
+  studioPareto: () => j<StudioJob<ParetoData>>('/api/studio/pareto'),
+  studioParetoRun: () => j<{ started: boolean; busy_with?: string }>('/api/studio/pareto/run', { method: 'POST' }),
+  studioPropose: (kind: 'pareto' | 'resources', pointId: string, by: string) =>
+    j<Proposal>(`/api/studio/${kind}/propose`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ point_id: pointId, by }) }),
+  studioResources: (t: number, b: number, w: number) => j<MachinesData>(`/api/studio/resources?tamper=${t}&ballast=${b}&tower=${w}`),
+  studioResourcesRun: (t: number, b: number, w: number) => j<{ started: boolean; busy_with?: string }>('/api/studio/resources/run', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tamper: t, ballast: b, tower: w }) }),
+  approvals: () => j<ApprovalsData>('/api/approvals'),
+  decide: (id: string, approve: boolean, reason: string, by: string) => j<Proposal>(`/api/approvals/${id}/decide`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ approve, reason, by }) }),
+  applyProposal: (id: string, by: string) => j<Proposal>(`/api/approvals/${id}/apply`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ by }) }),
+  revertPlan: (by: string) => j<Proposal>('/api/approvals/revert', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ by }) }),
+  learning: (source: 'real' | 'simulated') => j<LearningData>(`/api/learning?source=${source}`),
+  learningTasks: () => j<{ tasks: { id: string; label: string; department: string; planned_min: number }[] }>('/api/learning/tasks'),
+  learningLog: (task_id: string, actual_min: number, rain: boolean) => j<{ n_real: number }>('/api/learning/log', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ task_id, actual_min, rain }) }),
+  learningSimulate: (n: number) => j<{ n_simulated: number }>('/api/learning/simulate', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ n }) }),
+  learningResetSim: () => j<{ n_simulated: number }>('/api/learning/reset-simulated', { method: 'POST' }),
   resources: (taskType: string, durationMin: number) => j<ResourceEstimate>(`/api/resources/estimate?task_type=${encodeURIComponent(taskType)}&duration_min=${Math.round(durationMin)}`),
   reroutingProof: () => j<RerouteProof>('/api/rerouting/proof'),
   forecast: () => j<ForecastData>('/api/forecast'),
@@ -555,4 +578,42 @@ export interface ResourceEstimate {
   task_type: string; label: string; department: string; duration_min: number; people_per_shift: number; shifts: number
   people_total: number; roles: { role: string; n: number }[]; equipment: string[]; materials: string[]
   power_block: boolean; traffic_block: boolean; basis: string
+}
+
+export interface StudioJob<T> { status: 'idle' | 'running' | 'done' | 'error'; progress: [number, number]; data: T | null; error: string | null; busy_with: string | null }
+export interface ScaleRow {
+  n: number; budget_s: number; status: string; proven_optimal: boolean; placed: number; wall_s: number; final_gap_pct: number
+  first_plan_s: number | null; within_10_s: number | null; within_5_s: number | null; within_1_s: number | null
+  windows: number; block_cap_per_day: number; curve: [number, number][]; heuristic: { placed: number; wall_s: number }
+}
+export interface ScaleData { rows: ScaleRow[]; partial: boolean; how?: string; caveat?: string }
+export interface DiffRow { task_id: string; label: string; department?: string; zone?: string; from?: [number, number]; to?: [number, number] }
+export interface ParetoPoint {
+  id: string; title: string; why: string; status: string; gap_pct: number; wall_s: number; placed: number; passengers: number; robust: number
+  dominated: boolean; objective: number
+  diff: { moved: DiffRow[]; added: DiffRow[]; dropped: DiffRow[]; unchanged: number }
+}
+export interface ParetoData { reference: { placed: number; passengers: number; robust: number }; points: ParetoPoint[]; how: string; caveat: string }
+export interface Proposal {
+  id: string; kind: string; title: string; status: 'proposed' | 'approved' | 'rejected' | 'applied' | 'reverted'; created_at: string; created_by: string
+  summary: { placed: number; passengers: number; robust: number; status: string; gap_pct: number }
+  diff: { n_moved: number; n_added: number; n_dropped: number; unchanged: number; moved: DiffRow[] }
+  reason: string; decided_by: string | null; decided_at: string | null
+}
+export interface AuditEntry { seq: number; at: string; event: string; proposal: string | null; by: string; detail: Record<string, unknown> | string }
+export interface ApprovalsData { proposals: Proposal[]; audit: AuditEntry[]; can_revert: string | null; plan_in_force: { placed: number; status: string } }
+export interface MachineConflict { machine: string; task_id: string; label: string; zone: string; start_s: number; short_by_min: number; kind: string }
+export interface MachinesData {
+  pools: Record<string, number>; machine_jobs: number; live_conflicts: MachineConflict[]; assumption: string
+  solve: StudioJob<{
+    pools: Record<string, number>; moved_vs_live: number; how: string; caveat: string
+    without: { status: string; placed: number; objective: number; conflicts: MachineConflict[] }
+    with: { status: string; placed: number; objective: number; conflicts: MachineConflict[] }
+  }>
+}
+export interface LearnRow { department: string; rain: boolean; n: number; mean: number; p80: number; buffer_min_120: number; prior: number; hidden_true_mean: number | null }
+export interface LearningData {
+  source: 'real' | 'simulated'; n: number; estimate: LearnRow[]; convergence: { n: number; mean_abs_error: number }[]
+  recent: { task_id: string; department: string; rain: boolean; planned_min: number; actual_min: number; ratio: number }[]
+  n_real: number; n_simulated: number; note: string
 }

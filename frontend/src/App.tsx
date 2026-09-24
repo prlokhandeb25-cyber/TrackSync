@@ -7,6 +7,7 @@ import Chat, { MitraIcon } from './components/Chat'
 import Impact from './components/Impact'
 import AlgoLab from './components/AlgoLab'
 import EfficiencyPanel from './components/EfficiencyPanel'
+import Studio from './components/Studio'
 // import Integration from './components/Integration'   // IR integration tab: commented out
 import ProofStrip from './components/ProofStrip'
 import YourJobs from './components/YourJobs'
@@ -20,12 +21,13 @@ import {
 } from './api'
 
 // 'capacity' (Corridor capacity) and 'integration' (IR integration) are commented out of the tab bar.
-type Tab = 'operations' | 'coordination' | 'plan' | 'impact' | 'ai'
+type Tab = 'operations' | 'coordination' | 'plan' | 'studio' | 'impact' | 'ai'
 
 const TAB_LABEL: Record<Tab, string> = {
   operations: 'Operations',
   coordination: 'Department coordination',
   plan: 'Weekly block plan',
+  studio: 'Planning studio',
   // capacity: 'Corridor capacity',
   impact: 'Before / after',
   ai: 'AI dispatcher',
@@ -36,6 +38,7 @@ const TAB_ICON: Record<Tab, string> = {
   operations: 'M12 21s-7-6.2-7-11.2A7 7 0 0 1 19 9.8C19 14.8 12 21 12 21zM12 12.2a2.4 2.4 0 1 0 0-4.8 2.4 2.4 0 0 0 0 4.8z',
   coordination: 'M16 11a3 3 0 1 0-3-3 3 3 0 0 0 3 3zM8 12a3 3 0 1 0-3-3 3 3 0 0 0 3 3zM8 14c-3 0-5 1.6-5 3.5V19h10v-1.5C13 15.6 11 14 8 14zm8 0c-.4 0-.8 0-1.2.1 1.4 1 2.2 2.3 2.2 3.9V19h4v-1.5c0-1.9-2-3.5-5-3.5z',
   plan: 'M7 3v3M17 3v3M4 9h16M5 5h14a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1zM8 13h3M8 16h6',
+  studio: 'M4 7h10M18 7h2M4 17h2M10 17h10M14 5v4M8 15v4M4 12h4M12 12h8',
   impact: 'M5 20V11M11 20V5M17 20v-6M3 20h18',
   ai: 'M9 3v2M15 3v2M9 19v2M15 19v2M3 9h2M3 15h2M19 9h2M19 15h2M7 5h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2zM9.5 9.5h5v5h-5z',
 }
@@ -247,6 +250,11 @@ export default function App() {
       setClock(Math.max(0, startS - PROTECT_S - 90)); setSpeed(1); setPlaying(true)
     }
     setFocus({ key: Date.now(), section, startS: startS ?? clockRef.current, ...extra })
+  }
+
+  // After a coordinator applies or reverts a plan, everything on screen that came from the plan is fetched again.
+  const refreshPlan = () => {
+    Promise.all([api.plan(), api.tasks()]).then(([p, t]) => { setPlan(p); setTasks(t.tasks); setTick(x => x + 1) }).catch(() => undefined)
   }
 
   // Take the map to a diversion: the closed section and the whole detour in view, clock just before the
@@ -573,6 +581,7 @@ export default function App() {
         )}
         */}
 
+        {tab === 'studio' && <Studio onPlanChanged={refreshPlan} />}
         {tab === 'impact' && <Impact />}
         {tab === 'ai' && <AlgoLab />}
         {/* {tab === 'integration' && <Integration />}   IR integration tab: commented out */}

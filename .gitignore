@@ -15,3 +15,6 @@ artifacts/screenshots/*
 .DS_Store
 .pytest_cache/
 artifacts/models/
+# operational records written while the system is used
+artifacts/audit_log.jsonl
+artifacts/execution_log.jsonl

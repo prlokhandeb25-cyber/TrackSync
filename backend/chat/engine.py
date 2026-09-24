@@ -329,8 +329,8 @@ def _h_plan(q: str, e: Entities, world, plan=None) -> Answer:
            f"**{plan.micro_gap_count} of them into gaps between trains**. CP-SAT solved it "
            f"{'to optimality' if plan.status == 'OPTIMAL' else 'to a feasible solution'} in "
            f"{plan.wall_s:.1f} seconds.")
-    if plan.n_unscheduled:
-        txt += (f" {plan.n_unscheduled} job(s) found no window long enough anywhere on their "
+    if plan.unscheduled:
+        txt += (f" {len(plan.unscheduled)} job(s) found no window long enough anywhere on their "
                 f"section — those need a window to be created by rerouting.")
     facts = [{"k": DAY_ABBR[d], "v": str(by_day.get(d, 0))} for d in range(7)]
     return Answer(txt, facts, ["CP-SAT plan"], "plan")

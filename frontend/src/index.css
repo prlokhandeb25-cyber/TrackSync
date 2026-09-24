@@ -892,3 +892,38 @@ tbody tr:nth-child(even) td { background: color-mix(in srgb, var(--panel-2) 55%,
 .cvt-p { margin-left: 6px; padding: 1px 5px; border-radius: 4px; font-size: 10px; font-weight: 700; background: var(--panel-3); }
 .cvt-p.p1 { background: var(--stopstart); color: #fff; } .cvt-p.p2 { background: var(--amber); color: #fff; }
 .msg.bot .bubble b { color: var(--text); }
+
+/* ---------------- planning studio ---------------- */
+.sc-line { stroke-dasharray: 1; stroke-dashoffset: 1; animation: draw-line 1.4s ease forwards; }
+.sc-table { width: 100%; font-size: 12px; margin-top: 10px; border-collapse: collapse; }
+.sc-table th { text-align: left; font-size: 10.5px; color: var(--text-mute); font-weight: 600; padding: 4px 6px; position: static; background: none; }
+.sc-table td { padding: 6px; border-top: 1px solid var(--line-soft); }
+.sc-table .good { color: var(--fit); font-weight: 700; } .sc-table .warn { color: var(--amber); font-weight: 600; }
+.sc-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; }
+.par-slider { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; font-size: 11px; color: var(--text-dim); margin-bottom: 8px; }
+.par-slider input { accent-color: var(--accent); }
+.par-dots { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.par-dot { border: 1px solid var(--line); background: var(--panel-2); color: var(--text-dim); border-radius: 999px; padding: 3px 10px; font: inherit; font-size: 11px; cursor: pointer; transition: all .15s; }
+.par-dot.on { background: var(--accent); color: var(--on-accent); border-color: var(--accent); font-weight: 600; }
+.par-dot.dom:not(.on) { opacity: .6; text-decoration: line-through; text-decoration-color: var(--text-mute); }
+.par-bars { display: grid; gap: 6px; margin: 12px 0; }
+.par-bar { display: grid; grid-template-columns: 80px 1fr 90px; gap: 8px; align-items: center; font-size: 11px; }
+.par-bar em { font-style: normal; color: var(--text-mute); font-size: 10px; }
+.par-t { height: 9px; background: var(--panel-3); border-radius: 4px; overflow: hidden; }
+.par-t i { display: block; height: 100%; background: var(--accent); border-radius: 4px; transition: width .35s cubic-bezier(.2,.7,.2,1); }
+.par-moves { font-size: 12px; display: grid; gap: 4px; margin-top: 8px; }
+.par-move { font-size: 12px; padding: 3px 0; border-top: 1px solid var(--line-soft); }
+.mach-row { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 10px; }
+.mach-in { font-size: 12px; color: var(--text-dim); display: inline-flex; gap: 6px; align-items: center; }
+.mach-in input, .learn-form input[type=number], .learn-form select, .prop-act input { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px; color: var(--text); font: inherit; }
+.mach-in input[type=number] { width: 54px; }
+.learn-form { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; font-size: 12px; }
+.learn-form input[type=number] { width: 64px; }
+.prop { border: 1px solid var(--line-soft); border-left: 3px solid var(--text-mute); border-radius: 6px; padding: 9px 12px; margin-bottom: 8px; background: var(--panel-2); animation: rise .3s ease backwards; }
+.prop.st-applied { border-left-color: var(--fit); } .prop.st-approved { border-left-color: var(--accent); } .prop.st-rejected { border-left-color: var(--stopstart); } .prop.st-reverted { border-left-color: var(--amber); }
+.prop-head { font-size: 13px; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.prop-st { margin-left: auto; font-size: 10.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--text-mute); font-weight: 650; }
+.prop-st.st-applied { color: var(--fit); } .prop-st.st-approved { color: var(--accent); } .prop-st.st-rejected { color: var(--stopstart); }
+.prop-sum { font-size: 11.5px; color: var(--text-dim); margin-top: 3px; }
+.prop-act { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; } .prop-act input { flex: 1; min-width: 160px; }
+.audit-row { font-size: 11.5px; padding: 4px 0; border-top: 1px solid var(--line-soft); }
