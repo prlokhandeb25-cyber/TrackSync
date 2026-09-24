@@ -140,9 +140,12 @@ def _p_clear(start: int, dur_s: int, setup: int, release: int, buf: int, look: i
 
 
 def assess(assignments: list, tasks_by_id: dict[str, Task], occ_by_section: dict[str, list[SectionOccupancy]],
-           samples: int = 400, seed: int | None = None) -> list[BlockRisk]:
-    """Clearance probability of every block in a plan, as it stands."""
-    return _assess(assignments, tasks_by_id, occ_by_section, samples, seed)[0]
+           samples: int = 400, seed: int | None = None, over_mean=None) -> list[BlockRisk]:
+    """Clearance probability of every block in a plan, as it stands.
+
+    `over_mean(task, assignment)` gives the average overrun multiplier for that block (1.0 if omitted);
+    the crew-history experiment uses it to score a plan against the crews' real tendencies."""
+    return _assess(assignments, tasks_by_id, occ_by_section, samples, seed, over_mean)[0]
 
 
 def _setup_release(t: Task) -> tuple[int, int, int, int]:
@@ -152,7 +155,7 @@ def _setup_release(t: Task) -> tuple[int, int, int, int]:
             int(g["headway_buffer_s"]), max(int(g["headway_buffer_s"]), int(g.get("lookout_min", 5)) * 60))
 
 
-def _assess(assignments, tasks_by_id, occ_by_section, samples, seed):
+def _assess(assignments, tasks_by_id, occ_by_section, samples, seed, over_mean=None):
     seed = int(load_config()["seed"]) if seed is None else seed
     sigma = float(load_config().get_path("robustness.overrun_sigma", 0.15))
     tracks: dict[tuple[str, str], _Track] = {}
@@ -170,7 +173,10 @@ def _assess(assignments, tasks_by_id, occ_by_section, samples, seed):
         prev, nxt = tr.before(a.start_s), tr.after(a.end_s)
         rng = random.Random(seed * 1009 + k)           # the same draws for before and after
         late = _delay_draws(prev.train_class if prev else None, a.start_s, samples, rng)
-        over = [rng.lognormvariate(-sigma * sigma / 2, sigma) for _ in range(samples)]
+        import math as _m
+        m0 = float(over_mean(t, a)) if over_mean else 1.0
+        mu = _m.log(max(1e-6, m0)) - sigma * sigma / 2
+        over = [rng.lognormvariate(mu, sigma) for _ in range(samples)]
         ctx[a.task_id] = (tr, t, setup, release, buf, look, late, over)
         p = _p_clear(a.start_s, t.duration_min * 60, setup, release, buf, look,
                      prev.exit_s if prev else None, nxt.enter_s if nxt else None, late, over)
@@ -193,7 +199,7 @@ def _overlap_pairs(placed: list[tuple[Task, object]]) -> set[tuple[str, str]]:
 
 def centre_plan(net, tasks: list[Task], assignments: list, windows: list,
                 occ_by_section: dict[str, list[SectionOccupancy]], samples: int = 400,
-                only: set[str] | None = None) -> tuple[list, RobustnessReport]:
+                only: set[str] | None = None, over_mean=None) -> tuple[list, RobustnessReport]:
     """Return a copy of the plan with each job slid to its most robust start, and the measurement.
 
     The input assignments are not modified. A move is kept only if the referee still passes and the
@@ -203,7 +209,7 @@ def centre_plan(net, tasks: list[Task], assignments: list, windows: list,
 
     by_id = {t.id: t for t in tasks}
     win = {w.id: w for w in windows}
-    before, ctx = _assess(assignments, by_id, occ_by_section, samples, None)
+    before, ctx = _assess(assignments, by_id, occ_by_section, samples, None, over_mean)
     new = [copy.copy(a) for a in assignments]
     rep = RobustnessReport(before=before, samples=samples)
     pairs0 = _overlap_pairs([(by_id[a.task_id], a) for a in new if a.task_id in by_id])
@@ -218,9 +224,10 @@ def centre_plan(net, tasks: list[Task], assignments: list, windows: list,
             continue                                    # created gaps are placed by their own logic
         tr, t, setup, release, buf, look, late, over = ctx[b.task_id]
         lo = w.start_s + setup
-        hi = w.end_s - release - t.duration_min * 60
+        resv = t.reserved_min * 60
+        hi = w.end_s - release - resv
         day = a.start_s // DAY_S
-        lo, hi = max(lo, day * DAY_S, t.released_s), min(hi, (day + 1) * DAY_S - t.duration_min * 60)
+        lo, hi = max(lo, day * DAY_S, t.released_s), min(hi, (day + 1) * DAY_S - resv)
         if hi < lo:
             continue
         dur = t.duration_min * 60
@@ -238,12 +245,12 @@ def centre_plan(net, tasks: list[Task], assignments: list, windows: list,
         if best_s == a.start_s:
             continue
         old = (a.start_s, a.end_s)
-        a.start_s, a.end_s = best_s, best_s + dur
+        a.start_s, a.end_s = best_s, best_s + resv
         placed = [(by_id[x.task_id], x) for x in new if x.task_id in by_id]
         ok = verify_plan(net, tasks, new, windows, occ_by_section).ok and _overlap_pairs(placed) == pairs0
         if ok:
             rep.moved += 1
         else:
             a.start_s, a.end_s = old
-    rep.after = _assess(new, by_id, occ_by_section, samples, None)[0]
+    rep.after = _assess(new, by_id, occ_by_section, samples, None, over_mean)[0]
     return new, rep

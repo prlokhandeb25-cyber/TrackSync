@@ -148,3 +148,30 @@ sudden:                            # backend/planner/sudden.py (ASSUMPTIONS A-04
 
 robustness:                        # backend/planner/robustness.py (ASSUMPTIONS A-043)
   overrun_sigma: 0.15              # spread of how long work really takes against its plan (lognormal)
+
+weather:                           # backend/planner/crew_profile.py (ASSUMPTIONS A-045)
+  rain_days: [1, 2]                # days of the week forecast wet (0 = Monday); synthetic
+
+twin:                              # backend/planner/twin.py (ASSUMPTIONS A-046)
+  horizon_h: 12                    # how far ahead the ripple is followed
+  scenarios: 30                    # random days per response
+  recovery_s_per_hop: 30           # delay a train wins back at each section (timetable slack)
+  cancel_after_min: 90             # a train later than this is cancelled or short-terminated: its delay stops counting
+  lateness_scale: 0.3              # share of the configured random lateness applied, so the closure's own effect dominates
+
+predictive:                        # backend/planner/predictive.py (ASSUMPTIONS A-047)
+  p_detect: 0.8                    # assumed share of failures an inspection system warns of in advance
+
+chat:                              # backend/chat/whatif.py: other names people use for a station
+  aliases:
+    "Mumbai CSMT": ["csmt", "cst", "victoria terminus"]
+    "Mumbai Central": ["bombay central"]
+    "Belapur CBD": ["belapur", "cbd belapur"]
+    "Vasai Road": ["vasai"]
+    "Bhivpuri Road": ["bhivpuri"]
+    "Seawoods-Darave": ["seawoods"]
+    "Dadar (W)": ["dadar western", "dadar west"]
+    "Koparkhairane": ["kopar khairane"]
+    "Lower Parel": ["parel"]
+    "Prabhadevi": ["elphinstone", "elphinstone road"]
+    "Mansarovar": ["mansarover"]

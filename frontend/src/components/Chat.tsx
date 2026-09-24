@@ -108,6 +108,7 @@ export default function Chat({ atS = 0, onShow }: {
                 <div className="bubble">
                   {render(t.text)}
                   {t.answer?.visual ? <ChatVisualView v={t.answer.visual} /> : null}
+                  {(t.answer?.visuals ?? []).map((vv, k) => <ChatVisualView key={k} v={vv} />)}
                   {t.answer?.facts?.length ? (
                     <div className="chips">
                       {t.answer.facts.map((f, k) => (

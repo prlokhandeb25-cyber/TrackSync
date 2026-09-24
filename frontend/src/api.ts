@@ -63,6 +63,7 @@ export type ChatVisual =
                 label: string; from?: { start_s: number; end_s: number } }[] }
   | { type: 'profile'; title: string; unit: string; day: string; highlight: [number, number] | null
       hours: { hour: number; value: number; passengers: number }[] }
+  | { type: 'bars'; title: string; items: { label: string; value: number; best: boolean }[] }
 export interface ChatAnswer {
   text: string
   facts: { k: string; v: string }[]
@@ -71,6 +72,7 @@ export interface ChatAnswer {
   suggestions: string[]
   action?: ChatAction | null
   visual?: ChatVisual | null
+  visuals?: ChatVisual[]
 }
 
 export interface ImpactMetric {
@@ -221,6 +223,7 @@ export const api = {
   paxExperiment: () => j<PaxExperiment>('/api/pax/experiment'),
   paxWeekly: () => j<PaxWeekly>('/api/pax/weekly'),
   planVerify: () => j<PlanVerify>('/api/plan/verify'),
+  methodsSummary: () => j<MethodsSummary>('/api/methods/summary'),
   planRobustness: () => j<Robustness>('/api/plan/robustness'),
   buildMonth: (force = false) => j<{ status: string }>(`/api/schedule/month/build?force=${force}`, { method: 'POST' }),
 }
@@ -432,4 +435,36 @@ export interface Robustness {
   ablation_status: 'idle' | 'running' | 'done' | 'error'
   ablation: { placed: number; solver: string; raw: RobStats; centred: RobStats; moved: number } | null
   error: string | null; how: string
+}
+
+interface Pol { pax_min: number; train_min: number; late5: number; sections: number; label: string }
+interface FlatBuf { placed: number; status: string; referee_ok: boolean; mean: number; fragile: number; expected_overruns: number
+                    blocks: number; reserved_hours: number; work_hours: number; topped_up: number }
+export interface MethodsSummary {
+  status: 'idle' | 'running' | 'done' | 'error'
+  error: string | null
+  results: {
+    predictive?: {
+      failures: number; verdict: string; how: string; caveat: string
+      reactive: PredRow
+      predictive: (PredRow & { p_detect: number })[]
+    }
+    twin?: {
+      verdict: string; how: string; caveat: string
+      cases: { label: string; best: 'HOLD' | 'DIVERT' | 'DIVERT_SINGLE'; spread_x: number | null
+               policies: Record<'HOLD' | 'DIVERT' | 'DIVERT_SINGLE', Pol> }[]
+    }
+    bundling?: {
+      verdict: string; how: string; caveat: string; instances: number; blocks_before: number; blocks_after: number
+      held_before: number; held_after: number; merges: number; all_legal: boolean
+    }
+    buffers?: {
+      verdict: string; how: string; caveat: string; jobs_lost: number; flat: FlatBuf; adaptive: FlatBuf
+      learned: { department: string; rain: boolean; n: number; learned_mean: number; true_mean: number }[]
+    }
+  }
+}
+interface PredRow {
+  events: number; emergencies: number; prevented: number; train_min: number; pax_delay_min: number
+  pax_reach: number; peak_jobs: number; placed: number; late: number
 }

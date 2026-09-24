@@ -100,6 +100,15 @@ Open the chat button and ask:
 > trains and overrunning work; the solver avoids fragile windows, so blocks clear before the next
 > train far more often than when the solver plans alone."
 
+## 5c · Advanced methods (60 s) — Advanced methods tab
+
+> "Four ideas we tested against doing it without. Predictive: if a warning works for 80% of failures,
+> emergencies drop from 40 to 12 on this timetable — the warning is assumed, and the card says so.
+> Digital twin: we replay a closure through the next 12 hours; the best response depends on the moment —
+> divert long-distance trains at night, hold by day, and single-line working is worse at midday on this
+> section. Bundling added almost nothing and the card says 'no gain'. Buffers learned from crew history
+> make blocks clear more often, at a cost of a couple of jobs."
+
 ## 6 · Why adopt (45 s) — Before / after
 
 > "Same timetable, same jobs. Each comparison has one headline and how it was measured behind it. The

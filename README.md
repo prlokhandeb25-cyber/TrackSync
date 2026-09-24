@@ -42,6 +42,11 @@ reacting to an unplanned defect mid-week possible at all.
 - **Plans for a bad day.** Each block is simulated against late trains and overrunning work; the
   solver avoids fragile windows and each start time is centred where the line is most likely to be
   handed back before the next train.
+- **Tests four proposed methods** on the *Advanced methods* tab, each against doing it without, with a
+  verdict derived from the numbers: predictive blocks (early warning vs emergency), a digital twin that
+  replays a closure through the next 12 h under each response, multi-department bundling, and adaptive
+  buffers learned from crew history. Two rest on assumed inputs and say so; bundling turned out to add
+  almost nothing and is reported that way.
 - Takes **sudden tasks** (low to critical) that were never in the plan: fits them into an existing
   gap, or opens one, or moves lower-priority work aside and re-places it, in milliseconds, with the
   cost in train-minutes and passengers shown.
@@ -71,6 +76,10 @@ reacting to an unplanned defect mid-week possible at all.
 | Interval tree | about 160x faster range lookups than a full scan, identical answers (varies with machine load) |
 | Best learned policy | behaviour cloning within **10.9%** of optimal on 20 held-out instances (CQL-DQN 11.1%, greedy 13.4%), **25x** faster to re-plan (161 ms vs 4,100 ms), 0 constraint violations |
 | Plan check | referee: 167 checks, 0 violations. Blocks clear before the next train on 97% of simulated days against 88% when the solver plans alone (3 vs 10 fragile blocks of 28); both plans place 36 of 40 and solve to optimal. Varies between runs |
+| Predictive blocks | 40 failures on the real timetable: emergencies 40 → 12 and train-minutes lost 1,262 → 119 if 80% are warned (assumed) |
+| Digital twin | the best response to a closure depends on the moment: on the busiest section with a local track pair, diverting long-distance trains wins at night (679 → 0 passenger-hours of extra delay against holding), while by day holding beats single-line working (1.6-1.7x) |
+| Bundling | no real gain: 190 → 189 protected blocks over 6 instances (1 extra merge); the solver already captures nearly all of it, so it is not in the live pipeline |
+| Adaptive buffers | blocks clear on time 87% → 97% under the (synthetic) crew table, at the cost of 2 fewer jobs placed of 36; optional, not in the live plan |
 | Tests | see the last line of `pytest -q` |
 
 The RL figures are on the placement objective only (the integrated-block reward is a weekly-plan

@@ -96,11 +96,26 @@ function Profile({ v }: { v: Extract<ChatVisual, { type: 'profile' }> }) {
   )
 }
 
+function Bars({ v }: { v: Extract<ChatVisual, { type: 'bars' }> }) {
+  const max = Math.max(1, ...v.items.map(i => i.value))
+  return (
+    <div className="cv-bars">
+      {v.items.map(i => (
+        <div key={i.label} className="cvb-row">
+          <span className="cvb-l">{i.label}</span>
+          <div className="cvb-t"><i style={{ width: `${Math.max(2, (i.value / max) * 100)}%`, background: i.best ? 'var(--fit)' : 'var(--text-mute)' }} /></div>
+          <span className="cvb-v" style={{ color: i.best ? 'var(--fit)' : undefined }}>{i.value.toLocaleString()}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 export default function ChatVisualView({ v }: { v: ChatVisual }) {
   return (
     <div className="cv">
       <div className="cv-title">{v.title}</div>
-      {v.type === 'schedule' ? <Schedule v={v} /> : <Profile v={v} />}
+      {v.type === 'schedule' ? <Schedule v={v} /> : v.type === 'profile' ? <Profile v={v} /> : <Bars v={v} />}
     </div>
   )
 }

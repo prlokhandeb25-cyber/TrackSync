@@ -132,7 +132,7 @@ def eligible_windows(task: Task, windows: list[CandidateWindow],
     for w in candidates:
         if index is None and (w.zone_ref != task.zone.ref or w.zone_kind != task.zone.kind):
             continue
-        if w.usable_min(power_block=task.requires_power_block) < task.duration_min:
+        if w.usable_min(power_block=task.requires_power_block) < task.reserved_min:
             continue
         if w.end_s < task.released_s:
             continue
@@ -187,7 +187,7 @@ def build_and_solve(
     by_id = {t.id: t for t in live}
 
     for t in live:
-        dur = t.duration_min * 60
+        dur = t.reserved_min * 60
         sched = model.NewBoolVar(f"sched_{t.id}")
         scheduled[t.id] = sched
         s = model.NewIntVar(0, horizon, f"start_{t.id}")
@@ -356,7 +356,7 @@ def build_and_solve(
             if w10 > 0:
                 # A window with no spare time, or that follows a train likely to run late, is a fragile
                 # place to put a block: it will sometimes hold the next train. Prefer roomy, reliable ones.
-                slack = cw.usable_min(power_block=t.requires_power_block) - t.duration_min
+                slack = cw.usable_min(power_block=t.requires_power_block) - t.reserved_min
                 cost = int(round(w10 * (max(0.0, 20.0 - slack) / 20.0 + cw.late_risk)))
                 if cost:
                     terms.append(cost * x[(t.id, cw.id)])
@@ -441,13 +441,13 @@ def build_and_solve(
             Assignment(
                 task_id=t.id, window_id=chosen.id, section_id=chosen.section_id,
                 zone_ref=chosen.zone_ref, track=chosen.track,
-                start_s=s_val, end_s=s_val + t.duration_min * 60,
+                start_s=s_val, end_s=s_val + t.reserved_min * 60,
                 gap_type=chosen.gap_type.value, day=s_val // DAY_S,
             )
         )
         result.soft_cost += soft.get((t.id, chosen.id), 0)
         t.scheduled_start_s = s_val
-        t.scheduled_end_s = s_val + t.duration_min * 60
+        t.scheduled_end_s = s_val + t.reserved_min * 60
         t.window_id = chosen.id
         t.gap_type = chosen.gap_type.value
 

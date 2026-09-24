@@ -93,8 +93,8 @@ def verify_plan(net: Network, tasks: list[Task], assignments: list, windows: lis
 
         # duration, release, deadline
         rep.count("window")
-        if a.end_s - a.start_s != t.duration_min * 60:
-            rep.violations.append(f"{t.id}: scheduled {(a.end_s - a.start_s) // 60} min, needs {t.duration_min}")
+        if a.end_s - a.start_s != t.reserved_min * 60:
+            rep.violations.append(f"{t.id}: scheduled {(a.end_s - a.start_s) // 60} min, needs {t.reserved_min}")
         rep.count("release")
         if a.start_s < t.released_s:
             rep.violations.append(f"{t.id}: starts before it was released")

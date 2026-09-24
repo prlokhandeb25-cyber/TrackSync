@@ -75,18 +75,14 @@ class Slots:
         return self.tod_s is not None
 
 
-_ALIAS = {
-    "Mumbai CSMT": ["csmt", "cst", "victoria terminus"], "Mumbai Central": ["bombay central"],
-    "Belapur CBD": ["belapur", "cbd belapur"], "Vasai Road": ["vasai"], "Bhivpuri Road": ["bhivpuri"],
-    "Seawoods-Darave": ["seawoods"], "Dadar (W)": ["dadar western", "dadar west"],
-    "Ghatkopar": ["ghatkopar"], "Koparkhairane": ["kopar khairane"], "Lower Parel": ["parel"],
-    "Prabhadevi": ["elphinstone", "elphinstone road"], "Mansarovar": ["mansarover"],
-}
+def _aliases() -> dict:
+    """Other ways people name a station, from config (`chat.aliases`), not from code."""
+    return load_config().get_path("chat.aliases", {}) or {}
 
 
 def _names_of(st) -> list[str]:
     base = st.name.lower()
-    out = [base] + [a.lower() for a in _ALIAS.get(st.name, [])]
+    out = [base] + [a.lower() for a in _aliases().get(st.name, [])]
     if base.endswith(" jn"):
         out.append(base[:-3])
     return out
@@ -166,15 +162,28 @@ def _zones_in(q: str, world) -> tuple[list[WorkZone], str]:
     return zones, note
 
 
+_NUM_WORDS = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9,
+              "ten": 10, "eleven": 11, "twelve": 12, "fifteen": 15, "twenty": 20, "thirty": 30, "forty five": 45,
+              "forty-five": 45, "sixty": 60, "ninety": 90}
+
+
 def _duration(low: str) -> int | None:
+    """'2 hours', 'two hours', '90 minutes', 'half an hour', 'an hour and a half', 'a couple of hours'."""
+    if re.search(r"\ban hour and a half\b|\b1\.5 (hours?|hrs?)\b", low):
+        return 90
     if re.search(r"\bhalf an? hour\b", low):
         return 30
-    m = re.search(r"\b(\d+(?:\.\d+)?)\s*(hours?|hrs?|h)\b", low)
+    if re.search(r"\ba couple of hours\b", low):
+        return 120
+    words = "|".join(sorted(_NUM_WORDS, key=len, reverse=True))
+    m = re.search(rf"\b(\d+(?:\.\d+)?|{words})\s*(hours?|hrs?|h)\b", low)
     if m:
-        return int(float(m.group(1)) * 60)
-    m = re.search(r"\b(\d+)\s*(minutes?|mins?|m)\b", low)
+        v = m.group(1)
+        return int(float(v if v[0].isdigit() else _NUM_WORDS[v]) * 60)
+    m = re.search(rf"\b(\d+|{words})\s*(minutes?|mins?|m)\b", low)
     if m:
-        return int(m.group(1))
+        v = m.group(1)
+        return int(v if v[0].isdigit() else _NUM_WORDS[v])
     if re.search(r"\ban hour\b", low):
         return 60
     return None
@@ -652,11 +661,37 @@ def h_whatif_close(q: str, s: Slots, world, now_s: int) -> Answer:
     facts = [{"k": "movements", "v": str(len(in_win))}, {"k": "diverted", "v": str(len(b.reroutes))},
              {"k": "locals", "v": str(locals_n)}, {"k": "passengers", "v": f"~{people:,}"}]
     vis = _profile_visual(pax, sec.id, start // DAY_S, start, end, f"{sec.id}: trains per hour, closure shaded")
+    twin_vis = None
+    try:
+        from backend.planner import methods as _M
+        tw = _M.twin_experiment(world, st.reroute_cache(), sec.id, start, max(15, int((end - start) // 60)), scenarios=12)
+        pol = tw["policies"]
+        best, hold = pol[tw["best"]], pol["HOLD"]
+        worst_k = max(pol, key=lambda k: pol[k]["pax_min"])
+        if best["pax_min"] < 1 and pol[worst_k]["pax_min"] < 1:
+            text += (f"\n\n**Digital-twin check** ({tw['scenarios']} random days, next {int(tw['horizon_h'])} h): no passengers are "
+                     f"affected (only freight runs then). The cheapest response in train-minutes is "
+                     f"**{best['label'].lower()}** at {best['train_min']:,.0f}.")
+        else:
+            against = (f"Holding everything would cost {hold['pax_min'] / 60:,.0f} passenger-hours."
+                       if tw["best"] != "HOLD" else
+                       f"Here holding is best: {pol[worst_k]['label'].lower()} would cost {pol[worst_k]['pax_min'] / 60:,.0f} passenger-hours.")
+            text += (f"\n\n**Digital-twin check** (the real timetable replayed over the next {int(tw['horizon_h'])} h, "
+                     f"{tw['scenarios']} random days): the best response is **{best['label'].lower()}** — about "
+                     f"{best['pax_min'] / 60:,.0f} passenger-hours of extra delay, {best['late5']:.0f} trains more than "
+                     f"5 min late ({best['cancelled']:.0f} cancelled or short-terminated), {best['sections']:.0f} sections badly hit. {against}")
+        facts.append({"k": "best response", "v": best["label"].split(",")[0].lower()})
+        twin_vis = {"type": "bars", "title": "Extra passenger-hours of delay, by response",
+                    "items": [{"label": v["label"], "value": round(v["pax_min"] / 60), "best": k == tw["best"]}
+                              for k, v in pol.items()]}
+    except Exception:                                   # the closure answer stands without the replay
+        twin_vis = None
     a = Answer(text + note, facts, ["train occupancy", "reroute search (locals excluded)", "passenger model",
                                     "nothing was changed"], "whatif",
                suggestions=[f"how busy is {sec.id} at 9am?", f"best time for a 60 minute job on {sec.id}?"])
     a.action = {"label": "Show on map", "section": sec.id, "start_s": start}
-    a.visual = vis
+    a.visual = twin_vis or vis
+    a.visuals = [vis] if twin_vis else []
     return a
 
 

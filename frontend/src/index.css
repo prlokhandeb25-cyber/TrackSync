@@ -765,3 +765,29 @@ tbody tr:nth-child(even) td { background: color-mix(in srgb, var(--panel-2) 55%,
 .msg.user { border-radius: 12px 12px 3px 12px; }
 .panel-head { min-height: 44px; }
 @media (prefers-reduced-motion: reduce) { .main > *, .main .panel { animation: none; } * { transition: none !important; } }
+
+/* ---------------- advanced methods ---------------- */
+.mgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(440px, 1fr)); gap: 14px; }
+.mcard { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 16px 18px; box-shadow: var(--shadow); display: grid; gap: 12px; align-content: start; }
+.mc-head { display: flex; align-items: center; gap: 10px; }
+.mc-head h3 { flex: 1; font-size: 14.5px; }
+.mc-headline { font-size: 15px; }
+.mc-headline b { color: var(--fit); font-variant-numeric: tabular-nums; }
+.mc-caveat { font-size: 11.5px; color: var(--amber); background: var(--amber-soft); padding: 7px 10px; border-radius: var(--r-sm); border-left: 3px solid var(--amber); line-height: 1.5; }
+.mc-run { margin-top: 12px; font-size: 12.5px; color: var(--hdr-dim); display: flex; align-items: center; gap: 9px; }
+.mc-run.bad { color: #ff9b8f; }
+.spinner-sm { width: 13px; height: 13px; border-radius: 50%; border: 2px solid rgba(255,255,255,.25); border-top-color: #fff; animation: spin .8s linear infinite; }
+.mv { font-size: 10.5px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; padding: 3px 9px; border-radius: 999px; border: 1px solid var(--line); color: var(--text-mute); }
+.mv-helps { color: var(--fit); border-color: var(--fit); background: color-mix(in srgb, var(--fit) 10%, transparent); }
+.mv-marginal, .mv-trade-off { color: var(--amber); border-color: var(--amber); background: var(--amber-soft); }
+.mv-no-gain { color: var(--stopstart); border-color: var(--stopstart); }
+.mtable { font-size: 12px; }
+.mtable th { position: static; background: none; padding: 6px 8px; }
+.mtable td { padding: 6px 8px; }
+.mtable td.best { color: var(--fit); font-weight: 700; }
+.cv-bars { display: grid; gap: 6px; padding: 2px 0 4px; }
+.cvb-row { display: grid; grid-template-columns: 150px 1fr auto; gap: 8px; align-items: center; font-size: 11px; }
+.cvb-l { color: var(--text-dim); }
+.cvb-t { height: 9px; background: var(--panel-3); border-radius: 3px; overflow: hidden; }
+.cvb-t i { display: block; height: 100%; border-radius: 3px; }
+.cvb-v { font-weight: 700; font-variant-numeric: tabular-nums; min-width: 52px; text-align: right; }

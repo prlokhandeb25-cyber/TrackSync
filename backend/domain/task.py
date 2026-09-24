@@ -144,6 +144,7 @@ class Task(BaseModel):
     department: Department
     zone: WorkZone
     duration_min: int
+    buffer_min: int = 0  # extra time reserved after the work for a crew that usually overruns (A-045)
     priority: int = 3  # 1 = highest
     category: TaskCategory = TaskCategory.PLANNED
     requires_power_block: bool = False
@@ -164,6 +165,11 @@ class Task(BaseModel):
     source: str = "SYNTH"           # SYNTH | SIM | USER
     description: str = ""
     allows_with: list[Department] | None = None
+
+    @property
+    def reserved_min(self) -> int:
+        """Minutes of block the job holds: its work plus any adaptive buffer."""
+        return self.duration_min + self.buffer_min
 
     @property
     def type_def(self) -> TaskType:

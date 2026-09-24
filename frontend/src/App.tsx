@@ -6,6 +6,7 @@ import WeeklyPlan from './components/WeeklyPlan'
 import Chat, { MitraIcon } from './components/Chat'
 import Impact from './components/Impact'
 import AlgoLab from './components/AlgoLab'
+import Methods from './components/Methods'
 // import Integration from './components/Integration'   // IR integration tab: commented out
 import ProofStrip from './components/ProofStrip'
 import YourJobs from './components/YourJobs'
@@ -19,7 +20,7 @@ import {
 } from './api'
 
 // 'capacity' (Corridor capacity) and 'integration' (IR integration) are commented out of the tab bar.
-type Tab = 'operations' | 'coordination' | 'plan' | 'impact' | 'ai'
+type Tab = 'operations' | 'coordination' | 'plan' | 'impact' | 'methods' | 'ai'
 
 const TAB_LABEL: Record<Tab, string> = {
   operations: 'Operations',
@@ -27,6 +28,7 @@ const TAB_LABEL: Record<Tab, string> = {
   plan: 'Weekly block plan',
   // capacity: 'Corridor capacity',
   impact: 'Before / after',
+  methods: 'Advanced methods',
   ai: 'AI dispatcher',
   // integration: 'IR integration',
 }
@@ -36,6 +38,7 @@ const TAB_ICON: Record<Tab, string> = {
   coordination: 'M16 11a3 3 0 1 0-3-3 3 3 0 0 0 3 3zM8 12a3 3 0 1 0-3-3 3 3 0 0 0 3 3zM8 14c-3 0-5 1.6-5 3.5V19h10v-1.5C13 15.6 11 14 8 14zm8 0c-.4 0-.8 0-1.2.1 1.4 1 2.2 2.3 2.2 3.9V19h4v-1.5c0-1.9-2-3.5-5-3.5z',
   plan: 'M7 3v3M17 3v3M4 9h16M5 5h14a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1zM8 13h3M8 16h6',
   impact: 'M5 20V11M11 20V5M17 20v-6M3 20h18',
+  methods: 'M9 3h6M10 3v6L5 19a1.5 1.5 0 0 0 1.3 2h11.4A1.5 1.5 0 0 0 19 19l-5-10V3M8 15h8',
   ai: 'M9 3v2M15 3v2M9 19v2M15 19v2M3 9h2M3 15h2M19 9h2M19 15h2M7 5h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2zM9.5 9.5h5v5h-5z',
 }
 function TabIcon({ t }: { t: Tab }) {
@@ -545,6 +548,7 @@ export default function App() {
         */}
 
         {tab === 'impact' && <Impact />}
+        {tab === 'methods' && <Methods />}
         {tab === 'ai' && <AlgoLab />}
         {/* {tab === 'integration' && <Integration />}   IR integration tab: commented out */}
       </main>

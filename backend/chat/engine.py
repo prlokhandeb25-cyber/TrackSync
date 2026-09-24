@@ -56,11 +56,12 @@ class Answer:
     suggestions: list[str] = field(default_factory=list)
     action: dict | None = None      # e.g. {"label": "Show on map", "section": "DR-MTN", "start_s": 90000}
     visual: dict | None = None      # a small chart the page draws under the answer (see chat/whatif.py)
+    visuals: list = field(default_factory=list)   # further charts, drawn after `visual`
 
     def to_dict(self) -> dict:
         return {"text": self.text, "facts": self.facts, "trace": self.trace,
                 "intent": self.intent, "suggestions": self.suggestions, "action": self.action,
-                "visual": self.visual}
+                "visual": self.visual, "visuals": self.visuals}
 
 
 @dataclass

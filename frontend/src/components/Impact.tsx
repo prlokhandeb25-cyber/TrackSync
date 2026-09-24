@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
-  api, type ImpactData, type PaxExperiment, type PaxWeekly, type PlanVerify, type Robustness, type ScoreCardData,
+  api, type ImpactData, type MethodsSummary, type PaxExperiment, type PaxWeekly, type PlanVerify, type Robustness, type ScoreCardData,
   type SuddenMetrics,
 } from '../api'
 
@@ -28,10 +28,11 @@ interface Cmp {
   how: string; repro: string
   deltaVs?: number      // which bar the last one is compared with (default: the first)
   assumed?: boolean     // the first bar rests on an assumption, so no multiplier is claimed
+  chip?: string         // overrides the headline chip (e.g. 'if warning works')
 }
 
 function delta(c: Cmp) {
-  if (c.assumed) return { good: true, text: 'assumed baseline', neutral: true }
+  if (c.assumed) return { good: true, text: c.chip ?? 'assumed baseline', neutral: true }
   const a = c.bars[c.deltaVs ?? 0].v, b = c.bars[c.bars.length - 1].v
   if (a <= 0 && b <= 0) return null
   const good = c.better === 'higher' ? b > a : b < a
@@ -76,6 +77,7 @@ export default function Impact() {
   const [sd, setSd] = useState<SuddenMetrics | null>(null)
   const [pw, setPw] = useState<PaxWeekly | null>(null)
   const [rb, setRb] = useState<Robustness | null>(null)
+  const [mt, setMt] = useState<MethodsSummary | null>(null)
   const [vf, setVf] = useState<PlanVerify | null>(null)
   const [err, setErr] = useState<string | null>(null)
   const [hours, setHours] = useState(4)
@@ -88,6 +90,8 @@ export default function Impact() {
     api.paxExperiment().then(setPx).catch(() => undefined)
     api.suddenMetrics().then(setSd).catch(() => undefined)
     api.planVerify().then(setVf).catch(() => undefined)
+    const pollMt = () => api.methodsSummary().then(r => { setMt(r); if (r.status === 'running') setTimeout(pollMt, 5000) }).catch(() => undefined)
+    void pollMt()
     let alive = true
     const pollRb = () => api.planRobustness().then(r => { if (alive) { setRb(r); if (r.ablation_status === 'running') setTimeout(pollRb, 4000) } }).catch(() => undefined)
     void pollRb()
@@ -147,6 +151,18 @@ export default function Impact() {
     if (rb?.ablation) out.push({ id: 'rb', title: 'Blocks that clear before the next train', kind: 'pct', better: 'higher',
       bars: [{ who: 'Solver alone', v: rb.ablation.raw.mean * 100, tone: 'before' }, { who: 'RailBlock', v: rb.plan.mean * 100, tone: 'after' }],
       how: `${rb.how} "Solver alone" is the same week solved without the fragile-window cost.`, repro: 'GET /api/plan/robustness' })
+    const pr = mt?.results.predictive
+    const p8 = pr?.predictive.find(x => Math.abs(x.p_detect - 0.8) < 1e-6)
+    if (pr && p8) out.push({ id: 'pred', title: `Train-minutes lost to ${pr.failures} failures`, kind: 'n', better: 'lower', assumed: true,
+      chip: 'if warning works',
+      bars: [{ who: 'Emergency response', v: pr.reactive.train_min, tone: 'before' }, { who: 'Early warning (80%)', v: p8.train_min, tone: 'after' }],
+      how: `${pr.how} ${pr.caveat}`, repro: 'GET /api/methods/summary' })
+    const bf = mt?.results.buffers
+    if (bf) out.push({ id: 'buf', title: 'Blocks that clear on time, with crew-history buffers', kind: 'pct', better: 'higher', assumed: true,
+      chip: `costs ${Math.max(0, bf.jobs_lost)} jobs placed`,
+      bars: [{ who: 'Flat plan', v: bf.flat.mean * 100, tone: 'before' }, { who: 'Learned buffers', v: bf.adaptive.mean * 100, tone: 'after' }],
+      how: `${bf.how} ${bf.caveat} Jobs placed ${bf.flat.placed} to ${bf.adaptive.placed}; reserved hours ${bf.flat.reserved_hours} to ${bf.adaptive.reserved_hours}.`,
+      repro: 'GET /api/methods/summary' })
     if (it) out.push({ id: 'it', title: 'Finding free gaps', kind: 'ms', better: 'lower',
       bars: [{ who: 'Scan every window', v: it.before.value, tone: 'before' }, { who: 'Interval tree', v: it.after.value, tone: 'after' }],
       how: `${it.how} ${it.detail}`, repro: it.repro })
@@ -157,7 +173,7 @@ export default function Impact() {
              { who: 'RailBlock (median)', v: sd.median_ms, tone: 'after' }],
       how: `Median of ${sd.n} sudden task(s) injected on the Operations page.`, repro: 'GET /api/sudden/metrics' })
     return out
-  }, [sc, d, px, sd, pw, rb])
+  }, [sc, d, px, sd, pw, rb, mt])
 
   if (err) return <div className="panel"><div className="panel-body muted">Could not load impact metrics: {err}</div></div>
   if (!d) return <div className="loading"><div className="spinner" />Measuring the manual baseline and every algorithm…</div>

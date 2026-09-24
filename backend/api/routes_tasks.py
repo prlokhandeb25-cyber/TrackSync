@@ -249,7 +249,8 @@ def _best_view(day: int) -> tuple[str, str, float]:
         return _BEST_VIEW[day]
     w = ensure_world()
     occ_by, rc = occupancy_by_section(), reroute_cache()
-    best, best_score = ("DR-MTN", "UP_SLOW", 5.0), -1
+    first = next(iter(w.net.sections.values()))
+    best, best_score = (first.id, _default_track(first), 5.0), -1     # fallback: the first section, not a named one
     for sec in list(w.net.sections.values())[:40]:
         track = _default_track(sec)
         occ = occ_by.get(sec.id, [])
