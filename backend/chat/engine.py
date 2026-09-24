@@ -413,20 +413,19 @@ def _h_creation(q: str, e: Entities, world) -> Answer:
 
 def _h_help(q: str, e: Entities, world) -> Answer:
     return Answer(
-        "I'm RailMitra. I answer from the live plan and I can test hypotheticals: I run the real gap finder, "
-        "rule engine, passenger model and rerouting search on a copy of the schedule, so nothing I say is made "
-        "up and nothing I try changes the plan. Ask what would happen, where a job fits, whether two kinds of "
-        "work can share a place, or who is working where.",
+        "Hi, I'm RailMitra. Think of me as a colleague who can try things out on a copy of the schedule without touching the real one. "
+        "Tell me a job and I'll work out where it fits and who you'd need on site. Ask what happens if a track closes or a fault turns up, "
+        "whether two kinds of work can share a place, or how busy a stretch is. Or ask how any part of the system works and I'll explain it in plain words. "
+        "Ask *what can you do?* for the full list.",
         [], [], "help",
         suggestions=[
+            "what does a 3 hour tamping job need?",
             "what if a 60 minute PWI job at Dadar to Matunga?",
             "what if Dadar to Matunga is closed at 14:00 for an hour?",
+            "what if a 10 hour block is finished in 8 hours?",
             "can OHE insulator work and tamping happen together at Kurla?",
-            "best time for a 45 minute S&T job on Thane to Mulund",
             "how busy is Thane at 9am?",
-            "who is working on Kurla tomorrow?",
-            "how many sudden tasks were handled?",
-            "how are jobs grouped?",
+            "how do you group small jobs with big ones?",
         ])
 
 
@@ -467,7 +466,8 @@ def answer(question: str, world, plan=None, at_s: int = 0) -> Answer:
     from backend.chat.whatif import route as whatif_route
     live = whatif_route(q, world, int(at_s or 0))
     if live is not None:
-        return live
+        from backend.chat.features import warm
+        return warm(live)
 
     e = _extract(q, world)
     for name, pattern, handler in INTENTS:
@@ -481,5 +481,5 @@ def answer(question: str, world, plan=None, at_s: int = 0) -> Answer:
         return _h_status(q, e, world)
 
     a = _h_help(q, e, world)
-    a.text = ("I did not follow that one. " + a.text)
+    a.text = ("Hmm, I'm not sure I followed that one. " + a.text)
     return a

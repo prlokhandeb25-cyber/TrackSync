@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
-  api, type ForecastData, type ImpactData, type MethodsSummary, type RerouteProof, type PaxExperiment, type PaxWeekly, type PlanVerify, type Robustness, type ScoreCardData,
+  api, type ImpactData, type MethodsSummary, type RerouteProof, type EfficiencyData, type PaxExperiment, type PaxWeekly, type PlanVerify, type Robustness, type ScoreCardData,
   type SuddenMetrics,
 } from '../api'
 
@@ -70,6 +70,10 @@ function Card({ c }: { c: Cmp }) {
   )
 }
 
+// The cards worth showing. Hidden for now (still computed, easy to bring back): 'pl' jobs placed, 'cp' clash calls,
+// 'pw' weekly passenger view, 'twin' modelled closure delay, 'buf' crew buffers, 'it' gap search speed, 'sd' sudden task time.
+const SHOWN = new Set(['gaps', 'cr', 'cl', 'm1', 'pax', 'rb', 'rr'])
+
 export default function Impact() {
   const [d, setD] = useState<ImpactData | null>(null)
   const [sc, setSc] = useState<ScoreCardData | null>(null)
@@ -79,12 +83,9 @@ export default function Impact() {
   const [rb, setRb] = useState<Robustness | null>(null)
   const [mt, setMt] = useState<MethodsSummary | null>(null)
   const [vf, setVf] = useState<PlanVerify | null>(null)
-  const [fc, setFc] = useState<ForecastData | null>(null)
+  const [ef, setEf] = useState<EfficiencyData | null>(null)
   const [rp, setRp] = useState<RerouteProof | null>(null)
   const [err, setErr] = useState<string | null>(null)
-  const [hours, setHours] = useState(4)
-  const [wait, setWait] = useState(7)
-  const [stress, setStress] = useState<ImpactData | null>(null)
 
   useEffect(() => {
     api.impact().then(setD).catch(e => setErr(String(e)))
@@ -95,8 +96,7 @@ export default function Impact() {
     const pollMt = () => api.methodsSummary().then(r => { setMt(r); if (r.status === 'running') setTimeout(pollMt, 5000) }).catch(() => undefined)
     void pollMt()
     api.reroutingProof().then(setRp).catch(() => undefined)
-    const pollFc = () => api.forecast().then(r => { setFc(r); if (r.sweep_status !== 'done' && r.sweep_status !== 'error') setTimeout(pollFc, 3000) }).catch(() => undefined)
-    void pollFc()
+    api.efficiency().then(setEf).catch(() => undefined)
     let alive = true
     const pollRb = () => api.planRobustness().then(r => { if (alive) { setRb(r); if (r.ablation_status === 'running') setTimeout(pollRb, 4000) } }).catch(() => undefined)
     void pollRb()
@@ -104,11 +104,6 @@ export default function Impact() {
     void poll()
     return () => { alive = false }
   }, [])
-  useEffect(() => {
-    if (hours === 4 && wait === 7) { setStress(null); return }   // the defaults are the main run
-    const t = setTimeout(() => api.impact(hours, wait).then(setStress).catch(() => undefined), 350)
-    return () => clearTimeout(t)
-  }, [hours, wait])
 
   const cmps = useMemo((): Cmp[] => {
     if (!sc || !d) return []
@@ -156,14 +151,7 @@ export default function Impact() {
     if (rb?.ablation) out.push({ id: 'rb', title: 'Blocks that clear before the next train', kind: 'pct', better: 'higher',
       bars: [{ who: 'Solver alone', v: rb.ablation.raw.mean * 100, tone: 'before' }, { who: 'RailBlock', v: rb.plan.mean * 100, tone: 'after' }],
       how: `${rb.how} "Solver alone" is the same week solved without the fragile-window cost.`, repro: 'GET /api/plan/robustness' })
-    const sw = fc?.sweep?.scales[0]
-    const inUse = sw?.table.find(r => !r.allow_create && r.threshold > 0 && Math.abs(r.threshold - (fc?.sweep?.in_use_threshold ?? -1)) < 1e-9)
-    if (sw && inUse) out.push({ id: 'pred', title: `Train-minutes lost to ${sw.failures} failures`, kind: 'n', better: 'lower', assumed: true,
-      chip: 'warnings are simulated',
-      bars: [{ who: 'Wait for the failure', v: sw.table[0].train_min, tone: 'before' },
-             { who: `Act on warnings (${Math.round(inUse.threshold * 100)}%+)`, v: inUse.train_min, tone: 'after' }],
-      how: `${fc?.sweep?.how} ${fc?.sweep?.caveat} Emergencies ${sw.table[0].emergencies} to ${inUse.emergencies}; trains held or rerouted for proactive blocks: ${inUse.gaps_made_proactive}.`,
-      repro: 'GET /api/forecast' })
+    // Predictive blocks were removed: the warning feed was simulated, so its accuracy could not be measured.
     const tw = mt?.results.twin
     const tc = tw?.cases.filter(c => c.policies.HOLD.pax_min >= 600).sort((x, y) => y.policies.HOLD.pax_min - x.policies.HOLD.pax_min)[0]
     if (tw && tc) out.push({ id: 'twin', title: `Passenger-hours of delay after a closure (${tc.label})`, kind: 'n', better: 'lower', assumed: true,
@@ -191,14 +179,13 @@ export default function Impact() {
              { who: 'RailBlock (median)', v: sd.median_ms, tone: 'after' }],
       how: `Median of ${sd.n} sudden task(s) injected on the Operations page.`, repro: 'GET /api/sudden/metrics' })
     return out
-  }, [sc, d, px, sd, pw, rb, mt, fc, rp])
+  }, [sc, d, px, sd, pw, rb, mt, ef, rp])
 
   if (err) return <div className="panel"><div className="panel-body muted">Could not load impact metrics: {err}</div></div>
   if (!d) return <div className="loading"><div className="spinner" />Measuring the manual baseline and every algorithm…</div>
 
   const h = sc?.headline
   const paxSaved = px ? Math.round(px.passengers_saved_pct) : null
-  const m = (id: string, src: ImpactData | null = d) => src?.metrics.find(x => x.id === id)
   const rlc = sc?.cards.find(c => c.id === 'rl')
   const replan = rlc ? rlc.before.value / Math.max(1e-9, rlc.after.value) : null
 
@@ -235,15 +222,19 @@ export default function Impact() {
               {paxSaved !== null && <li><span><b>{paxSaved}%</b> fewer passengers within reach of work</span></li>}
               <li><span><b>{vf ? vf.n_violations : 0}</b> rule violations in {vf ? vf.total_checks : '…'} independent checks; every verdict carries its reason</span></li>
               {rb && <li><span>Blocks clear before the next train on <b>{Math.round(rb.plan.mean * 100)}%</b> of simulated days</span></li>}
+              {/* early-finish reuse yields about one job a week on this plan: kept on the Operations page, not claimed here */}
+              {ef && ef.grouping.place_and_urgency.riders > 0 && <li><span><b>{ef.grouping.place_and_urgency.riders}</b> small jobs ride in big blocks, saving <b>{ef.grouping.place_and_urgency.setup_saved_min} min</b> of set-up; urgent and routine work no longer share a group ({ef.grouping.place_only.mixed_urgency_groups} → {ef.grouping.place_and_urgency.mixed_urgency_groups})</span></li>}
+              {rp && rp.diverted > 0 && <li><span>Long-distance trains sent round a closed section lose <b>{Math.round(rp.mean_added_min)} min</b> instead of <b>{Math.round(rp.wait_min / rp.diverted)} min</b> waiting; <b>0</b> locals rerouted</span></li>}
             </ul>
           </div>
         </div>
       )}
 
       {!sc || !px ? <div className="loading"><div className="spinner" />Running every algorithm once more…</div> : (
-        <div className="cmp-grid">{cmps.map(c => <Card key={c.id} c={c} />)}</div>
+        <div className="cmp-grid">{cmps.filter(c => SHOWN.has(c.id)).map(c => <Card key={c.id} c={c} />)}</div>
       )}
 
+      {/* Stress-test sliders: hidden to keep this page short.
       <details className="fold">
         <summary>Stress-test the manual baseline</summary>
         <div>
@@ -271,6 +262,8 @@ export default function Impact() {
           </div>
         </div>
       </details>
+
+      */}
 
       <details className="fold">
         <summary>What this does not show</summary>

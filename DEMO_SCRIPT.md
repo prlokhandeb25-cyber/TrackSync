@@ -100,20 +100,20 @@ Open the chat button and ask:
 > trains and overrunning work; the solver avoids fragile windows, so blocks clear before the next
 > train far more often than when the solver plans alone."
 
-## 5c · Predicted blocks and the digital twin (75 s) — Operations tab, right column
+## 5c · Network efficiency and rerouting (75 s) — Operations tab
 
-> "Warnings from condition monitoring become blocks days ahead, in gaps that already exist. Waiting for
-> the failure: 1,331 train-minutes and 23 emergencies on this feed. Acting at 30% risk: about 75 and 4,
-> and not one train was held or rerouted for a proactive block. Act on everything and you book more
-> blocks that turn out unneeded, so the table shows each threshold and a noisier feed. The warnings are
-> simulated and the panel says so."
+> "Blocks finish early sometimes, and then the rest of the protected time goes to small waiting jobs on
+> the same section, urgent first. On this plan the gain is small, and the panel says why: the blocks are
+> short. A 10-hour block that ends in 8 frees two hours, and RailMitra shows which waiting jobs fill it."
 >
-> Inject a **Critical** sudden task: "It made a gap by sending a long-distance train another way — and the
-> digital twin replays the next 12 hours to say which response costs passengers least: hold everything,
-> divert, or divert and run locals single-line."
+> "Jobs are grouped by place and urgency, so a P1 never waits behind a P5 in the same group, and small
+> jobs ride inside a big job's block."
 >
 > Click **Watch** on a rerouting example: "The map flies to the closure with the whole detour in view.
-> Long-distance and freight trains go round; locals never do, they run single-line."
+> Long-distance and freight trains go round; locals never do."
+>
+> Open RailMitra and ask *what does a 3 hour tamping job need?*: "People by role, machines, materials,
+> and it says plainly that these are planning norms, not a prediction."
 
 ## 6 · Why adopt (45 s) — Before / after
 

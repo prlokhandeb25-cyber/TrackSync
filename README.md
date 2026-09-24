@@ -42,12 +42,18 @@ reacting to an unplanned defect mid-week possible at all.
 - **Plans for a bad day.** Each block is simulated against late trains and overrunning work; the
   solver avoids fragile windows and each start time is centred where the line is most likely to be
   handed back before the next train.
-- **Acts on early warnings without over-planning.** A watch list of (simulated) condition-monitoring
-  warnings becomes ordinary blocks days ahead, in gaps that already exist: no train is held, retimed
-  or rerouted for a block that may not be needed, one visit per section per day, at most six a day.
-  On the same 40 warnings, waiting for failures costs 1,331 train-minutes and 23 emergencies; acting
-  at 30% risk and above costs about 75 and 4, and no proactive block made a train change. A table
-  shows the trade at each threshold and on a noisier feed. The warnings are simulated (A-048).
+- **Gives time back.** When a block finishes early, the rest of its protected time goes to small waiting
+  jobs on the same section, urgent first. On the current plan (36 mostly short blocks) the measured gain is small: about 1.4 hours
+  a week handed back and 0.5 extra jobs with crews that tend to overrun, 2.9 hours and 1.2 jobs if crews
+  take the planned time on average. The waiting list and crew timing are assumed (A-053); the gain grows
+  with block length, and it is not a headline result.
+- **Groups jobs by place and urgency**, and lets small jobs ride in a big job's block: no group mixes very
+  urgent with very routine work any more (2 groups did before), and 2 small jobs ride today, saving 50
+  minutes of set-up and hand-back (A-054).
+- **Says what a job needs on site** (people by role, machines, materials) from planning norms, not a
+  prediction (A-052).
+- **Early-warning predictions were removed.** The feed was simulated, so its accuracy could not be
+  measured; RailMitra says so if asked (A-048).
 - **A digital twin picks the response to a closure.** Each closure in force is replayed through the
   next 12 hours of the real timetable; the twin can overrule a detour that would cost passengers more
   than waiting, and shows the three responses side by side on the map page, in the sudden-task

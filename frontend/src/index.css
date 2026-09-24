@@ -861,3 +861,21 @@ tbody tr:nth-child(even) td { background: color-mix(in srgb, var(--panel-2) 55%,
   .tiles .tile, .cv, .cv-blk, .cv-col, .cv-pt, .pb-bar, .pb-item, .pb-row, .rr-item, .msg.bot, .cvb-t i, .tb-t i, .pb-t i, .pb-meter i { animation: none !important; }
   .cv-detour, .rr-dot { animation: none !important; }
 }
+
+/* ---------------- fold-away details: click a panel title to open its explanations ---------------- */
+.panel.foldable > .panel-head { cursor: pointer; user-select: none; }
+.panel.foldable > .panel-head::after { content: "details ▸"; margin-left: 10px; font-size: 11px; color: var(--text-mute); white-space: nowrap; }
+.panel.foldable.open > .panel-head::after { content: "details ▾"; color: var(--accent); }
+.panel.foldable > .panel-head:hover::after { color: var(--accent); }
+.panel.foldable:not(.open) :is(.hint:not(.warn):not(.keep), .tile .note, .cmp-how, .steps, .limits, .detail) { display: none; }
+.panel.foldable.open :is(.hint, .tile .note, .detail) { animation: rise .25s ease backwards; }
+
+/* network efficiency, what a job needs */
+.needs-title { margin: 16px 0 6px; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--text-mute); font-weight: 650; }
+.needs-pick { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.needs-pick select, .needs-pick input { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; color: var(--text); font: inherit; }
+.needs-pick input { width: 74px; }
+.needs-big { margin: 10px 0 6px; font-size: 14px; } .needs-big b { font-size: 26px; letter-spacing: -.03em; }
+.needs-roles { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.needs-line { font-size: 12.5px; margin-top: 4px; } .needs-line span { color: var(--text-mute); margin-right: 8px; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; }
+.cv-grow { transform-box: fill-box; transform-origin: left; animation: grow-x .8s cubic-bezier(.2,.7,.2,1) backwards; }

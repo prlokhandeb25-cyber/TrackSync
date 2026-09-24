@@ -51,6 +51,7 @@ export default function JobClusters({ tick, onHalos }: { tick: number; onHalos: 
             ))}
           </div>
         )}
+        <div className="hint" style={{ margin: '0 0 8px' }}>Jobs group when they are close AND similarly urgent. Small jobs (up to 45 min) can ride in the biggest job's block if the rules allow.</div>
         {method === 'kmedoids' && <div className="hint" style={{ margin: '0 0 8px' }}>Silhouette: 1 is tight and well separated. ◎ marks each group's centre job, an actual place a shared block could go.</div>}
         <div className="chips" style={{ marginTop: 0 }}>
           {groups.map(c => {
@@ -74,6 +75,9 @@ export default function JobClusters({ tick, onHalos }: { tick: number; onHalos: 
               <span key={x} className={`badge dept ${x}`} style={{ marginRight: 5 }}>{x}</span>
             ))}
             {chosen.total_min} min of work around {chosen.label}
+            {chosen.riders && chosen.riders.length > 0 && (
+              <div style={{ marginTop: 5, fontSize: 11.5 }}>{chosen.riders.length} small job{chosen.riders.length === 1 ? '' : 's'} can ride in the big job's block, saving {chosen.setup_saved_min} min of set-up and hand-back</div>
+            )}
             {chosen.cross_pairs > 0 && (
               <div className="muted" style={{ marginTop: 5, fontSize: 11.5 }}>
                 {chosen.compatible} of {chosen.cross_pairs} cross-department pairs can share a block

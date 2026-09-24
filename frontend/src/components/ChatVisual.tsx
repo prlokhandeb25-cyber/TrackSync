@@ -159,6 +159,34 @@ function Route({ v }: { v: Extract<ChatVisual, { type: 'route' }> }) {
   )
 }
 
+/* One block: planned length, the time it really took, and the small jobs that fill what was left. */
+function BlockBar({ v }: { v: Extract<ChatVisual, { type: 'blockbar' }> }) {
+  const W = 452, H = 84, L = 8, bw = W - 2 * L
+  const px = (m: number) => (m / v.planned_min) * bw
+  let x = L + px(v.actual_min)
+  const palette = ['#0284c7', '#65a30d', '#d97706', '#c026d3']
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img" aria-label={v.title}>
+      <rect x={L} y={16} width={bw} height={26} rx={5} fill="var(--panel-3)" stroke="var(--line)" strokeDasharray="4 3" />
+      <rect className="cv-grow" x={L} y={16} width={px(v.actual_min)} height={26} rx={5} fill="var(--accent)" />
+      <text x={L + 8} y={33} fontSize={10.5} fill="var(--on-accent)" fontWeight={600}>the planned work, done in {Math.round(v.actual_min / 6) / 10} h</text>
+      {v.jobs.map((j, i) => {
+        const w = Math.max(6, px(j.min)); const x0 = x; x += w
+        return (
+          <g key={i} className="cv-blk" style={{ animationDelay: `${300 + i * 200}ms` }}>
+            <rect x={x0} y={16} width={w - 1.5} height={26} rx={4} fill={palette[i % palette.length]} />
+            <text x={x0 + 4} y={33} fontSize={9} fill="#fff" fontWeight={600}>{j.min}m</text>
+          </g>
+        )
+      })}
+      <text x={L} y={62} fontSize={9.5} fill="var(--text-dim)">planned {Math.round(v.planned_min / 6) / 10} h</text>
+      <text x={W - L} y={62} fontSize={9.5} textAnchor="end" fill="var(--text-dim)">
+        {v.jobs.length ? v.jobs.map(j => j.label.toLowerCase()).join(' · ').slice(0, 70) : 'nothing waiting fits: handed back to the trains'}
+      </text>
+    </svg>
+  )
+}
+
 /* Jobs by position (km), coloured by group; a ring marks a K-Medoids centre job. */
 function Scatter({ v }: { v: Extract<ChatVisual, { type: 'scatter' }> }) {
   const W = 220, H = 150, P = 12
@@ -185,7 +213,7 @@ export default function ChatVisualView({ v }: { v: ChatVisual }) {
     <div className="cv">
       <div className="cv-title">{v.title}</div>
       {v.type === 'schedule' ? <Schedule v={v} /> : v.type === 'profile' ? <Profile v={v} />
-        : v.type === 'route' ? <Route v={v} /> : v.type === 'scatter' ? <Scatter v={v} /> : <Bars v={v} />}
+        : v.type === 'route' ? <Route v={v} /> : v.type === 'scatter' ? <Scatter v={v} /> : v.type === 'blockbar' ? <BlockBar v={v} /> : <Bars v={v} />}
     </div>
   )
 }

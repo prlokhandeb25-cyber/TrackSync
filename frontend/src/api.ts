@@ -65,6 +65,7 @@ export type ChatVisual =
       closed: { from: [number, number]; to: [number, number]; id: string; names: [string, string] }
       detour: [number, number][]; stops: { name: string; at: [number, number] }[] }
   | { type: 'scatter'; title: string; points: { x: number; y: number; g: number; medoid: boolean }[] }
+  | { type: 'blockbar'; title: string; planned_min: number; actual_min: number; jobs: { label: string; min: number }[] }
   | { type: 'profile'; title: string; unit: string; day: string; highlight: [number, number] | null
       hours: { hour: number; value: number; passengers: number }[] }
   | { type: 'bars'; title: string; items: { label: string; value: number; best: boolean }[] }
@@ -207,6 +208,9 @@ export interface JobCluster {
   total_min: number; label: string; lat: number; lon: number
   compatible: number; requires_iwp: number; incompatible: number; cross_pairs: number
   medoid_id?: string | null
+  mean_priority?: number; priority_spread?: number; anchor_id?: string | null
+  riders?: { id: string; label: string; department: string; duration_min: number; priority: number; verdict: string }[]
+  setup_saved_min?: number
 }
 export interface ClusterScore { method: string; groups: number; shared_groups: number; silhouette: number
                                 mean_km_to_centre: number; widest_group_km: number }
@@ -253,6 +257,8 @@ export const api = {
   sectionBrief: (id: string, atS: number) =>
     j<SectionBrief>(`/api/sections/${encodeURIComponent(id)}/brief?at_s=${Math.round(atS)}`),
   clusters: (method: 'average' | 'kmedoids' = 'average') => j<ClustersData>(`/api/tasks/clusters?method=${method}`),
+  efficiency: () => j<EfficiencyData>('/api/efficiency'),
+  resources: (taskType: string, durationMin: number) => j<ResourceEstimate>(`/api/resources/estimate?task_type=${encodeURIComponent(taskType)}&duration_min=${Math.round(durationMin)}`),
   reroutingProof: () => j<RerouteProof>('/api/rerouting/proof'),
   forecast: () => j<ForecastData>('/api/forecast'),
   twin: (section: string, startS: number, durationMin: number, scenarios = 10) =>
@@ -525,4 +531,23 @@ export interface MethodsSummary {
 interface PredRow {
   events: number; emergencies: number; prevented: number; train_min: number; pax_delay_min: number
   pax_reach: number; peak_jobs: number; placed: number; late: number
+}
+
+export interface ReclaimSummary {
+  weeks: number; blocks: number; early_blocks: number; freed_h: number; pulled: number; pulled_sd: number; pulled_h: number
+  saved_setup_h: number; backlog: number; max_job_min: number; how: string; caveat: string
+  examples: { task_id: string; label: string; zone_ref: string; planned_min: number; actual_min: number; freed_min: number
+              start_s: number; freed_from_s: number; pulled: { id: string; label: string; duration_min: number; priority: number }[] }[]
+  neutral: ReclaimSummary | null
+}
+interface GroupStats { groups: number; shared_groups: number; mixed_urgency_groups: number; riders: number; setup_saved_min: number }
+export interface EfficiencyData {
+  reclaim: ReclaimSummary
+  grouping: { place_only: GroupStats; place_and_urgency: GroupStats; priority_km: number; small_job_min: number; jobs: number }
+  rerouting: RerouteProof
+}
+export interface ResourceEstimate {
+  task_type: string; label: string; department: string; duration_min: number; people_per_shift: number; shifts: number
+  people_total: number; roles: { role: string; n: number }[]; equipment: string[]; materials: string[]
+  power_block: boolean; traffic_block: boolean; basis: string
 }

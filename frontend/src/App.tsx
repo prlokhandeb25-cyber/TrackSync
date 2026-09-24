@@ -6,7 +6,7 @@ import WeeklyPlan from './components/WeeklyPlan'
 import Chat, { MitraIcon } from './components/Chat'
 import Impact from './components/Impact'
 import AlgoLab from './components/AlgoLab'
-import ForecastPanel, { type PredWin } from './components/ForecastPanel'
+import EfficiencyPanel from './components/EfficiencyPanel'
 // import Integration from './components/Integration'   // IR integration tab: commented out
 import ProofStrip from './components/ProofStrip'
 import YourJobs from './components/YourJobs'
@@ -75,7 +75,6 @@ export default function App() {
   const [suddenWins, setSuddenWins] = useState<Win[]>([])
   const [movedIds, setMovedIds] = useState<Set<string>>(new Set())
   const [movedWins, setMovedWins] = useState<Win[]>([])
-  const [predWins, setPredWins] = useState<PredWin[]>([])
   const [focus, setFocus] = useState<FocusReq | null>(null)
   const [theme, setTheme] = useState<'light' | 'dark'>(initialTheme)
   const [clock, setClock] = useState(7 * 3600)
@@ -87,6 +86,27 @@ export default function App() {
   const [playing, setPlaying] = useState(true)
   const [err, setErr] = useState<string | null>(null)
   const raf = useRef<number>(0)
+
+  // Every panel that carries explanatory text folds it away behind its title: click the title to open it.
+  useEffect(() => {
+    const DETAIL = '.hint:not(.warn):not(.keep), .tile .note, .cmp-how, .steps, .limits, .detail'
+    let raf = 0
+    const mark = () => {
+      document.querySelectorAll('.main .panel:not(.foldable):not(.chat)').forEach(p => {
+        if (p.querySelector(DETAIL)) p.classList.add('foldable')
+      })
+    }
+    const obs = new MutationObserver(() => { cancelAnimationFrame(raf); raf = requestAnimationFrame(mark) })
+    obs.observe(document.body, { childList: true, subtree: true })
+    mark()
+    const click = (e: MouseEvent) => {
+      const head = (e.target as HTMLElement).closest('.panel.foldable > .panel-head')
+      if (!head || (e.target as HTMLElement).closest('button, select, input, a')) return
+      head.parentElement!.classList.toggle('open')
+    }
+    document.addEventListener('click', click)
+    return () => { obs.disconnect(); document.removeEventListener('click', click); cancelAnimationFrame(raf) }
+  }, [])
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme
@@ -213,9 +233,9 @@ export default function App() {
       put({ zone_ref: a.zone_ref, start_s: a.start_s, end_s: (a as { end_s?: number }).end_s ?? a.start_s + 3600,
             id: a.task_id, dept: t?.department, label: t?.label })
     }
-    for (const w of [...predWins, ...simWindows, ...userWindows]) put(w)
+    for (const w of [...simWindows, ...userWindows]) put(w)
     return out
-  }, [plan, clock, simWindows, userWindows, suddenWins, movedWins, movedIds, tasksById, predWins])
+  }, [plan, clock, simWindows, userWindows, suddenWins, movedWins, movedIds, tasksById])
   const activeBlocks = useMemo(() => new Set(Object.keys(blockInfo)), [blockInfo])
 
   // Fly the map to a job and say where and when it happens; start the clock a little before it.
@@ -382,19 +402,8 @@ export default function App() {
             </div>
             <ProofStrip tick={tick} />
             <JobClusters tick={tick} onHalos={setHalos} />
-            </div>
-
-            <div style={{ display: 'grid', gap: 16, alignContent: 'start' }}>
-              <SuddenPanel net={net} clock={clock} tick={tick} onResult={onSudden} onWatch={watchSudden}
-                           onClear={onSuddenClear} />
-              <YourJobs tick={tick} onWindows={setUserWindows}
-                        onWatch={t => t.schedule && showJob(t.schedule.section_id, t.schedule.start_s, {
-                          endS: t.schedule.end_s, label: t.description || t.label, dept: t.department,
-                          track: t.schedule.track, id: t.id })} />
-              <ForecastPanel clock={clock} tick={tick} onWatch={showJob} onWindows={setPredWins} />
-              <ReroutePanel blocks={rerouteBlocks} onWatch={watchDiversion} />
-
-              {selectedSection && (
+            <ReroutePanel blocks={rerouteBlocks} onWatch={watchDiversion} />
+            {selectedSection && (
                 <div className="panel">
                   <div className="panel-head">
                     <h2>{selectedSection.id}</h2>
@@ -486,6 +495,16 @@ export default function App() {
                   ))}
                 </div>
               </div>
+            </div>
+
+            <div style={{ display: 'grid', gap: 16, alignContent: 'start' }}>
+              <SuddenPanel net={net} clock={clock} tick={tick} onResult={onSudden} onWatch={watchSudden}
+                           onClear={onSuddenClear} />
+              <YourJobs tick={tick} onWindows={setUserWindows}
+                        onWatch={t => t.schedule && showJob(t.schedule.section_id, t.schedule.start_s, {
+                          endS: t.schedule.end_s, label: t.description || t.label, dept: t.department,
+                          track: t.schedule.track, id: t.id })} />
+              <EfficiencyPanel onWatch={showJob} />
             </div>
           </div>
         )}

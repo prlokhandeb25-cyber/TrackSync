@@ -156,7 +156,7 @@ def test_reroute_proof_is_measured_and_never_reroutes_a_local(live):
 
 QUESTIONS = [
     "what can you do?",
-    "what if we act on early warnings at 50% risk?",
+    "can you predict failures?",
     "what is the best response if Dadar to Matunga is closed at 9am?",
     "how are trains rerouted around a block?",
     "what if a critical S&T fault at Kurla right now?",
@@ -176,14 +176,13 @@ def test_every_feature_question_runs_on_a_copy_and_leaves_the_live_state_alone(l
         assert a.text and len(a.text) > 40, q
         seen[q] = a
     assert sandbox_fingerprint() == before, "answering a question changed the live plan, bookings or forecast"
-    assert seen[QUESTIONS[1]].intent == "predictive" and seen[QUESTIONS[1]].visual["type"] == "bars"
+    assert seen[QUESTIONS[1]].intent == "prediction"                        # the warning feature was removed; the answer says why
     assert seen[QUESTIONS[3]].visual["type"] == "route"
     assert seen[QUESTIONS[5]].visual["type"] == "scatter"
-    assert "0 trains held" in seen[QUESTIONS[1]].text or "trains held" in seen[QUESTIONS[1]].text
-    assert "**0** of them are rerouted" in seen[QUESTIONS[3]].text            # locals are never rerouted
+    assert "none of the" in seen[QUESTIONS[3]].text and "rerouted" in seen[QUESTIONS[3]].text   # locals are never rerouted
 
 
 def test_the_catalogue_covers_the_features_and_every_entry_has_a_way_to_try_it():
     ids = {f["id"] for f in FEATURES}
-    assert {"plan", "sudden", "predictive", "twin", "reroute", "clusters", "pax", "buffers"} <= ids
+    assert {"plan", "sudden", "reclaim", "twin", "reroute", "clusters", "pax", "resources"} <= ids
     assert all(f["try"] and f["what"] and f["where"] and f["how"] for f in FEATURES)

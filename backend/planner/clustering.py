@@ -44,10 +44,16 @@ class TaskCluster:
     incompatible: int = 0
     cross_pairs: int = 0
     medoid_id: str | None = None      # K-Medoids only: the job at the group's centre
+    mean_priority: float = 0.0
+    priority_spread: int = 0          # most urgent to least urgent job in the group (0 = all alike)
+    anchor_id: str | None = None      # the biggest job: the block the small ones ride in
+    riders: list = field(default_factory=list)   # small, compatible, similarly urgent jobs that ride in the anchor block
+    setup_saved_min: int = 0          # set-up + hand-back time not spent because riders share the anchor block
 
     def to_dict(self) -> dict:
         return {
-            "medoid_id": self.medoid_id,
+            "medoid_id": self.medoid_id, "mean_priority": round(self.mean_priority, 1), "priority_spread": self.priority_spread,
+            "anchor_id": self.anchor_id, "riders": self.riders, "setup_saved_min": self.setup_saved_min,
             "id": self.id, "size": len(self.task_ids), "task_ids": self.task_ids,
             "zones": sorted(set(self.zones)), "departments": self.departments,
             "total_min": self.total_min, "label": self.label, "lat": self.lat, "lon": self.lon,
@@ -68,6 +74,17 @@ def _position(net: Network, task: Task) -> tuple[float, float]:
 
 def _to_km(lat: float, lon: float) -> tuple[float, float]:
     return lon * 111.32 * math.cos(math.radians(lat)), lat * 110.57
+
+
+def _pw(priority_km: float | None) -> float:
+    return float(priority_km if priority_km is not None else load_config().get_path("clustering.priority_km", 2.0))
+
+
+def _feat(net: Network, tasks: list[Task], priority_km: float | None = None) -> np.ndarray:
+    """Where a job is (km) plus how urgent it is (priority steps x `priority_km`): jobs group when they are
+    both close and similarly urgent, so a P1 is not made to wait for the P5 next to it."""
+    w = _pw(priority_km)
+    return np.array([[*_to_km(*_position(net, t)), w * t.priority] for t in tasks])
 
 
 def _dist(pts: np.ndarray) -> np.ndarray:
@@ -146,8 +163,10 @@ def compare_methods(net: Network, tasks: list[Task], cut_km: float | None = None
     cut = float(cut_km if cut_km is not None else load_config().get_path("clustering.cut_km", 5.0))
     if len(tasks) < 4:
         return {"n": len(tasks), "methods": []}
-    pts = np.array([_to_km(*_position(net, t)) for t in tasks])
-    D = _dist(pts)
+    pts = np.array([_to_km(*_position(net, t)) for t in tasks])         # where jobs are, for the km figures
+    feats = _feat(net, tasks)                                           # where AND how urgent, for the grouping
+    D = _dist(feats)
+    Dk = _dist(pts)
     out = []
 
     def score(name: str, labels: np.ndarray, centres: dict[int, int | None]) -> dict:
@@ -161,17 +180,17 @@ def compare_methods(net: Network, tasks: list[Task], cut_km: float | None = None
         return {"method": name, "groups": len(groups), "shared_groups": len(multi),
                 "silhouette": round(silhouette(D, labels), 3),
                 "mean_km_to_centre": round(float(np.mean(to_centre)), 2),
-                "widest_group_km": round(max((float(D[np.ix_(g, g)].max()) for g in multi), default=0.0), 2)}
+                "widest_group_km": round(max((float(Dk[np.ix_(g, g)].max()) for g in multi), default=0.0), 2)}
 
-    lab_h = fcluster(linkage(pts, method="average"), t=cut, criterion="distance")
+    lab_h = fcluster(linkage(feats, method="average"), t=cut, criterion="distance")
     out.append(score("Average-linkage (hierarchical)", lab_h, {}))
-    lab_k, med, k = kmedoids_auto(pts)
+    lab_k, med, k = kmedoids_auto(feats)
     out.append(score("K-Medoids (k by silhouette)", lab_k, {int(u): int(med[int(u)]) for u in np.unique(lab_k)}))
     return {"n": len(tasks), "cut_km": cut, "methods": out}
 
 
 def cluster_tasks(net: Network, tasks: list[Task], cut_km: float | None = None,
-                  method: str | None = None) -> list[TaskCluster]:
+                  method: str | None = None, priority_km: float | None = None) -> list[TaskCluster]:
     """Group jobs by position: average-linkage cut at `cut_km` (default), or K-Medoids (`method="kmedoids"`)."""
     if not tasks:
         return []
@@ -184,12 +203,12 @@ def cluster_tasks(net: Network, tasks: list[Task], cut_km: float | None = None,
     if len(tasks) == 1:
         labels = np.array([1])
     elif method == "kmedoids" and len(tasks) >= 3:
-        pts = np.array([_to_km(la, lo) for la, lo in pos])
+        pts = _feat(net, tasks, priority_km)
         lab0, med, _ = kmedoids_auto(pts)
         labels = lab0 + 1
         medoid_of = {int(u) + 1: int(med[int(u)]) for u in np.unique(lab0)}
     else:
-        pts = np.array([_to_km(la, lo) for la, lo in pos])
+        pts = _feat(net, tasks, priority_km)
         labels = fcluster(linkage(pts, method="average"), t=cut, criterion="distance")
 
     groups: dict[int, list[int]] = {}
@@ -237,8 +256,48 @@ def cluster_tasks(net: Network, tasks: list[Task], cut_km: float | None = None,
                     c.requires_iwp += 1
                 else:
                     c.incompatible += 1
+        prios = [tasks[i].priority for i in members]
+        c.mean_priority = sum(prios) / len(prios)
+        c.priority_spread = max(prios) - min(prios)
+        _attach_riders(net, c, [tasks[i] for i in members], {tasks[i].id: unscheduled[i] for i in members})
         clusters.append(c)
     return clusters
+
+
+def _attach_riders(net: Network, c: TaskCluster, members: list[Task], unsched: dict) -> None:
+    """The biggest job is the anchor; small jobs the rules allow beside it, of similar urgency, ride in its block."""
+    if len(members) < 2:
+        return
+    cfg = load_config()
+    small = int(cfg.get_path("clustering.small_job_min", 45))
+    gap = int(cfg.get_path("clustering.rider_priority_gap", 1))
+    g = cfg["gaps"]
+    anchor = max(members, key=lambda t: (t.duration_min, -t.priority))
+    if anchor.duration_min <= small:
+        return                                                    # no big job here: nothing to ride on
+    c.anchor_id = anchor.id
+    for t in members:
+        if t.id == anchor.id or t.duration_min > small or abs(t.priority - anchor.priority) > gap:
+            continue
+        v = pair_verdict(net, unsched[t.id], unsched[anchor.id]).value
+        if v is Verdict.INCOMPATIBLE and t.department != anchor.department:
+            continue                                              # same department simply runs after the anchor in the block
+        c.riders.append({"id": t.id, "label": t.label, "department": t.department.value, "duration_min": t.duration_min,
+                         "priority": t.priority, "verdict": v.value})
+    c.setup_saved_min = len(c.riders) * (int(g["block_setup_min"]) + int(g["block_release_min"]))
+
+
+def priority_effect(net: Network, tasks: list[Task]) -> dict:
+    """Grouping by place alone against place AND urgency, on the same jobs: how many groups mix very urgent with very
+    routine work, and how many small jobs get to ride in a big job's block."""
+    def stats(pk: float) -> dict:
+        cl = cluster_tasks(net, tasks, method="average", priority_km=pk)
+        multi = [x for x in cl if len(x.task_ids) > 1]
+        return {"groups": len(cl), "shared_groups": len(multi),
+                "mixed_urgency_groups": sum(1 for x in multi if x.priority_spread >= 3),
+                "riders": sum(len(x.riders) for x in cl), "setup_saved_min": sum(x.setup_saved_min for x in cl)}
+    return {"place_only": stats(0.0), "place_and_urgency": stats(_pw(None)), "priority_km": _pw(None),
+            "small_job_min": int(load_config().get_path("clustering.small_job_min", 45))}
 
 
 def cluster_trace(net: Network, tasks: list[Task], cut_km: float | None = None) -> dict:
@@ -250,7 +309,7 @@ def cluster_trace(net: Network, tasks: list[Task], cut_km: float | None = None) 
     cut = float(cut_km if cut_km is not None
                 else load_config().get_path("clustering.cut_km", 5.0))
     pos = [_position(net, t) for t in tasks]
-    pts = np.array([_to_km(la, lo) for la, lo in pos]) if tasks else np.zeros((0, 2))
+    pts = _feat(net, tasks) if tasks else np.zeros((0, 3))
     merges = []
     labels: list[int] = []
     if len(tasks) >= 2:

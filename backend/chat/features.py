@@ -27,53 +27,53 @@ from backend.planner.live_sim import LiveSimState
 
 FEATURES: list[dict] = [
     {"id": "plan", "name": "Weekly block plan", "where": "Weekly block plan tab",
-     "what": "places every maintenance job into a gap between trains for the whole week, so no two clashing jobs meet",
-     "how": "CP-SAT (constraint optimisation) with a checker that re-verifies every rule on the result",
+     "what": "puts every maintenance job into a quiet gap between trains for the whole week, so no two clashing jobs meet",
+     "how": "CP-SAT, an exact optimiser, plus a separate checker that re-verifies every rule on the finished plan",
      "try": "how many blocks are planned this week?", "words": r"weekly|cp.?sat|optimis|optimal|solver|block plan"},
     {"id": "gaps", "name": "Gap finder and gap creation", "where": "Operations map, Weekly block plan",
-     "what": "finds the quiet minutes between trains, and where none is long enough, prices small changes to trains that open one",
-     "how": "timetable scan with set-up and hand-back time, plus three levers: hold a train, reroute long-distance trains, run single-line",
+     "what": "finds the quiet minutes between trains and, where none is long enough, prices small changes to trains that would open one",
+     "how": "a timetable scan with set-up and hand-back time, plus three levers: hold a train, reroute a long-distance train, run single-line",
      "try": "how much gap time is really usable?", "words": r"gap|window|creat|single.?line|lever"},
     {"id": "rules", "name": "Department rules", "where": "Department coordination tab",
      "what": "says whether two kinds of work may share a place and time: yes, only with a joint permit, or never",
-     "how": "rule engine with three verdicts (compatible, needs an Integrated Work Permission, incompatible)",
+     "how": "a rule engine with three verdicts, each with its reason",
      "try": "can OHE insulator work and tamping happen together at Kurla?", "words": r"rule|compatib|permit|iwp|together"},
     {"id": "clusters", "name": "Job grouping", "where": "Operations tab, Job clusters",
-     "what": "groups nearby jobs from different departments so they can share one protected block instead of several",
-     "how": "average-linkage hierarchical clustering, and K-Medoids (a real job as each group's centre); both scored",
-     "try": "compare the two ways of grouping jobs", "words": r"cluster|group|medoid|linkage|share a block"},
+     "what": "groups jobs that are close together AND similarly urgent, so small jobs can ride inside a big job's block",
+     "how": "average-linkage clustering on place plus priority, with K-Medoids as an alternative; both scored",
+     "try": "how do you group small jobs with big ones?", "words": r"cluster|group|medoid|linkage|share a block|ride|piggy"},
     {"id": "sudden", "name": "Sudden tasks", "where": "Operations tab, Sudden task panel",
      "what": "fits a job nobody planned, from low to critical, into the live schedule, moving lower-priority work only if it must",
-     "how": "fit, then create a gap, then bump (an ALNS-style destroy and repair), then a late fallback",
+     "how": "fit it, else create a gap, else bump lower-priority work (an ALNS-style destroy and repair), else book it late",
      "try": "what if a critical S&T fault at Kurla right now?", "words": r"sudden|inject|emergency|unplanned|urgent|alns|destroy"},
-    {"id": "predictive", "name": "Predictive blocks", "where": "Operations tab, Predicted blocks",
-     "what": "turns early warnings into ordinary blocks in existing gaps days ahead, so faults are not handled as emergencies",
-     "how": "a risk threshold, gaps that already exist only, one visit per section per day, a daily cap",
-     "try": "what if we act on early warnings at 50% risk?", "words": r"predict|early warning|forecast|watch ?list|proactive|warning"},
+    {"id": "reclaim", "name": "Early-finish reuse", "where": "Operations tab, Network efficiency",
+     "what": "when a block finishes early, the rest of it goes to small waiting jobs on the same section",
+     "how": "each block is given its crew's real timing; freed time is matched to the waiting list, priority first then longest first",
+     "try": "what if a 10 hour block is finished in 8 hours?", "words": r"early|finish\w* early|freed|leftover|left over|reclaim|spare time"},
     {"id": "twin", "name": "Digital twin", "where": "Operations tab, Rerouting; Sudden task panel",
      "what": "replays the next 12 hours of the real timetable with a closure in it and picks the response that delays fewest passengers",
-     "how": "timetable replay with delay carried along each train's route, on many random days",
+     "how": "a timetable replay with each train's delay carried along its route, over many random days",
      "try": "what is the best response if Dadar to Matunga is closed at 9am?", "words": r"twin|ripple|cascade|best response|replay|simulat"},
     {"id": "reroute", "name": "Rerouting", "where": "Operations map, Rerouting panel",
      "what": "sends long-distance and freight trains around a closed section; locals are never rerouted, they run single-line",
      "how": "shortest path avoiding the closed section, checked against each train's delay limit, then vetted by the twin",
      "try": "how are trains rerouted around a block?", "words": r"rerout|divert|detour|alternate route|another line"},
+    {"id": "resources", "name": "Crew and equipment", "where": "RailMitra",
+     "what": "the people, machines and materials a job of a given kind and length usually needs",
+     "how": "planning norms per kind of work, scaled by how long it runs (not a measured prediction)",
+     "try": "what does a 3 hour tamping job need?", "words": r"resource|manpower|equipment|crew|people|machine|materials|gang|staff"},
     {"id": "pax", "name": "Passenger and frequency heuristics", "where": "everywhere a slot is chosen",
      "what": "prefers slots with fewer trains and fewer passengers within reach, so work lands when few people are affected",
      "how": "hour-by-hour train counts and an estimated load per train, priced into every scheduler",
      "try": "how busy is Thane at 9am?", "words": r"heuristic|passenger|frequency|footfall|crowd"},
     {"id": "robust", "name": "Robust start times", "where": "Weekly block plan",
      "what": "slides each block within its gap to the minute most likely to be handed back before the next train",
-     "how": "400-sample simulation of late trains and overrunning work, every move re-checked by the referee",
+     "how": "a 400-sample simulation of late trains and overrunning work, every move re-checked by the checker",
      "try": "how often does a block clear before the next train?", "words": r"robust|overrun|clear before|on time|referee|verify"},
     {"id": "rl", "name": "AI dispatcher", "where": "AI dispatcher tab",
      "what": "a learned policy that re-plans in milliseconds when something unplanned appears",
      "how": "offline reinforcement learning from the solver's own plans; illegal moves are masked, never merely penalised",
      "try": "how good is the AI dispatcher?", "words": r"\brl\b|dispatcher|reinforcement|learned|cql|dqn"},
-    {"id": "buffers", "name": "Crew-history buffers", "where": "not in the live plan (an option)",
-     "what": "adds a time buffer for crews and weather that usually overrun",
-     "how": "80th-percentile overrun by department and rain, learned from past jobs (synthetic history here)",
-     "try": "how much buffer does an OHE job need in rain?", "words": r"buffer|crew history|weather|rain"},
 ]
 _BY_ID = {f["id"]: f for f in FEATURES}
 
@@ -121,67 +121,7 @@ def _match_feature(low: str) -> dict | None:
     return best
 
 
-# ----------------------------------------------------------------------------------- predictive
-
-
-def h_predictive(q: str, s: W.Slots, world, now_s: int) -> Answer:
-    from backend.planner import forecast as F
-
-    st = W._live()
-    net = world.net
-    cfg = F._cfg()
-    m = re.search(r"(\d{1,3})\s*%", q)
-    thr = min(0.95, max(0.0, int(m.group(1)) / 100)) if m else cfg["threshold"]
-    warns = F.watchlist(net)
-    committed = W._copies(W.booked_tasks(world, include_forecast=False))
-    index, pax, creator = st.ensure_interval_index(), st.get_pax(), st.make_creator()
-
-    def run(pol):
-        return F.run_policy(net, index, committed, creator, pax, warns, pol, with_rows=True)
-
-    react = run(F.Policy("Wait for the failure", 2.0, False))
-    act = run(F.Policy(f"Act at {int(thr * 100)}% risk", thr, False))
-    force = run(F.Policy("Plan all, changing trains", 0.0, True))
-
-    text = (f"I replayed a **simulated** early-warning feed on a copy of the schedule: **{act['warnings']} warnings** over the week, "
-            f"of which **{act['failures']}** would really have failed (which ones is hidden from the planner, as it would be in life).")
-    text += (f"\n\n**Acting at {int(thr * 100)}% risk and above** books **{act['blocks_added']} proactive blocks**, all in gaps that already "
-             f"exist — **{act['gaps_made_proactive']} trains held, retimed or rerouted** for them. That gets ahead of "
-             f"**{act['prevented']} of {act['failures']} failures**; **{act['emergencies']}** still arrive as emergencies.")
-    text += (f"\n\n**Trains:** waiting for failures costs **{react['train_min']:,.0f} train-minutes** (each emergency needs a gap made "
-             f"by changing trains); acting early costs **{act['train_min']:,.0f}**.")
-    text += (f"\n\n**The guard against over-planning:** {act['false_alarm_blocks']} of the {act['blocks_added']} blocks "
-             f"(**{act['wasted_hours']:.1f} h** of crew time) turned out unnecessary. No more than {cfg['max_per_day']} proactive blocks "
-             f"a day and one visit per section per day are allowed, so the count cannot run away. ")
-    if force["blocks_added"] > act["blocks_added"]:
-        text += (f"Planning every warning, however weak, adds {force['blocks_added'] - act['blocks_added']} more blocks and "
-                 f"{force['wasted_hours'] - act['wasted_hours']:.1f} more wasted hours for a further "
-                 f"{max(0.0, act['train_min'] - force['train_min']):,.0f} train-minutes saved.")
-    text += "\n\n*The warnings themselves are simulated: there is no camera or sensor feed here. Everything after a warning is the real scheduler.*"
-
-    tasks = {t.id: t for t in world.tasks}
-    blocks = [{"id": a.task_id, "dept": (tasks[a.task_id].department.value if a.task_id in tasks else ""), "start_s": a.start_s,
-               "end_s": a.end_s, "kind": "stay", "label": tasks[a.task_id].label if a.task_id in tasks else a.task_id}
-              for a in W._effective_plan(st)]
-    for d in act["rows"]:
-        if d["decision"] == "planned":
-            blocks.append({"id": d["id"], "dept": d["department"], "start_s": d["start_s"], "end_s": d["end_s"],
-                           "kind": "new", "label": d["label"]})
-    sched = {"type": "schedule", "title": "Routine plan (faint) with the proactive blocks added", "days": [W._day_label(d) for d in range(7)],
-             "blocks": blocks, "legend": {"new": "proactive block"}}
-    bars = {"type": "bars", "title": "Train-minutes lost by policy",
-            "items": [{"label": "Wait for failure", "value": round(react["train_min"])},
-                      {"label": f"Act at {int(thr * 100)}%", "value": round(act["train_min"]), "best": True},
-                      {"label": "Plan all + change trains", "value": round(force["train_min"])}]}
-    a = Answer(text, [{"k": "blocks", "v": str(act["blocks_added"])}, {"k": "prevented", "v": f"{act['prevented']}/{act['failures']}"},
-                      {"k": "trains held", "v": str(act["gaps_made_proactive"])}, {"k": "wasted", "v": f"{act['wasted_hours']:.1f} h"}],
-               ["simulated warning feed", "gap finder", "ALNS-lite scheduler", "emergency levers", "nothing was changed"], "predictive",
-               suggestions=["what if we act at 70% risk?", "what if we act at 30% risk?", "what can you do?"])
-    a.visual, a.visuals = bars, [sched]
-    return a
-
-
-# -------------------------------------------------------------------------------------- the twin
+# ------------------------------------------------------------------------------------- the twin
 
 
 def _busiest_paired(world, st) -> str:
@@ -207,9 +147,9 @@ def h_twin(q: str, s: W.Slots, world, now_s: int) -> Answer:
     if s.tod_s is None and s.day is None:
         s.tod_s = 9 * 3600
     a = W.h_whatif_close(q, s, world, now_s)
-    a.text = ("The **digital twin** replays the next 12 hours of the real timetable with the closure in it, carries each train's "
-              "delay along its route and onto the trains behind, and does it on many random days for each possible response"
-              + pick + ".\n\n" + a.text)
+    a.text = ("Let me use the digital twin for this. It replays the next 12 hours of the real timetable with the closure in it, lets each "
+              "train's delay spread to the trains behind it, and does that on many random days for each possible response"
+              + pick + ".\n\n" + a.text + "\n\nWant me to show where the diverted trains would go? Ask *how are trains rerouted around a block?*")
     a.intent = "twin"
     return a
 
@@ -262,12 +202,12 @@ def h_reroute(q: str, s: W.Slots, world, now_s: int) -> Answer:
             if b.reroutes:
                 r = max(b.reroutes, key=lambda x: x["added_delay_min"])
                 wait = max(0.0, (end - r["enter_s"]) / 60.0)
-                text = (f"If **{sec.id}** ({net.stations[sec.from_station].name}–{net.stations[sec.to_station].name}) is closed "
-                        f"{W._now_label(start)}–{s_to_hhmm(end % DAY_S)}, **{len(b.reroutes)} long-distance/freight train(s)** would be "
-                        f"sent round it. The longest detour is **{r['train_name'] or r['train_id']}** via {len(r['sections'])} other "
-                        f"sections, **+{r['added_delay_min']:.0f} min**; waiting for the block to lift would cost it about **{wait:.0f} min**. "
-                        f"**{b.locals_in_window} suburban locals** are due through too: they are never rerouted (they serve fixed stations)"
-                        + (f", so they run single-line on **{b.track_swap['swap_to_track']}**." if b.track_swap else " and would hold."))
+                text = (f"If {sec.id} ({net.stations[sec.from_station].name} to {net.stations[sec.to_station].name}) is closed "
+                        f"{W._now_label(start)} to {s_to_hhmm(end % DAY_S)}, {len(b.reroutes)} long-distance or freight train"
+                        f"{'s' if len(b.reroutes) != 1 else ''} would be sent round it. The longest detour is {r['train_name'] or r['train_id']}, "
+                        f"going through {len(r['sections'])} other sections and losing about {r['added_delay_min']:.0f} minutes. If it just waited for the block to lift, it would lose about {wait:.0f}.\n\n"
+                        f"{b.locals_in_window} suburban locals are due through as well. Those never get rerouted, because they serve fixed stations"
+                        + (f", so they'd run one at a time on {b.track_swap['swap_to_track']} instead." if b.track_swap else " and would simply hold."))
                 a = Answer(text, [{"k": "diverted", "v": str(len(b.reroutes))}, {"k": "detour", "v": f"+{r['added_delay_min']:.0f} min"},
                                   {"k": "vs waiting", "v": f"{wait:.0f} min"}, {"k": "locals rerouted", "v": "0"}],
                            ["reroute search (locals excluded)", "timetable occupancy", "nothing was changed"], "reroute",
@@ -282,12 +222,12 @@ def h_reroute(q: str, s: W.Slots, world, now_s: int) -> Answer:
                           ["reroute search", "nothing was changed"], "reroute", suggestions=["how are trains rerouted around a block?"])
 
     ex = proof["examples"][0] if proof["examples"] else None
-    text = (f"Across the **{proof['blocks']} blocks** in this week's plan, **{proof['diverted']} long-distance and freight trains** "
-            f"are sent round a closed section (**{proof['within_limit']}** inside their delay limit). Each detour adds **{proof['mean_added_min']:.0f} min** on average; "
-            f"waiting for the block to lift would cost them **{proof['wait_min'] / max(1, proof['diverted']):.0f} min** each — "
-            f"**{proof['saved_min']:,.0f} train-minutes saved** in all. **{proof['locals_in_blocks']} local movements** meet a block and **"
-            f"{proof['locals_rerouted']}** of them are rerouted: locals serve fixed stations, so they only run single-line on their own track pair. "
-            f"Before a detour is taken the digital twin checks it is not worse than waiting.")
+    text = (f"Here's how it works. Over this week's {proof['blocks']} blocks, {proof['diverted']} long-distance and freight trains have to go round a closed section. "
+            f"Each detour costs about {proof['mean_added_min']:.0f} minutes, whereas waiting for the block to lift would cost about "
+            f"{proof['wait_min'] / max(1, proof['diverted']):.0f} each. That's roughly {proof['saved_min']:,.0f} train-minutes saved.\n\n"
+            f"Another {proof['no_path']} trains have no other route, so they wait either way. And none of the {proof['locals_in_blocks']} local train movements "
+            f"that meet a block is ever rerouted, since locals serve fixed stations; they run one at a time on the other track of their pair. "
+            f"Before any detour is taken, the digital twin checks it isn't worse than waiting.")
     a = Answer(text, [{"k": "diverted", "v": str(proof["diverted"])}, {"k": "saved", "v": f"{proof['saved_min']:,.0f} min"},
                       {"k": "locals rerouted", "v": str(proof["locals_rerouted"])}],
                ["weekly plan blocks", "reroute search", "nothing was changed"], "reroute",
@@ -324,23 +264,24 @@ def h_sudden_run(q: str, s: W.Slots, world, now_s: int) -> Answer:
     pl = res.placement
     facts = [{"k": "level", "v": lvl}, {"k": "method", "v": res.method}, {"k": "answered in", "v": f"{res.response_ms:.0f} ms"}]
     if pl is None or not pl.placed:
-        text = (f"A **{lvl}** {tt.label.lower()} fault at **{_zn(net, s.zone)}** could **not** be placed before its deadline "
-                f"({due_hours(prio)} h), even after opening a gap or moving lower-priority work. " + " ".join(res.steps[-2:]))
+        text = (f"That one is tough: a {lvl} {tt.label.lower()} fault at {_zn(net, s.zone)} can't be placed before its deadline "
+                f"({due_hours(prio)} hours), even after opening a gap or moving lower-priority work. " + " ".join(res.steps[-2:]))
         return Answer(text, facts, ["ALNS-lite scheduler", "nothing was changed"], "sudden")
     how = {"gap": "in a gap that already exists", "created": "in a gap made by a small change to the trains",
-           "bumped": "by moving lower-priority planned work aside", "late": "**late** — the earliest slot there is, after its deadline"}[res.method]
-    text = (f"A **{lvl}** {tt.label.lower()} at **{_zn(net, s.zone)}** would go **{W._date_label(pl.start_s)}–"
-            f"{s_to_hhmm(pl.end_s % DAY_S)}** {how}, worked out in **{res.response_ms:.0f} ms** on a copy of the schedule.")
+           "bumped": "by moving lower-priority planned work aside", "late": "late: it's the earliest slot there is, but it's after the deadline"}[res.method]
+    text = (f"I'd put a {lvl} {tt.label.lower()} at {_zn(net, s.zone)} on {W._date_label(pl.start_s)} to "
+            f"{s_to_hhmm(pl.end_s % DAY_S)}, {how}. That took {res.response_ms:.0f} milliseconds on a copy of the schedule.")
     if res.method == "late":
         text += " " + " ".join(x for x in res.steps if x.startswith(("No slot", "Nothing fits")))[:240]
     if pl.created is not None:
-        text += f" That costs **{pl.created.delay_min:.0f} train-minutes** ({pl.created.note})."
+        text += f" It costs about {pl.created.delay_min:.0f} train-minutes ({pl.created.note})."
     if res.moves:
         lines = [f"**{m.task.id}** {m.task.label.lower()} to " + (f"**{W._date_label(m.new.start_s)}**" if m.new else "**deferred**")
                  for m in res.moves]
-        text += f"\n\n**What moves:** " + "; ".join(lines) + f". {len(booked) - len(res.moves)} other jobs stay exactly as they are."
+        text += f"\n\nTo make room, " + "; ".join(lines) + f". The other {len(booked) - len(res.moves)} jobs stay exactly where they are."
     else:
-        text += "\n\n**What moves:** nothing; no planned job is disturbed."
+        text += "\n\nNothing else has to move."
+    text += "\n\nWant to see what crew it needs? Ask *what does a job like that need?*"
     tasks = {t.id: t for t in world.tasks}
     moved = {m.task.id for m in res.moves}
     blocks = [{"id": t.id, "dept": t.department.value, "start_s": before[t.id][0], "end_s": before[t.id][1], "kind": "stay",
@@ -365,45 +306,49 @@ def h_sudden_run(q: str, s: W.Slots, world, now_s: int) -> Answer:
 
 
 def h_clusters_run(q: str, s: W.Slots, world, now_s: int) -> Answer:
-    import numpy as np
     from backend.api.routes import _cluster_pool
-    from backend.planner.clustering import _position, _to_km, cluster_tasks, compare_methods
+    from backend.planner.clustering import _feat, _position, _to_km, cluster_tasks, compare_methods, priority_effect
 
     pool = W._copies(_cluster_pool())
     net = world.net
     cmp_ = compare_methods(net, pool)
     if len(cmp_.get("methods", [])) < 2:
-        return Answer("There are too few jobs to group.", [], ["job pool"], "clusters")
+        return Answer("There are too few open jobs to group right now.", [], ["job pool"], "clusters")
+    pe = priority_effect(net, pool)
     h, k = cmp_["methods"]
     cl_h = cluster_tasks(net, pool, method="average")
     cl_k = cluster_tasks(net, pool, method="kmedoids")
     pts = {t.id: _to_km(*_position(net, t)) for t in pool}
     x0 = min(p[0] for p in pts.values()); y0 = min(p[1] for p in pts.values())
+    po, pu = pe["place_only"], pe["place_and_urgency"]
+    big = max((c for c in cl_h if c.riders), key=lambda c: len(c.riders), default=None)
+    pl = lambda n, w: f"{n} {w}" + ("" if n == 1 else "s")            # noqa: E731
 
     def vis(cls, title):
         rows = []
         for c in cls:
             for tid in c.task_ids:
                 x, y = pts[tid]
-                rows.append({"x": round(x - x0, 2), "y": round(y - y0, 2), "g": c.id, "medoid": tid == c.medoid_id})
+                rows.append({"x": round(x - x0, 2), "y": round(y - y0, 2), "g": c.id, "medoid": tid == c.medoid_id or tid == c.anchor_id})
         return {"type": "scatter", "title": title, "points": rows}
 
-    better = k if k["silhouette"] > h["silhouette"] else h
-    text = (f"I grouped the **{len(pool)} open jobs** two ways on a copy, then scored both the same way (silhouette: 1 is tight and "
-            f"well separated, 0 is borderline).\n\n"
-            f"- **Average-linkage** (merge the closest jobs until they are more than {cmp_['cut_km']:.0f} km apart): "
-            f"**{h['groups']} groups**, silhouette **{h['silhouette']}**, jobs sit on average {h['mean_km_to_centre']} km from their group's centre, widest group {h['widest_group_km']} km.\n"
-            f"- **K-Medoids** (pick k real jobs as centres; k chosen by silhouette): **{k['groups']} groups**, silhouette **{k['silhouette']}**, "
-            f"{k['mean_km_to_centre']} km from the centre, widest {k['widest_group_km']} km.\n\n"
-            f"On these jobs **{better['method'].split(' (')[0].lower()}** scores better. A K-Medoids centre is an actual job, so it also names "
-            f"a real place where a shared block could go; average-linkage needs no group count in advance and caps how far apart grouped jobs can be. "
-            f"Whether grouped jobs may share a block is still decided by the rule engine, never by distance.")
-    a = Answer(text, [{"k": "average-linkage", "v": f"{h['groups']} groups, s={h['silhouette']}"},
-                      {"k": "K-Medoids", "v": f"{k['groups']} groups, s={k['silhouette']}"}],
-               ["job pool", "clustering (both methods)", "nothing was changed"], "clusters",
-               suggestions=["how are jobs grouped?", "what can you do?"])
-    a.visual = vis(cl_h, f"Average-linkage: {h['groups']} groups")
-    a.visuals = [vis(cl_k, f"K-Medoids: {k['groups']} groups (ringed = centre job)")]
+    text = (f"I group jobs by two things at once: how close they are and how urgent they are. A P1 shouldn't sit waiting because a P5 is next to it.\n\n"
+            f"On today's {len(pool)} open jobs that makes {pu['groups']} groups. Grouping by place alone would put a very urgent job and a very routine one "
+            f"together in {po['mixed_urgency_groups']} groups; with urgency counted, that's {pu['mixed_urgency_groups']}.\n\n"
+            f"Small jobs (up to {pe['small_job_min']} minutes) can ride inside a bigger job's block when the rules allow it and their priority is close: "
+            f"{pu['riders']} jobs qualify today, which saves about {pu['setup_saved_min']} minutes of set-up and hand-back because they don't need a block of their own.")
+    if big:
+        text += f"\n\nThe best example is around {big.label}: {pl(len(big.riders), 'small job')} can ride with the big {next((t.label for t in pool if t.id == big.anchor_id), 'one').lower()}."
+    text += (f"\n\nI also tried a second method, K-Medoids, which picks a real job as each group's centre. Scored the same way (1 is tight and clearly separated) it gets {k['silhouette']} "
+             f"against {h['silhouette']} for the standard method, "
+             + ("so on today's jobs it's slightly tighter; you can switch to it on the Job clusters panel." if k['silhouette'] > h['silhouette']
+                else "so the standard method stays as the default."))
+    a = Answer(text, [{"k": "groups", "v": str(pu["groups"])}, {"k": "small jobs riding", "v": str(pu["riders"])},
+                      {"k": "set-up saved", "v": f"{pu['setup_saved_min']} min"}],
+               ["job pool", "clustering (place + urgency)", "rule engine", "nothing was changed"], "clusters",
+               suggestions=["what does a 3 hour tamping job need?", "what can you do?"])
+    a.visual = vis(cl_h, f"Grouped by place and urgency: {h['groups']} groups")
+    a.visuals = [vis(cl_k, f"K-Medoids: {k['groups']} groups")]
     return a
 
 
@@ -468,6 +413,138 @@ def h_buffers(q: str, s: W.Slots, world, now_s: int) -> Answer:
     return a
 
 
+
+# ---------------------------------------------------------------------------------- predictions
+
+
+def h_prediction_note(q: str, s: W.Slots, world, now_s: int) -> Answer:
+    text = ("Good thing to ask about. I used to have an early-warning feature that booked repair blocks before things broke, "
+            "but I took it out. The warnings were made up by the program (there is no camera or sensor feed here), and the "
+            "'accuracy' was just the odds I had set myself, so it proved nothing. I'd rather not show you a number I can't stand behind.\n\n"
+            "If you connect real inspection data later, the booking part could come back, because it already puts work only into "
+            "gaps that exist. Meanwhile, I can help with things I can actually measure. Shall we look at what happens when a block finishes early?")
+    return Answer(text, [], ["decision log"], "prediction", suggestions=["what if a 10 hour block is finished in 8 hours?",
+                                                                       "what can you do?"])
+
+
+def _resource_visual(est: dict) -> dict:
+    items = [{"label": r["role"], "value": r["n"], "best": False} for r in est["roles"]]
+    return {"type": "bars", "title": f"People on site per shift ({est['people_per_shift']} in all)", "items": items}
+
+
+def h_resources(q: str, s: W.Slots, world, now_s: int) -> Answer:
+    from backend.planner.resources import estimate
+
+    tt = W._default_type(s.depts[0] if s.depts else None, s.types, s.zone)
+    dur = s.duration_min or max(tt.min_duration_min, min(90, tt.max_duration_min))
+    e = estimate(tt, dur)
+    crew = ", ".join(f"{r['n']} {r['role'].lower()}" for r in e["roles"])
+    text = (f"For a {dur}-minute {tt.label.lower()} job you'd normally line up about {e['people_per_shift']} people: {crew}.")
+    if e["shifts"] > 1:
+        text += f" It runs past one shift, so plan {e['shifts']} relief crews, about {e['people_total']} people over the job."
+    text += f"\n\nBring: {', '.join(e['equipment']).lower()}."
+    if e["materials"]:
+        text += f" Have {', '.join(e['materials']).lower()} ready."
+    text += ("\n\nOne honest note: these are typical planning norms for this kind of work, scaled by how long it runs. "
+             "I don't have real gang records, so treat it as a starting checklist rather than a forecast.")
+    if e["power_block"]:
+        text += " Because it needs a power block, a traction power controller and an earthing party are included."
+    if s.zone is not None:
+        text += f"\n\nWant me to find the best slot for it at {_zn(world.net, s.zone)}?"
+    a = Answer(text, [{"k": "people", "v": str(e["people_per_shift"])}, {"k": "shifts", "v": str(e["shifts"])},
+                      {"k": "machines", "v": str(len(e["equipment"]))}], ["planning norms (assumed)", "nothing was changed"], "resources",
+               suggestions=[f"best time for a {dur} minute {tt.department.value} job?", "what can you do?"])
+    a.visual = _resource_visual(e)
+    return a
+
+
+def _durations(low: str) -> list[int]:
+    out = []
+    for m in re.finditer(r"(\d+(?:\.\d+)?)\s*(hours?|hrs?|h|minutes?|mins?)\b", low):
+        v = float(m.group(1))
+        out.append(int(v * 60) if m.group(2).startswith("h") else int(v))
+    return out
+
+
+def h_reclaim(q: str, s: W.Slots, world, now_s: int) -> Answer:
+    from backend.api.routes_efficiency import reclaim_summary
+    from backend.planner import reclaim as R
+
+    d = reclaim_summary()
+    ds = _durations(q.lower())
+    if len(ds) >= 2 and ds[0] > ds[1]:
+        planned, actual = ds[0], ds[1]
+        freed = planned - actual
+        zone = s.zone.ref if (s.zone is not None and s.zone.kind is WorkZoneKind.SECTION) else None
+        take = []
+        if zone:
+            bk = R.make_backlog(world.net, 4242, d["backlog"], d["max_job_min"])
+            take = R.fill(world.net, zone, freed, bk, set())
+        used = sum(j.duration_min for j in take)
+        text = (f"Nice case. A {planned // 60}-hour block that finishes in {actual // 60 if actual % 60 == 0 else actual / 60:g} hours leaves "
+                f"{freed} minutes with the track already protected and the crew on site, so a small job waiting on that stretch can start straight away, "
+                f"with no new block and no second set-up.")
+        if take:
+            text += (f"\n\nOn {zone} I'd pull in {len(take)} waiting job{'s' if len(take) != 1 else ''}: "
+                     + "; ".join(f"{j.label.lower()} ({j.duration_min} min, P{j.priority})" for j in take)
+                     + f". That uses {used} of the {freed} minutes and saves about {len(take) * 25} minutes of set-up and hand-back.")
+        elif zone:
+            text += f"\n\nNothing on the waiting list fits {zone} in those {freed} minutes, so the time would simply be handed back to the trains."
+        else:
+            text += "\n\nName the section (for example *on Kurla to Sion*) and I'll show which waiting jobs would fill it."
+        text += ("\n\nFor scale: across this week's real plan (mostly short blocks), early finishes hand back about "
+                 f"{d['neutral']['freed_h']:.1f} hours if crews take the planned time on average. The bigger the block, the more there is to give back.")
+        a = Answer(text, [{"k": "freed", "v": f"{freed} min"}, {"k": "jobs pulled in", "v": str(len(take))}],
+                   ["crew timing model", "waiting list (assumed)", "rule engine", "nothing was changed"], "reclaim",
+                   suggestions=["how much time does early finishing give back over a week?", "what can you do?"])
+        a.visual = {"type": "blockbar", "title": "One block, finished early", "planned_min": planned, "actual_min": actual,
+                    "jobs": [{"label": j.label, "min": j.duration_min} for j in take]}
+        return a
+
+    n = d["neutral"]
+    text = (f"Good question. Crews don't take exactly the planned time, so some blocks finish early. With the crew behaviour I assume (crews tend to run a bit over), "
+            f"only about {d['early_blocks']:.0f} of the week's {d['blocks']} blocks finish early, handing back about {d['freed_h']:.1f} hours, and small jobs use about {d['pulled_h']:.1f} of it. "
+            "That's honestly small.\n\n"
+            f"If crews instead took the planned time on average (as often early as late), about {n['early_blocks']:.0f} blocks finish early and hand back about {n['freed_h']:.1f} hours; "
+            f"the waiting small jobs on the same stretch (urgent first, then longest that fits) use about {n['pulled_h']:.1f} hours, which completes around {n['pulled']:.0f} extra jobs a week "
+            f"and skips about {n['saved_setup_h']:.1f} hours of set-up and hand-back.\n\n"
+            "The gain grows with block length: a 10-hour block that finishes 2 hours early frees far more than a 1-hour job that finishes 5 minutes early. "
+            f"The waiting list ({d['backlog']} small jobs) and the crew timing are assumptions, so read this as how the mechanism behaves, not a forecast. "
+            "Try *what if a 10 hour block on Kurla to Sion finishes in 8 hours?*")
+    a = Answer(text, [{"k": "blocks early", "v": f"{n['early_blocks']:.0f}/{d['blocks']}"}, {"k": "hours freed", "v": f"{n['freed_h']:.1f}"},
+                      {"k": "extra jobs", "v": f"{n['pulled']:.0f}"}], ["weekly plan", "crew timing model", "waiting list (assumed)", "nothing was changed"],
+               "reclaim", suggestions=["what if a 10 hour block on Kurla to Sion finishes in 8 hours?", "what does a 3 hour tamping job need?"])
+    a.visual = {"type": "bars", "title": "Hours in a week if crews take the planned time on average",
+                "items": [{"label": "Handed back by early finishes", "value": round(n["freed_h"], 1), "best": False},
+                          {"label": "Used by small waiting jobs", "value": round(n["pulled_h"], 1), "best": True},
+                          {"label": "Set-up time not spent", "value": round(n["saved_setup_h"], 1), "best": True}]}
+    return a
+
+
+def h_greeting(q: str, s: W.Slots, world, now_s: int) -> Answer:
+    low = q.lower()
+    if re.search(r"\b(thanks|thank you|great|cool|nice)\b", low):
+        text = "Glad that helped! Ask me anything else about the network, or tell me a job and I'll work out where it fits."
+    else:
+        text = ("Hello! I'm RailMitra. I can plan a block for you, try out a closure or a sudden fault on a copy of the schedule, "
+                "tell you who and what a job needs on site, and explain how any part of the system works. What would you like to look at?")
+    return Answer(text, [], [], "greeting", suggestions=["what can you do?", "what does a 3 hour tamping job need?",
+                                                        "what if a 10 hour block is finished in 8 hours?"])
+
+
+def warm(a: Answer) -> Answer:
+    """A friendly lead-in and a follow-up for answers from the analysis handlers; the figures are untouched."""
+    lead = {"whatif": "Sure, I tried that on a copy of the schedule, so nothing real changed. ",
+            "planblock": "Happy to help plan that. I re-worked the week on a copy to see what would move. ",
+            "traffic": "", "whos_working": "", "together": "Let me check the rules for you. ",
+            "sudden": "", "status": "", "why_not": "Let me look at the rules. "}.get(a.intent, "")
+    if lead and not a.text.startswith(lead):
+        a.text = lead + a.text
+    if a.suggestions and "Want me to" not in a.text and a.intent in ("whatif", "planblock", "sudden", "together", "traffic"):
+        a.text += f"\n\nWant me to try something else, like *{a.suggestions[0].rstrip('?')}*?"
+    return a
+
+
 # ------------------------------------------------------------------------------------- routing
 
 _CAT = re.compile(r"\b(what can you do|what do you do|features?|capabilit\w+|everything (you|the system)|what (all )?can (i|we) (ask|do)|"
@@ -486,8 +563,19 @@ def route(q: str, world, now_s: int) -> Answer | None:
         return h_algorithms(q, s, world, now_s)
     if re.search(r"\b(buffer|crew history|overrun)\w*\b", low) and not re.search(r"\bhow often\b", low):
         return h_buffers(q, s, world, now_s)
-    if re.search(r"\b(predict\w*|early warning\w*|forecast\w*|watch ?list|proactive|warnings?)\b", low):
-        return h_predictive(q, s, world, now_s)
+    if re.search(r"\b(predict\w*|early warning\w*|forecast\w*|watch ?list|proactive|warnings?)\b", low) \
+            and not re.search(r"\b(resource|manpower|people|crew|equipment)\b", low):
+        return h_prediction_note(q, s, world, now_s)
+    if re.search(r"\b(resources?|manpower|equipment|crew|machines?|materials|gang|who (is|are) needed|what (does|do) .* need)\b", low) \
+            and not re.search(r"\b(buffer|overrun)\b", low):
+        return h_resources(q, s, world, now_s)
+    if re.search(r"\b(finish\w* early|finished early|ends? early|over early|early finish\w*|finishing early|leftover|left over|freed|spare time|reclaim)\b", low) \
+            or (re.search(r"\bblock\b", low) and len(_durations(low)) >= 2 and re.search(r"\b(finish\w*|done|over|complete\w*)\b", low)):
+        return h_reclaim(q, s, world, now_s)
+    if re.search(r"^\s*(hi|hello|hey|namaste|thanks|thank you|good (morning|afternoon|evening))\b", low):
+        return h_greeting(q, s, world, now_s)
+    if re.search(r"\bpriorit\w*\b.*\b(cluster|group)\w*|\b(cluster|group)\w*\b.*\b(small|big|priority|urgen\w*)", low):
+        return h_clusters_run(q, s, world, now_s)
     if re.search(r"\b(digital twin|the twin|ripple|cascad\w*|best response|replay)\b", low):
         return h_twin(q, s, world, now_s)
     if re.search(r"\b(rerout\w*|divert\w*|detour\w*|alternate route|another line|sent round)\b", low) \

@@ -126,6 +126,14 @@ adapters:
 clustering:                        # backend/planner/clustering.py (ASSUMPTIONS A-029)
   cut_km: 5.0                      # average-linkage distance at which job groups stop merging
   method: average                  # average | kmedoids (K-Medoids chooses its group count by silhouette)
+  priority_km: 2.0                 # one priority step counts as this many km when grouping: near AND similarly urgent (A-054)
+  small_job_min: 45                # a job this short or shorter can ride in a bigger job's block (A-054)
+  rider_priority_gap: 1            # ... if it is within this many priority steps of the big job (A-054)
+
+reclaim:                           # backend/planner/reclaim.py (ASSUMPTIONS A-053)
+  backlog_jobs: 240                # small as-and-when jobs waiting across the network
+  max_job_min: 60                  # longest job that counts as small enough to fill freed time
+  seeds: 12                        # random weeks averaged
 
 gap_creation:                      # backend/gaps/creation.py (ASSUMPTIONS A-032)
   max_hold_min: 4                  # longest any one train may be held to widen a gap
