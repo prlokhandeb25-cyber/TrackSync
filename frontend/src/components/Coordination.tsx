@@ -195,7 +195,7 @@ function TaskForm({ opts, clock, onDone }: {
         {lines.length > 0 && (
           <div>
             <label className="flabel">Which line of the section?</label>
-            <div className="seg">
+            <div className="seg lines">
               {sortedLines.map(l => (
                 <button type="button" key={l} className={track === l ? 'on' : ''} onClick={() => setTrack(l)}>
                   <b>{l.replace('_', ' ')}</b><span>{l.startsWith('UP') ? 'up' : 'down'}</span>
@@ -247,13 +247,13 @@ function TaskForm({ opts, clock, onDone }: {
 
 type ShowFn = (section: string, startS?: number, extra?: Partial<FocusReq>) => void
 
-function ScoreCard({ t, open, onToggle, onShow }: {
-  t: ScoredTask; open: boolean; onToggle: () => void; onShow: ShowFn
+function ScoreCard({ t, open, onToggle, onShow, fresh }: {
+  t: ScoredTask; open: boolean; onToggle: () => void; onShow: ShowFn; fresh?: boolean
 }) {
   const sc = t.score
   const s = t.schedule
   return (
-    <div className={`score-card ${t.source === 'USER' ? 'mine' : ''}`}>
+    <div id={`sc-${t.id}`} className={`score-card ${t.source === 'USER' ? 'mine' : ''} ${fresh ? 'fresh' : ''}`}>
       <div className="score-main" onClick={onToggle}>
         <Dial value={sc?.score ?? 0} />
         <div style={{ minWidth: 0, flex: 1 }}>
@@ -336,8 +336,15 @@ export default function Coordination({ mat: _mat, clock, onShow }: {
   useEffect(() => { api.formOptions().then(setOpts).catch(() => undefined) }, [])
   useEffect(() => { load(); const id = setInterval(load, 8000); return () => clearInterval(id) }, [load])
 
-  const onDone = (r: SubmitResult) => { setLast(r); setOpen(r.task.id); load() }
+  // the job you just raised goes to the top of the list, opened and highlighted
+  const [freshId, setFreshId] = useState<string | null>(null)
+  const onDone = (r: SubmitResult) => {
+    setLast(r); setOpen(r.task.id); setFreshId(r.task.id); load()
+    window.setTimeout(() => document.getElementById(`sc-${r.task.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 700)
+    window.setTimeout(() => setFreshId(null), 6000)
+  }
   const rows = (data?.tasks ?? []).filter(t => !mine || t.source === 'USER')
+    .sort((a, b) => (a.source === 'USER' ? 0 : 1) - (b.source === 'USER' ? 0 : 1) || (a.source === 'USER' && b.source === 'USER' ? b.id.localeCompare(a.id) : 0))
 
   return (
     <div className="grid coord">
@@ -409,7 +416,7 @@ export default function Coordination({ mat: _mat, clock, onShow }: {
           <div className="panel-body flush scroll" style={{ maxHeight: 640 }}>
             {!data && <div className="loading"><div className="spinner" />Scoring every job…</div>}
             {rows.map(t => (
-              <ScoreCard key={t.id} t={t} open={open === t.id}
+              <ScoreCard key={t.id} t={t} open={open === t.id} fresh={freshId === t.id}
                          onToggle={() => setOpen(open === t.id ? null : t.id)} onShow={onShow} />
             ))}
             {data && rows.length === 0 && <div className="panel-body muted">Nothing raised yet — use the form.</div>}

@@ -179,10 +179,25 @@ def submit_task(p: SubmitTask) -> dict:
             x.task for x in STATE.live_sim.placed if x.placed]
         placement = alns_lite_insert(net, task, ensure_interval_index(), committed,
                                      LiveSimState(), creator=make_creator(), at_s=p.at_s)
+        if not placement.placed:
+            # nothing on this line before the deadline: book the earliest slot there is on the same line and say it is late
+            due, task.due_by_s = task.due_by_s, None
+            late = alns_lite_insert(net, task, ensure_interval_index(), committed,
+                                    LiveSimState(), creator=None, at_s=p.at_s)
+            task.due_by_s = due
+            if late.placed:
+                late.reason = f"{late.reason}; later than its deadline, as no gap on this line fits sooner"
+                placement = late
         if placement.placed:
             STATE.user_placements[tid] = placement
         else:
             STATE.user_unplaced[tid] = placement.reason
+            if task.track is not None:
+                tree = ensure_interval_index().trees.get((task.zone.ref, task.zone.kind))
+                best = max((iv.data.usable_min(power_block=task.requires_power_block) for iv in (tree or []) if iv.data.track == task.track), default=0)
+                STATE.user_unplaced[tid] = (f"No gap on the {task.track.replace('_', ' ').lower()} line of {task.zone.ref} is long enough for "
+                                            f"{task.reserved_min} minutes at any time this week (the longest is {int(best)} minutes). "
+                                            f"Shorten the job or pick another line.")
     sched_ms = (time.perf_counter() - t0) * 1000
 
     pool, clusters, scores, cluster_of = _scored_pool()

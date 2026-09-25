@@ -1088,3 +1088,10 @@ html.theme-anim, html.theme-anim *, html.theme-anim *::before, html.theme-anim *
 :root:not([data-theme="dark"]) a { color: #1c5fc9; }
 :root:not([data-theme="dark"]) .hstat .v[style*="--sick"] { color: #ffd884 !important; }
 :root:not([data-theme="dark"]) .hstat .v[style*="--fit"] { color: #93f0c3 !important; }
+
+/* the chosen option in a picker reads clearly as chosen */
+.seg.lines button.on { border-color: var(--accent); background: var(--accent-soft); box-shadow: 0 0 0 2px var(--accent) inset; }
+.seg.lines button.on b { color: var(--accent); }
+.seg.lines button.on span { color: var(--accent); }
+.score-card.fresh { animation: fresh-glow 1.6s ease 3; }
+@keyframes fresh-glow { 0%, 100% { box-shadow: 0 0 0 0 transparent; } 50% { box-shadow: 0 0 0 3px var(--accent); } }
