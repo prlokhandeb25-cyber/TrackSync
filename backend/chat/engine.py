@@ -39,10 +39,18 @@ DAY_S = 86400
 DEPT_WORDS = {
     "pwi": Department.PWI, "p-way": Department.PWI, "pway": Department.PWI,
     "track": Department.PWI, "permanent way": Department.PWI,
+    "rails": Department.PWI, "sleeper": Department.PWI, "sleepers": Department.PWI, "ballast": Department.PWI,
+    "tamping": Department.PWI, "welding": Department.PWI, "track fixing": Department.PWI, "track repair": Department.PWI,
+    "track maintenance": Department.PWI, "track renewal": Department.PWI, "fixing track": Department.PWI,
     "owd": Department.OWD, "ohe": Department.OWD, "overhead": Department.OWD,
     "traction": Department.OWD, "catenary": Department.OWD,
+    "wiring": Department.OWD, "wire": Department.OWD, "wires": Department.OWD, "pantograph": Department.OWD,
+    "mast": Department.OWD, "masts": Department.OWD, "cantilever": Department.OWD, "insulator": Department.OWD,
+    "insulators": Department.OWD, "dropper": Department.OWD, "droppers": Department.OWD, "contact wire": Department.OWD,
     "s&t": Department.S_AND_T, "snt": Department.S_AND_T, "s and t": Department.S_AND_T,
-    "signal": Department.S_AND_T, "signalling": Department.S_AND_T,
+    "signal": Department.S_AND_T, "signalling": Department.S_AND_T, "signaling": Department.S_AND_T,
+    "signals": Department.S_AND_T, "interlocking": Department.S_AND_T, "axle counter": Department.S_AND_T,
+    "relay": Department.S_AND_T, "relays": Department.S_AND_T, "point machine": Department.S_AND_T,
     "telecom": Department.S_AND_T,
 }
 

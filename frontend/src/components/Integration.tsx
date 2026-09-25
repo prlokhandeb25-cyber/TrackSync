@@ -46,7 +46,7 @@ export default function Integration() {
             </div>
             <span className="arrow-r">→</span>
             <div className="node us" style={{ minWidth: 150, padding: '14px 16px' }}>
-              <b style={{ fontSize: 13 }}>RailBlock AI</b>
+              <b style={{ fontSize: 13 }}>TrackSync</b>
               <span>gap analysis · compatibility<br />CP-SAT · RL dispatcher</span>
             </div>
             <span className="arrow-r">→</span>

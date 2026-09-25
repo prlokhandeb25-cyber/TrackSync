@@ -367,13 +367,12 @@ export default function App() {
   return (
     <div className="app">
       <header className="header">
-        <div className="logo" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-            <path d="M7 3l-3 18M17 3l3 18M5.6 9h12.8M4.8 15h14.4" />
-          </svg>
+        <div className="logo-mark" role="img" aria-label="TrackSync">
+          <img className="lm-dark" src="/logo-emblem-dark.png" alt="" />
+          <img className="lm-light" src="/logo-emblem-light.png" alt="" />
         </div>
         <div className="brand">
-          <b>RailBlock AI</b>
+          <b>TrackSync</b>
           <span>{net.name} · {lines.length} lines · {net.stations.length} stations</span>
         </div>
         <div className="header-stats">
@@ -396,7 +395,13 @@ export default function App() {
             <div className="k">Sim clock</div>
           </div>
         </div>
-        <button className="theme-toggle" onClick={() => setTheme(t => (t === 'dark' ? 'light' : 'dark'))}
+        <button className="theme-toggle" onClick={() => {
+                  // a short-lived class turns on colour transitions for the switch only, so hovers and animations stay as they were
+                  const el = document.documentElement
+                  el.classList.add('theme-anim')
+                  window.setTimeout(() => el.classList.remove('theme-anim'), 650)
+                  setTheme(t => (t === 'dark' ? 'light' : 'dark'))
+                }}
                 title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
                 aria-label="Toggle light and dark mode">
           {theme === 'dark' ? (

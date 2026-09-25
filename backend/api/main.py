@@ -25,7 +25,7 @@ from backend.api.routes_efficiency import router as efficiency_router
 from backend.api.routes_studio import router as studio_router
 from backend.config import REPO_ROOT, load_config, seed_everything
 
-app = FastAPI(title="RailBlock AI", version="0.1.0")
+app = FastAPI(title="TrackSync", version="0.1.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],

@@ -113,13 +113,13 @@ export default function Impact() {
     const m1 = d.metrics.find(x => x.id === 'M1')
     const rl = card('rl')
     if (g) out.push({ id: 'gaps', title: 'Usable maintenance time each week', kind: 'h', better: 'higher',
-      bars: [{ who: 'Night + Sunday', v: g.before.value, tone: 'before' }, { who: 'RailBlock', v: g.after.value, tone: 'after' }],
+      bars: [{ who: 'Night + Sunday', v: g.before.value, tone: 'before' }, { who: 'TrackSync', v: g.after.value, tone: 'after' }],
       how: g.how, repro: g.repro })
     if (cr) out.push({ id: 'cr', title: `Urgent jobs done in time (of ${sc.headline.urgent_jobs_total})`, kind: 'n', better: 'higher',
-      bars: [{ who: 'Fixed timetable', v: cr.before.value, tone: 'before' }, { who: 'RailBlock', v: cr.after.value, tone: 'after' }],
+      bars: [{ who: 'Fixed timetable', v: cr.before.value, tone: 'before' }, { who: 'TrackSync', v: cr.after.value, tone: 'after' }],
       how: `${cr.how} ${cr.detail}`, repro: cr.repro })
     if (pl) out.push({ id: 'pl', title: 'Jobs placed in the weekly plan', kind: 'n', better: 'higher',
-      bars: [{ who: 'Manual', v: pl.before.value, tone: 'before' }, { who: 'RailBlock', v: pl.after.value, tone: 'after' }],
+      bars: [{ who: 'Manual', v: pl.before.value, tone: 'before' }, { who: 'TrackSync', v: pl.after.value, tone: 'after' }],
       how: pl.how, repro: pl.repro })
     if (cl) out.push({ id: 'cl', title: 'Protected blocks needed', kind: 'n', better: 'lower',
       bars: [{ who: 'One per job', v: cl.before.value, tone: 'before' }, { who: 'Shared blocks', v: cl.after.value, tone: 'after' }],
@@ -127,12 +127,12 @@ export default function Impact() {
     if (m1 && rl) out.push({ id: 'm1', title: 'Time to re-plan after a defect', kind: 'ms', better: 'lower', deltaVs: 1,
       bars: [{ who: 'Next weekly cycle*', v: m1.before, tone: 'before' },
              { who: 'Full CP-SAT solve', v: rl.before.value * 1000, tone: 'mid' },
-             { who: 'RailBlock', v: rl.after.value * 1000, tone: 'after' }],
-      how: `*Manual: the assumed wait for the next planning cycle (adjustable below). The multiplier compares RailBlock with a full exact solve, which was measured. ${rl.detail}`,
+             { who: 'TrackSync', v: rl.after.value * 1000, tone: 'after' }],
+      how: `*Manual: the assumed wait for the next planning cycle (adjustable below). The multiplier compares TrackSync with a full exact solve, which was measured. ${rl.detail}`,
       repro: rl.repro })
     if (cp) out.push({ id: 'cp', title: 'Settling department clashes', kind: 'ms', better: 'lower',
       assumed: true,
-      bars: [{ who: 'Phone calls*', v: cp.before.value * 3_600_000, tone: 'before' }, { who: 'RailBlock', v: cp.after.value, tone: 'after' }],
+      bars: [{ who: 'Phone calls*', v: cp.before.value * 3_600_000, tone: 'before' }, { who: 'TrackSync', v: cp.after.value, tone: 'after' }],
       how: `*${cp.how}`, repro: cp.repro })
     if (px) {
       // Manual (night + Sunday windows only) touches few passengers because it works almost only when
@@ -140,16 +140,16 @@ export default function Impact() {
       out.push({ id: 'pax', title: `Passengers within reach of ${px.jobs} urgent jobs`, kind: 'n', better: 'lower',
         bars: [
           { who: 'Timing ignores them', v: px.unaware.passengers, tone: 'before' },
-          { who: 'RailBlock', v: px.aware.passengers, tone: 'after' }],
+          { who: 'TrackSync', v: px.aware.passengers, tone: 'after' }],
         how: `${px.how} For reference, manual planning (night and Sunday windows only) touches ${px.manual.passengers.toLocaleString()} `
           + `passengers but places ${px.manual.placed} of ${px.jobs} jobs against ${px.aware.placed}, and has no daytime capacity for urgent work.`,
         repro: 'GET /api/pax/experiment' })
     }
     if (pw?.data) out.push({ id: 'pw', title: 'Weekly plan: passengers within reach', kind: 'n', better: 'lower',
-      bars: [{ who: 'Timing ignores them', v: pw.data.unaware_common, tone: 'before' }, { who: 'RailBlock', v: pw.data.aware_common, tone: 'after' }],
+      bars: [{ who: 'Timing ignores them', v: pw.data.unaware_common, tone: 'before' }, { who: 'TrackSync', v: pw.data.aware_common, tone: 'after' }],
       how: pw.data.how, repro: 'GET /api/pax/weekly' })
     if (rb?.ablation) out.push({ id: 'rb', title: 'Blocks that clear before the next train', kind: 'pct', better: 'higher',
-      bars: [{ who: 'Solver alone', v: rb.ablation.raw.mean * 100, tone: 'before' }, { who: 'RailBlock', v: rb.plan.mean * 100, tone: 'after' }],
+      bars: [{ who: 'Solver alone', v: rb.ablation.raw.mean * 100, tone: 'before' }, { who: 'TrackSync', v: rb.plan.mean * 100, tone: 'after' }],
       how: `${rb.how} "Solver alone" is the same week solved without the fragile-window cost.`, repro: 'GET /api/plan/robustness' })
     // Predictive blocks were removed: the warning feed was simulated, so its accuracy could not be measured.
     const tw = mt?.results.twin
@@ -176,7 +176,7 @@ export default function Impact() {
       id: 'sd', title: 'Placing a sudden task', kind: 'ms', better: 'lower',
       assumed: true,
       bars: [{ who: 'Next weekly cycle*', v: (sd.manual_wait_days ?? 7) * 86_400_000, tone: 'before' },
-             { who: 'RailBlock (median)', v: sd.median_ms, tone: 'after' }],
+             { who: 'TrackSync (median)', v: sd.median_ms, tone: 'after' }],
       how: `Median of ${sd.n} sudden task(s) injected on the Operations page.`, repro: 'GET /api/sudden/metrics' })
     return out
   }, [sc, d, px, sd, pw, rb, mt, ef, rp])
@@ -192,7 +192,7 @@ export default function Impact() {
   return (
     <div style={{ display: 'grid', gap: 16 }}>
       <div className="ba-hero">
-        <h1>RailBlock AI against manual planning</h1>
+        <h1>TrackSync against manual planning</h1>
         <div className="sub">Same timetable, same jobs. Every figure is measured.</div>
         <div className="kpis">
           {h && <div className="kpi"><div className="big">+{h.capacity_gain_pct}%</div>

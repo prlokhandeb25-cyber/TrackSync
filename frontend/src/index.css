@@ -997,3 +997,94 @@ tbody tr:nth-child(even) td { background: color-mix(in srgb, var(--panel-2) 55%,
 .lr-table td { padding: 3px 6px 3px 0; border-top: 1px solid var(--line-soft); }
 .lr-table tr.on td { background: rgba(245,158,11,.14); } .lr-table tr.done td { opacity: .5; }
 .lr-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 6px; }
+
+
+/* =====================================================================================================
+   TrackSync logo. Both emblems sit in the same box and cross-fade with the theme.
+   ===================================================================================================== */
+.logo-mark { position: relative; width: 42px; height: 42px; flex: none; border-radius: 9px; overflow: hidden;
+             box-shadow: 0 0 0 1px rgba(255,255,255,.16); }
+.logo-mark img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transition: opacity .55s ease; }
+.logo-mark .lm-light { opacity: 1; }
+.logo-mark .lm-dark { opacity: 0; }
+:root[data-theme="dark"] .logo-mark .lm-light { opacity: 0; }
+:root[data-theme="dark"] .logo-mark .lm-dark { opacity: 1; }
+
+/* Colour changes ease over about half a second when the theme is switched (the class lives on <html> only for the switch). */
+html.theme-anim, html.theme-anim *, html.theme-anim *::before, html.theme-anim *::after {
+  transition: background-color .5s ease, background .5s ease, color .5s ease, border-color .5s ease, fill .5s ease,
+              stroke .5s ease, box-shadow .5s ease, opacity .5s ease !important;
+}
+
+/* =====================================================================================================
+   LIGHT MODE ONLY. A railway palette in the spirit of IRCTC and RailOne: sky blue and royal blue with a light
+   purple accent, on soft sky-tinted surfaces. Nothing in this block applies in dark mode.
+   ===================================================================================================== */
+:root:not([data-theme="dark"]) {
+  --bg:        #e9f1fb;
+  --bg-2:      #dde9f8;
+  --panel:     #ffffff;
+  --panel-2:   #f2f6fd;
+  --panel-3:   #e5edfa;
+  --line:      #bfd0ea;
+  --line-soft: #d7e3f4;
+
+  --text:      #132043;
+  --text-dim:  #3b4772;
+  --text-mute: #62709a;
+
+  --accent:      #1c5fc9;
+  --accent-soft: #1c5fc916;
+  --amber:       #c46a00;
+  --amber-soft:  #c46a0016;
+
+  --fit:       #0f8a5c;
+  --stopstart: #c22a2a;
+  --block:     #6a4bc7;
+
+  --compatible:   #0f8a5c;
+  --incompatible: #c22a2a;
+
+  --d-pwi: #1877d4;  --d-owd: #cf5a12;  --d-snt: #12867f;
+
+  --hdr-bg:   linear-gradient(100deg, #15449a 0%, #2b6ad0 48%, #6b58d3 100%);   /* blue to light purple, like the booking sites */
+  --hdr-text: #ffffff;
+  --hdr-dim:  #d6e1fb;
+  --overlay:  rgba(255,255,255,.95);
+  --shadow:   0 1px 2px rgba(28,60,140,.07), 0 6px 18px -10px rgba(28,60,140,.28);
+}
+
+:root:not([data-theme="dark"]) .header::after { background: linear-gradient(90deg, #38b6ff 0 33.4%, #ffffff 33.4% 66.7%, #9b7cf0 66.7% 100%); }
+:root:not([data-theme="dark"]) .hstat { background: rgba(255,255,255,.16); border-color: rgba(255,255,255,.32); }
+:root:not([data-theme="dark"]) .hstat .v { color: #fff; }
+:root:not([data-theme="dark"]) .theme-toggle { background: rgba(255,255,255,.16); border-color: rgba(255,255,255,.36); }
+:root:not([data-theme="dark"]) .theme-toggle:hover { background: rgba(255,255,255,.28); }
+
+:root:not([data-theme="dark"]) .tabs { background: linear-gradient(180deg, #ffffff, #f3f7fe); border-bottom-color: #bfd0ea; }
+:root:not([data-theme="dark"]) .tab:hover { background: #e9f0fc; color: #1c3f9a; }
+:root:not([data-theme="dark"]) .tab.on { color: #1a48b8; border-bottom-color: #6a4bc7; background: linear-gradient(180deg, transparent 55%, #efeaff 100%); }
+
+:root:not([data-theme="dark"]) .panel { border-color: #c4d4ec; }
+:root:not([data-theme="dark"]) .panel-head { background: linear-gradient(90deg, #e6f1ff 0%, #efeaff 100%); border-bottom-color: #d0dcf2; }
+:root:not([data-theme="dark"]) .panel-head h2 { color: #17307a; }
+
+/* metrics: a sky-to-lavender card with a coloured top rule, a deep indigo figure and a darker caption, so numbers are what the eye lands on */
+:root:not([data-theme="dark"]) .tile {
+  background: linear-gradient(155deg, #ffffff 0%, #eaf3ff 60%, #f1ecff 100%);
+  border: 1px solid #c2d3ee; border-top: 3px solid #2b6ad0;
+  box-shadow: 0 1px 2px rgba(28,60,140,.08), 0 8px 16px -12px rgba(28,60,140,.35);
+}
+:root:not([data-theme="dark"]) .tile:hover { border-color: #8fb0e6; border-top-color: #6a4bc7; }
+:root:not([data-theme="dark"]) .tile .v { color: #142c86; font-weight: 720; }
+:root:not([data-theme="dark"]) .tile .v small { color: #4c5b8e; }
+:root:not([data-theme="dark"]) .tile .k { color: #24326a; font-weight: 600; }
+:root:not([data-theme="dark"]) .tile .note { color: #4d5a86; }
+
+:root:not([data-theme="dark"]) .action.primary,
+:root:not([data-theme="dark"]) button.primary { background: linear-gradient(95deg, #1c5fc9, #5b4fd0); border-color: transparent; color: #fff; }
+:root:not([data-theme="dark"]) .action.primary:hover { filter: brightness(1.08); }
+:root:not([data-theme="dark"]) .ba-hero { background: var(--hdr-bg); box-shadow: 0 10px 24px -14px rgba(28,60,140,.6); }
+:root:not([data-theme="dark"]) .chip, :root:not([data-theme="dark"]) .badge.micro { border-color: #9db8ea; }
+:root:not([data-theme="dark"]) a { color: #1c5fc9; }
+:root:not([data-theme="dark"]) .hstat .v[style*="--sick"] { color: #ffd884 !important; }
+:root:not([data-theme="dark"]) .hstat .v[style*="--fit"] { color: #93f0c3 !important; }
