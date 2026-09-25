@@ -311,7 +311,10 @@ function ScoreCard({ t, open, onToggle, onShow, fresh }: {
               {p.risk && <span className="risk-chip sm" style={{ background: BAND_COLOR[p.risk.residual_band], marginLeft: 6 }}>{p.risk.residual_band}</span>}
             </div>
           )) : <div className="muted" style={{ fontSize: 12 }}>No other department has a job near this one.</div>}
-          {s && <button className="action" style={{ marginTop: 8 }} onClick={() => onShow(s.section_id, s.start_s, jobFocus(t))}>Show on Operations map →</button>}
+          <button className="action primary" style={{ marginTop: 10 }} disabled={!s}
+                  title={s ? 'Fly the Operations map to this job and watch it' : 'This job has no time yet, so there is nothing to watch'}
+                  onClick={() => s && onShow(s.section_id, s.start_s, jobFocus(t))}>▶ Watch on Operations map</button>
+          {!s && <span className="muted" style={{ marginLeft: 10, fontSize: 11.5 }}>not placed yet, so nothing to watch</span>}
         </div>
       )}
     </div>
