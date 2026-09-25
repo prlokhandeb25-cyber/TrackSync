@@ -115,7 +115,9 @@ function TaskForm({ opts, clock, onDone }: {
   const others = opts.departments.filter(d => d.code !== dept)
   // the exact lines this section has (only a section has lines; a station does not)
   const lines = opts.sections.find(s => s.id === zone)?.track_names ?? []
-  useEffect(() => { if (track && !lines.includes(track)) setTrack('') }, [zone])   // eslint-disable-line
+  // a section always has a line chosen (the first one until you pick), a station has none
+  const sortedLines = [...lines].sort()
+  useEffect(() => { if (!sortedLines.length) setTrack(''); else if (!sortedLines.includes(track)) setTrack(sortedLines[0]) }, [zone, opts])   // eslint-disable-line
   const allotted = new Set(opts.allotments[dept] ?? [])
   const zoneOk = allotted.size === 0 || allotted.has(zone) || [...allotted].some(a => a.split('-').includes(zone))
 
@@ -194,14 +196,13 @@ function TaskForm({ opts, clock, onDone }: {
           <div>
             <label className="flabel">Which line of the section?</label>
             <div className="seg">
-              <button type="button" className={track === '' ? 'on' : ''} onClick={() => setTrack('')}><b>Any</b><span>planner picks</span></button>
-              {[...lines].sort().map(l => (
+              {sortedLines.map(l => (
                 <button type="button" key={l} className={track === l ? 'on' : ''} onClick={() => setTrack(l)}>
                   <b>{l.replace('_', ' ')}</b><span>{l.startsWith('UP') ? 'up' : 'down'}</span>
                 </button>
               ))}
             </div>
-            <div className="hint">{track ? `Work and the block stay on the ${track.replace('_', ' ').toLowerCase()} line only; the other lines keep running and jobs there can share the time.` : 'No line chosen: the planner uses whichever line has a gap.'}</div>
+            <div className="hint">{`Work and the block stay on the ${track.replace('_', ' ').toLowerCase()} line only; the other lines keep running and jobs there can share the time.`}</div>
           </div>
         )}
 
