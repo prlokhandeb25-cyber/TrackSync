@@ -154,7 +154,8 @@ export default function App() {
     if (!playing) return
     let last = performance.now()
     const frame = (now: number) => {
-      const dt = (now - last) / 1000; last = now
+      // a background tab or a stalled frame must not make the clock leap past the job being watched
+      const dt = Math.min(0.25, (now - last) / 1000); last = now
       setClock(c => (c + dt * 60 * speedRef.current) % (7 * 86400))
       raf.current = requestAnimationFrame(frame)
     }
