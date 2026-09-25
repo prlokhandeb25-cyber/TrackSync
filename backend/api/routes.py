@@ -790,6 +790,24 @@ def chat(payload: dict) -> dict:
     return a.to_dict()
 
 
+_AVAIL_CACHE: dict = {}
+
+
+@router.get("/api/metrics/availability")
+def availability_metric() -> dict:
+    """Asset availability of the track for the week, from every booked block and the real timetable."""
+    from backend.metrics.availability import availability, collect_blocks
+
+    w = ensure_world()
+    plan = ensure_plan()
+    blocks = collect_blocks(w, plan, STATE)
+    key = (len(blocks), sum(b[2] + b[3] for b in blocks))
+    if key not in _AVAIL_CACHE:
+        _AVAIL_CACHE.clear()
+        _AVAIL_CACHE[key] = availability(w, blocks, _occupancy_by_section())
+    return _AVAIL_CACHE[key]
+
+
 _IMPACT_CACHE: dict = {}
 
 

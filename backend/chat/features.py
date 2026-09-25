@@ -568,6 +568,25 @@ _CAT = re.compile(r"\b(what can you do|what do you do|features?|capabilit\w+|eve
 _EXPLAIN = re.compile(r"\b(explain|what is|what are|what's|how does|how do|how is|tell me about|describe)\b")
 
 
+def h_availability(q: str, s: W.Slots, world, now_s: int) -> Answer:
+    """Asset availability of the track this week, measured from the booked blocks and the timetable. Read-only."""
+    from backend.api.routes import availability_metric
+    m = availability_metric()
+    w = m["if_whole_section"]
+    text = (f"The track is **{m['service_pct']}% available** in service hours (04:00-24:00) this week, and **{m['line_pct']}%** over the whole week.\n\n"
+            f"- **Train movements:** **{m['train_pct']}%** met no closed line (**{m['trains_meeting_a_closed_line']}** of {m['train_movements']:,} were due on a line while it was closed).\n"
+            f"- **Closed:** **{m['closed_line_km_h']:,} line-km-hours** of {m['total_line_km_h']:,}, from **{m['blocks']}** blocks, each closing only its own line.\n"
+            f"- **Naming the line matters:** had every block closed every line of its section, service-hour availability would be **{w['service_pct']}%** and **{w['trains_meeting_a_closed_line']}** train movements would meet a closed line.\n\n"
+            f"*Measured from the booked blocks and the real timetable; a line counts as closed from the start of protection to the end of hand-back.*")
+    a = Answer(text, [{"k": "service hours", "v": f"{m['service_pct']}%"}, {"k": "trains unaffected", "v": f"{m['train_pct']}%"}],
+               ["booked blocks", "real timetable", "nothing was changed"], "availability",
+               suggestions=["what can you do?", "what happens to trains if Kurla to Thane is closed at 10am?"])
+    a.visual = {"type": "bars", "title": "Trains that meet a closed line this week (lower is better)",
+                "items": [{"label": "each block closes its own line", "value": m["trains_meeting_a_closed_line"], "best": True},
+                          {"label": "each block closes every line", "value": w["trains_meeting_a_closed_line"], "best": False}]}
+    return a
+
+
 def h_aging(q: str, s: W.Slots, world, now_s: int) -> Answer:
     """How low-priority work is kept from starving: priority aging (planner/aging.py). Read-only."""
     from backend.planner import aging as AG
@@ -604,6 +623,8 @@ def route(q: str, world, now_s: int) -> Answer | None:
         return h_algorithms(q, s, world, now_s)
     if re.search(r"\b(aging|ageing|starv\w*|low.priority (job|task|work)s?|routine (job|task|work)s?.{0,25}(wait|never|ignored)|never (get|gets|got) (done|planned|placed)|keep (getting )?(bumped|pushed))\b", low):
         return h_aging(q, s, world, now_s)
+    if re.search(r"\b(asset|track|line|network) availability\b|\bavailability of (the )?(track|asset|network|line)s?\b|\bhow (available|open) is (the )?(track|network)\b|\bavailability (metric|percent\w*|figure|number)\b", low):
+        return h_availability(q, s, world, now_s)
     from backend.chat import ops as _ops
     if re.search(r"\b(buffer|crew history|overrun)\w*\b", low) and not re.search(r"\bhow often\b", low) \
             and not (s.zone is not None and (s.tod_s is not None or _ops.time_range(low))):

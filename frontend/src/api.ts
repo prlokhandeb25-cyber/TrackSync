@@ -237,6 +237,13 @@ export interface ClustersData {
   compare?: { n: number; methods: ClusterScore[] }
 }
 
+export interface AvailabilityData {
+  line_pct: number; service_pct: number; train_pct: number; closed_line_km_h: number; total_line_km_h: number
+  trains_meeting_a_closed_line: number; train_movements: number; blocks: number; blocks_with_a_named_line: number
+  if_whole_section: { line_pct: number; service_pct: number; train_pct: number; trains_meeting_a_closed_line: number }
+  how: string
+}
+
 export interface ProofData {
   interval_tree: { queries: number; scan_ms: number; tree_ms: number; speedup_x: number; identical: boolean }
   gaps: { total: number; micro: number; night: number; megablock: number; usable_hours: number }
@@ -255,6 +262,7 @@ const j = async <T,>(url: string, init?: RequestInit): Promise<T> => {
 
 export const api = {
   network: () => j<NetworkData>('/api/network'),
+  availability: () => j<AvailabilityData>('/api/metrics/availability'),
   tasks: () => j<{ tasks: Task[]; total: number; by_department: Record<string, number> }>('/api/tasks'),
   matrix: (limit = 18) => j<MatrixData>(`/api/compatibility/matrix?limit=${limit}`),
   gaps: () => j<GapData>('/api/gaps'),

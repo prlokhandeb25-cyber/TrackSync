@@ -86,3 +86,18 @@ def test_no_line_named_keeps_the_old_whole_section_behaviour(world):
     s = _four_track_section(world)
     b = plan_block_reroutes(world.net, {t.id: t for t in world.week}, _occ().get(s.id, []), s, 9 * 3600, 10 * 3600)
     assert b.section_id == s.id                                                # unchanged path still works
+
+
+def test_asset_availability_is_measured_and_naming_the_line_never_hurts(world):
+    from backend.api.routes import availability_metric
+    m = availability_metric()
+    assert 0 < m["blocks"] and 0 <= m["line_pct"] <= 100 and 0 <= m["service_pct"] <= 100 and 0 <= m["train_pct"] <= 100
+    w = m["if_whole_section"]
+    assert m["line_pct"] >= w["line_pct"] and m["train_pct"] >= w["train_pct"]      # closing one line never costs more than closing all
+    assert m["trains_meeting_a_closed_line"] <= w["trains_meeting_a_closed_line"]
+
+
+def test_the_chat_answers_asset_availability(world):
+    from backend.chat.engine import answer
+    a = answer("what is the asset availability this week", world, None, 25200)
+    assert a.intent == "availability" and "available" in a.text and a.visual["type"] == "bars"
