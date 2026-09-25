@@ -100,6 +100,7 @@ function TaskForm({ opts, clock, onDone }: {
   const [zone, setZone] = useState('')
   const [dur, setDur] = useState(60)
   const [prio, setPrio] = useState(3)
+  const [track, setTrack] = useState('')
   const [allows, setAllows] = useState<string[]>(['PWI', 'OWD', 'S_AND_T'])
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
@@ -112,6 +113,9 @@ function TaskForm({ opts, clock, onDone }: {
   useEffect(() => { if (!zone && opts.sections.length) setZone(opts.sections[0].id) }, [opts, zone])
 
   const others = opts.departments.filter(d => d.code !== dept)
+  // the exact lines this section has (only a section has lines; a station does not)
+  const lines = opts.sections.find(s => s.id === zone)?.track_names ?? []
+  useEffect(() => { if (track && !lines.includes(track)) setTrack('') }, [zone])   // eslint-disable-line
   const allotted = new Set(opts.allotments[dept] ?? [])
   const zoneOk = allotted.size === 0 || allotted.has(zone) || [...allotted].some(a => a.split('-').includes(zone))
 
@@ -122,6 +126,7 @@ function TaskForm({ opts, clock, onDone }: {
       const r = await api.submitTask({
         description: desc, department: dept, zone_ref: zone, task_type: typeCode,
         duration_min: dur, priority: prio, allows_with: allows.filter(a => a !== dept), at_s: Math.round(clock),
+        track: track || null,
       })
       onDone(r)
       setDesc('')
@@ -185,6 +190,21 @@ function TaskForm({ opts, clock, onDone }: {
           )}
         </div>
 
+        {lines.length > 0 && (
+          <div>
+            <label className="flabel">Which line of the section?</label>
+            <div className="seg">
+              <button type="button" className={track === '' ? 'on' : ''} onClick={() => setTrack('')}><b>Any</b><span>planner picks</span></button>
+              {[...lines].sort().map(l => (
+                <button type="button" key={l} className={track === l ? 'on' : ''} onClick={() => setTrack(l)}>
+                  <b>{l.replace('_', ' ')}</b><span>{l.startsWith('UP') ? 'up' : 'down'}</span>
+                </button>
+              ))}
+            </div>
+            <div className="hint">{track ? `Work and the block stay on the ${track.replace('_', ' ').toLowerCase()} line only; the other lines keep running and jobs there can share the time.` : 'No line chosen: the planner uses whichever line has a gap.'}</div>
+          </div>
+        )}
+
         <div className="two">
           <div>
             <label className="flabel">How long (min)</label>
@@ -243,7 +263,7 @@ function ScoreCard({ t, open, onToggle, onShow }: {
             {t.source === 'SIM' && <span className="badge">simulated</span>}
           </div>
           <div className="score-meta">
-            <span className="mono">{t.zone}</span> · {t.duration_min} min
+            <span className="mono">{t.zone}</span>{t.track ? <> · <b>{t.track.replace('_', ' ')}</b></> : null} · {t.duration_min} min
             {t.cluster && <> · <span className="chip">group {t.cluster.id} · {t.cluster.label} ({t.cluster.size})</span></>}
             {sc && !sc.standalone && (
               <> · <span style={{ color: 'var(--fit)' }}>{sc.compatible} ok</span>

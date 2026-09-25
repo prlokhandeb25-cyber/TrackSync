@@ -136,6 +136,8 @@ def eligible_windows(task: Task, windows: list[CandidateWindow],
             continue
         if w.end_s < task.released_s:
             continue
+        if task.track is not None and w.track != task.track:
+            continue                       # work on one named line uses only that line's gaps
         out.append(w)
     return out
 

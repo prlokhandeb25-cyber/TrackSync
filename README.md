@@ -58,6 +58,11 @@ reacting to an unplanned defect mid-week possible at all.
 - **Priority aging.** Routine (P4/P5) work moves up a level for every 48 hours it waits, or each time a more urgent job
   pushes it aside, and jobs carried over from a previous week are planned more urgently each week; nothing rises above P2.
   It protects waiting jobs from being bumped by sudden tasks and shows up in the Month view (A-059).
+- **Work on an exact line.** The Department coordination form takes the line of the section (UP/DN slow or fast, as the
+  section has them). The job then uses only that line's gaps, jobs on different lines of one section are compatible
+  (rule R5), the map closes only that lane, and when it is closed its trains change over to the best open line (locals
+  single-line on the opposite line of their pair, long-distance trains to the slow line or round by another route,
+  whichever waits less). Click the section to see the trains change over (A-061).
 - **Risk assessment in Department coordination.** Every job carries a hazard list rated likelihood x severity on a 5 x 5
   matrix, before and after the controls the planner applies (kept at different times, joint permit, non-overlapping
   zones). Rules-based with assumed scales, not calibrated to incident data (A-060). RailMitra adds the same to

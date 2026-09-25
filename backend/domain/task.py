@@ -162,6 +162,9 @@ class Task(BaseModel):
     # Where the job came from and what its raiser said about it. `allows_with` is the checkbox the
     # raising department ticks: the OTHER departments it is willing to share a block with. None
     # means no restriction (generated jobs), leaving the decision entirely to the rule engine.
+    # The exact line the work is on (one of the section's tracks, e.g. UP_SLOW). None = any line of the section,
+    # the planner picks; set = work only on that line and no other (A-061).
+    track: str | None = None
     source: str = "SYNTH"           # SYNTH | SIM | USER
     description: str = ""
     allows_with: list[Department] | None = None

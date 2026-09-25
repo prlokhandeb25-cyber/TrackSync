@@ -55,7 +55,7 @@ def form_options() -> dict:
         ],
         "sections": [
             {"id": s.id, "label": f"{net.stations[s.from_station].name} - {net.stations[s.to_station].name}",
-             "line": s.line_code, "tracks": len(s.tracks)}
+             "line": s.line_code, "tracks": len(s.tracks), "track_names": list(s.tracks)}
             for s in net.sections.values()
         ],
         "stations": [{"code": st.code, "name": st.name} for st in net.stations.values()],
@@ -72,6 +72,7 @@ class SubmitTask(BaseModel):
     priority: int = 3
     allows_with: list[str] = []
     at_s: int = 0
+    track: str | None = None          # the exact line of the section, or None for any line
 
 
 def _hhmm_range(a: int, b: int) -> str:
@@ -106,7 +107,7 @@ def _task_row(t: Task, scores: dict, cluster_of: dict) -> dict:
     return {
         "id": t.id, "source": t.source, "department": t.department.value, "label": t.label,
         "description": t.description, "zone": t.zone.ref, "zone_kind": t.zone.kind.value,
-        "duration_min": t.duration_min, "priority": t.priority,
+        "duration_min": t.duration_min, "priority": t.priority, "track": t.track,
         "allows_with": None if t.allows_with is None else [d.value for d in t.allows_with],
         "score": None if sc is None else sc.to_dict(),
         "cluster": cluster_of.get(t.id),
@@ -143,6 +144,12 @@ def submit_task(p: SubmitTask) -> dict:
     else:
         raise HTTPException(status_code=422, detail="unknown section or station")
 
+    track = (p.track or "").strip() or None
+    if track is not None:
+        if zone.kind is not WorkZoneKind.SECTION:
+            raise HTTPException(status_code=422, detail="a line can only be chosen for work on a section")
+        if track not in net.sections[zone.ref].tracks:
+            raise HTTPException(status_code=422, detail=f"{zone.ref} has no {track} line (it has {', '.join(net.sections[zone.ref].tracks)})")
     tt = TASK_TYPES_BY_CODE.get(p.task_type or "")
     if tt is None or tt.department is not dept:
         tt = next(t for t in TASK_TYPES if t.department is dept)
@@ -158,7 +165,7 @@ def submit_task(p: SubmitTask) -> dict:
         requires_traffic_block=tt.requires_traffic_block, released_s=p.at_s,
         due_by_s=p.at_s + {1: 6, 2: 24, 3: 72}.get(max(1, min(5, int(p.priority))), 168) * 3600,
         source="USER", description=p.description.strip()[:200],
-        allows_with=allows,
+        allows_with=allows, track=track,
     )
     w.tasks.append(task)
 

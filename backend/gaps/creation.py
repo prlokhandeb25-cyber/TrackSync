@@ -355,7 +355,8 @@ def options_for_task(net: Network, task: Task, section_occ: list[SectionOccupanc
     out: list[CreationOption] = []
 
     for day in range(first_day, first_day + horizon_days):
-        for track in section.tracks:
+        # work named for one exact line opens a gap on that line only
+        for track in ([task.track] if task.track in section.tracks else section.tracks):
             seq = by_track.get((track, day), [])
             for i in range(len(seq) - 1):
                 if seq[i + 1].exit < from_s:

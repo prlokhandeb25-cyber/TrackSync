@@ -14,6 +14,7 @@ import YourJobs from './components/YourJobs'
 import JobClusters, { type Halo } from './components/JobClusters'
 import GapStrip from './components/GapStrip'
 import ReroutePanel from './components/ReroutePanel'
+import LineReroute from './components/LineReroute'
 import {
   api, DAYS, hhmm,
   type EventItem, type GapData, type MatrixData, type NetworkData,
@@ -50,7 +51,7 @@ function TabIcon({ t }: { t: Tab }) {
 }
 
 type Win = { zone_ref: string; start_s: number; end_s: number; id?: string; dept?: string; label?: string;
-             urgent?: boolean; level?: string }
+             urgent?: boolean; level?: string; track?: string }
 const PROTECT_S = 15 * 60      // protection goes up before the work starts ...
 const HANDBACK_S = 10 * 60     // ... and comes down after it ends
 
@@ -236,7 +237,7 @@ export default function App() {
         const wins = d.results
           .filter(r => r.placed && r.window)
           .map(r => ({ zone_ref: r.window!.zone_ref, start_s: r.window!.start_s, end_s: r.window!.end_s,
-                       id: r.task.id, dept: r.task.department, label: r.task.label ?? r.task.describe }))
+                       id: r.task.id, dept: r.task.department, label: r.task.label ?? r.task.describe, track: r.window!.track }))
         if (wins.length) setSimWindows(sw => [...sw, ...wins].slice(-200))
         setTick(t => t + 1)
       } catch { /* transient - the next tick retries */ }
@@ -258,17 +259,21 @@ export default function App() {
     const put = (w: Win) => {
       if (clock < w.start_s - PROTECT_S || clock >= w.end_s + HANDBACK_S) return
       const prev = out[w.zone_ref]
-      if (prev && (prev.urgent || !w.urgent)) return
+      // the exact lines closed in this section right now (a job with no line named closes the whole section)
+      const lines = new Set(prev?.tracks ?? [])
+      if (w.track) lines.add(w.track)
+      const whole = (prev && !prev.track && !prev.tracks?.length) || !w.track
+      if (prev && (prev.urgent || !w.urgent)) { prev.tracks = whole ? [] : [...lines]; if (whole) prev.track = undefined; return }
       out[w.zone_ref] = { section: w.zone_ref, startS: w.start_s, endS: w.end_s, dept: w.dept, label: w.label,
-                          id: w.id, urgent: w.urgent, level: w.level }
+                          id: w.id, urgent: w.urgent, level: w.level, track: w.track, tracks: whole ? [] : [...lines] }
     }
     for (const w of suddenWins) put(w)
     for (const w of movedWins) put(w)
     if (plan) for (const a of plan.assignments) {
       if (movedIds.has(a.task_id)) continue
       const t = tasksById[a.task_id]
-      put({ zone_ref: a.zone_ref, start_s: a.start_s, end_s: (a as { end_s?: number }).end_s ?? a.start_s + 3600,
-            id: a.task_id, dept: t?.department, label: t?.label })
+      put({ zone_ref: a.zone_ref, start_s: a.start_s, end_s: a.end_s ?? a.start_s + 3600,
+            id: a.task_id, dept: t?.department, label: t?.label, track: a.track })
     }
     for (const w of [...simWindows, ...userWindows]) put(w)
     return out
@@ -297,7 +302,7 @@ export default function App() {
     if (r.placed && r.window) {
       const w = r.window
       setSuddenWins(ws => [...ws.filter(x => x.id !== r.id), {
-        zone_ref: w.zone_ref, start_s: w.start_s, end_s: w.end_s, id: r.id, dept: r.task.department,
+        zone_ref: w.zone_ref, start_s: w.start_s, end_s: w.end_s, id: r.id, dept: r.task.department, track: w.track,
         label: r.task.label, urgent: r.priority <= 2, level: r.level }])
     }
     if (r.bumped.length) {
@@ -465,6 +470,10 @@ export default function App() {
                     <span className="sub">{selectedSection.line_code}</span>
                   </div>
                   <div className="panel-body">
+                    {rerouteBlocks.filter(b => b.section_id === selectedSection.id && (b.track || b.track_swap)).map(b => (
+                      <LineReroute key={`${b.start_s}-${b.track}`} block={b} tracks={selectedSection.tracks} clockS={clock}
+                                   onWatch={() => showJob(b.section_id, b.start_s, { endS: b.end_s, track: b.track ?? undefined, label: `${(b.track ?? '').replace('_', ' ').toLowerCase()} closed` })} />
+                    ))}
                     {brief && (
                       <div className="reason" style={{ margin: '0 0 14px', borderLeftColor: 'var(--accent)' }}>
                         {brief.summary}

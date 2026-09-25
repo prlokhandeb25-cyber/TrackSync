@@ -7,7 +7,7 @@ import { api, type ScoredTask } from '../api'
 
 export default function YourJobs({ tick, onWatch, onWindows }: {
   tick: number; onWatch: (t: ScoredTask) => void
-  onWindows: (w: { zone_ref: string; start_s: number; end_s: number; id: string; dept: string; label: string }[]) => void
+  onWindows: (w: { zone_ref: string; start_s: number; end_s: number; id: string; dept: string; label: string; track?: string }[]) => void
 }) {
   const [rows, setRows] = useState<ScoredTask[]>([])
   useEffect(() => {
@@ -16,7 +16,7 @@ export default function YourJobs({ tick, onWatch, onWindows }: {
       setRows(mine)
       onWindows(mine.filter(t => t.schedule).map(t => ({
         zone_ref: t.schedule!.section_id, start_s: t.schedule!.start_s, end_s: t.schedule!.end_s,
-        id: t.id, dept: t.department, label: t.description || t.label })))
+        id: t.id, dept: t.department, label: t.description || t.label, track: t.schedule!.track })))
     }).catch(() => undefined)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tick])

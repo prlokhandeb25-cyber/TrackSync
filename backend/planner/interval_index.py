@@ -49,6 +49,8 @@ class IntervalWindowIndex:
             w: CandidateWindow = iv.data
             if w.end_s < task.released_s:
                 continue
+            if task.track is not None and w.track != task.track:
+                continue
             if w.usable_min(power_block=task.requires_power_block) < task.reserved_min:
                 continue
             out.append(w)

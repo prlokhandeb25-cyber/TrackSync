@@ -221,21 +221,37 @@ def h_reroute(q: str, s: W.Slots, world, now_s: int) -> Answer:
             return Answer(text, [{"k": "diverted", "v": "0"}, {"k": "locals", "v": str(b.locals_in_window)}],
                           ["reroute search", "nothing was changed"], "reroute", suggestions=["how are trains rerouted around a block?"])
 
-    ex = proof["examples"][0] if proof["examples"] else None
-    text = (f"Here's how it works. Over this week's {proof['blocks']} blocks, {proof['diverted']} long-distance and freight trains have to go round a closed section. "
-            f"Each detour costs about {proof['mean_added_min']:.0f} minutes, whereas waiting for the block to lift would cost about "
-            f"{proof['wait_min'] / max(1, proof['diverted']):.0f} each. That's roughly {proof['saved_min']:,.0f} train-minutes saved.\n\n"
-            f"Another {proof['no_path']} trains have no other route, so they wait either way. And none of the {proof['locals_in_blocks']} local train movements "
-            f"that meet a block is ever rerouted, since locals serve fixed stations; they run one at a time on the other track of their pair. "
-            f"Before any detour is taken, the digital twin checks it isn't worse than waiting.")
-    a = Answer(text, [{"k": "diverted", "v": str(proof["diverted"])}, {"k": "saved", "v": f"{proof['saved_min']:,.0f} min"},
-                      {"k": "locals rerouted", "v": str(proof["locals_rerouted"])}],
-               ["weekly plan blocks", "reroute search", "nothing was changed"], "reroute",
+    ex = proof["examples"][0] if proof["examples"] else _example_detour(world)
+    NL = chr(10)
+    text = (f"Here's how it works. Only the **line** that is closed is affected: trains due on the other lines of the section run as normal.{NL}{NL}"
+            f"- **Locals:** never rerouted, because they serve fixed stations; they change over to the opposite line of their own pair and run one at a time (single-line working).{NL}"
+            f"- **Long-distance and freight trains:** change over to the same-direction slow line when a fast line is closed, or go round by another route, whichever makes them wait less.{NL}"
+            f"- **The wait:** measured against the open line's own trains; an opposite-direction train must clear first, and same-direction trains keep two minutes apart.{NL}"
+            f"- **This week's plan:** {proof['blocks']} blocks; **{proof['locals_in_blocks']}** local movements and **{proof['diverted']}** through trains were due on a closed line "
+            f"(most blocks fall in the night gaps when few trains run).{NL}{NL}"
+            f"Before any detour is taken, the digital twin checks it isn't worse than waiting. Click a section with a closed line on the map to watch the trains change over.")
+    a = Answer(text, [{"k": "through trains sent round", "v": str(proof["diverted"])}, {"k": "locals rerouted", "v": str(proof["locals_rerouted"])}],
+               ["weekly plan blocks", "line-by-line changeover", "reroute search", "nothing was changed"], "reroute",
                suggestions=["what happens to trains if Kurla to Thane is closed at 10am?", "what can you do?"])
     if ex:
         a.visual = route_visual(net, ex["section_id"], ex["sections"], f"{ex['train']} goes round {ex['section_id']}")
         a.action = {"label": "Show on map", "section": ex["section_id"], "start_s": ex["block_start_s"]}
     return a
+
+
+def _example_detour(world) -> dict | None:
+    """A through train that would go round if a whole section were closed at 09:00: for the picture only."""
+    from backend.planner.active_reroute import plan_block_reroutes
+
+    st = W._live()
+    week, occ = st.week_by_id(), st.occupancy_by_section()
+    start, end = 9 * 3600, 10 * 3600 + 1800
+    for sid, sec in world.net.sections.items():
+        b = plan_block_reroutes(world.net, week, occ.get(sid, []), sec, start, end)
+        if b.reroutes:
+            r = b.reroutes[0]
+            return {"section_id": sid, "sections": r["sections"], "train": r["train_name"] or r["train_id"], "block_start_s": start}
+    return None
 
 
 # --------------------------------------------------------------------------- a sudden task, tried

@@ -152,6 +152,19 @@ def compatibility(net: Network, t1: Task, t2: Task) -> CompatibilityResult:
             "R4", rel,
         )
 
+    # R5 — same section but two different named lines: physically separate tracks, so both can proceed.
+    # (A power block isolates one line's overhead wire only; the neighbouring line stays live and is
+    # treated as an adjacent worksite in the risk assessment.)
+    if (rel == ZoneRelation.SAME_ZONE and t1.zone.kind == WorkZoneKind.SECTION
+            and t1.track is not None and t2.track is not None and t1.track != t2.track):
+        return CompatibilityResult(
+            Verdict.COMPATIBLE,
+            (f"{t1.department.value} works on the {t1.track.replace('_', ' ').lower()} line and {t2.department.value} on the "
+             f"{t2.track.replace('_', ' ').lower()} line of {t1.zone.describe()}: different lines, so both can proceed "
+             f"together (R5)."),
+            "R5", ZoneRelation.ADJACENT,
+        )
+
     # R1 — same zone, same time.
     if rel == ZoneRelation.SAME_ZONE:
         if t1.department == t2.department:

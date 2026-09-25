@@ -121,19 +121,32 @@ def test_the_twin_overrules_a_detour_that_costs_more_than_waiting(monkeypatch):
 
 def test_the_live_reroute_route_attaches_the_twin_response_and_honours_it(live, monkeypatch):
     from backend.api import routes
+    from backend.api.state import ensure_world
     from backend.planner import advisor
+    from backend.planner.active_reroute import plan_block_reroutes
 
-    from backend.api.routes import rerouting_proof
-    ex = rerouting_proof()["examples"][0]           # a block that really has a train to send round
+    # a whole-section closure at 09:00 that really has a through train to send round (no line named)
+    w = ensure_world()
+    week = {t.id: t for t in w.week}
+    start, end = 9 * 3600, 10 * 3600 + 1800
+    found = None
+    for sid, sec in w.net.sections.items():
+        b = plan_block_reroutes(w.net, week, routes._occupancy_by_section().get(sid, []), sec, start, end)
+        if b.reroutes:
+            found = (sid, b.reroutes[0]["train_id"])
+            break
+    assert found, "no section has a through train at 09:00"
+    sid, train_id = found
+    monkeypatch.setattr(routes, "_active_blocks", lambda at_s: [(sid, start, end, None)])
     monkeypatch.setattr(advisor, "response_for",
                         lambda *args, **kw: {"status": "ready", "best": "HOLD", "divert": False, "single_line": False,
                                              "pax_hours": {"HOLD": 1, "DIVERT": 9, "DIVERT_SINGLE": 9}, "scenarios": 6, "horizon_h": 12})
     routes._REROUTE_CACHE.clear()
-    out = routes.rerouting_active(ex["block_start_s"] + 60)
-    blk = next(b for b in out["blocks"] if b["section_id"] == ex["section_id"] and b["start_s"] == ex["block_start_s"])
+    out = routes.rerouting_active(start + 60)
+    blk = next(b for b in out["blocks"] if b["section_id"] == sid and b["start_s"] == start)
     assert blk["response"]["best"] == "HOLD"
     assert blk["reroutes"] == [] and blk.get("track_swap") is None          # nothing shown as taken
-    assert any(h["train_id"] == ex["train_id"] for h in blk["held"]), "the diverted train should be reported as held"
+    assert any(h["train_id"] == train_id for h in blk["held"]), "the diverted train should be reported as held"
     routes._REROUTE_CACHE.clear()
 
 
@@ -179,7 +192,7 @@ def test_every_feature_question_runs_on_a_copy_and_leaves_the_live_state_alone(l
     assert seen[QUESTIONS[1]].intent == "prediction"                        # the warning feature was removed; the answer says why
     assert seen[QUESTIONS[3]].visual["type"] == "route"
     assert seen[QUESTIONS[5]].visual["type"] == "scatter"
-    assert "none of the" in seen[QUESTIONS[3]].text and "rerouted" in seen[QUESTIONS[3]].text   # locals are never rerouted
+    assert "never rerouted" in seen[QUESTIONS[3]].text                                 # locals are never rerouted
 
 
 def test_the_catalogue_covers_the_features_and_every_entry_has_a_way_to_try_it():

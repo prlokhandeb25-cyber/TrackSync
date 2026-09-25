@@ -46,7 +46,7 @@ const LANE_RANK: Record<string, number> = {
   DN_SLOW: 0, DN_FAST: 1, UP_FAST: 2, UP_SLOW: 3, DN: 1, UP: 2,
 }
 const LANE_GAP = 5.6          // screen px between adjacent tracks when zoomed out (wide enough that four lanes read as four)
-const laneList = (tracks: string[]) =>
+export const laneList = (tracks: string[]) =>
   [...tracks].sort((a, b) => (LANE_RANK[a] ?? 9) - (LANE_RANK[b] ?? 9))
 
 const MIN_SCALE_FACTOR = 0.35
@@ -67,6 +67,8 @@ export interface BlockInfo {
   id?: string
   urgent?: boolean
   level?: string
+  track?: string        // the exact line closed; none = the whole section
+  tracks?: string[]     // every line closed in this section right now
 }
 /** "Take me to this job": the map flies there and captions where and when. */
 export interface FocusReq {
@@ -327,15 +329,20 @@ export default function NetworkMap({
     const span = r.exit_s + r.added_delay_min * 60 - r.enter_s
     return (clockS - r.enter_s) / Math.max(60, span)
   }
+  // Trains changing over to another line of the same section (one line is closed, the others run): where each is now.
+  const changing = reroutes.flatMap(b => (b.track_swap?.trains ?? []).map(t => ({ b, t })))
+    .filter(({ b, t }) => secGeom[b.section_id] && clockS >= t.enter_s && clockS <= t.exit_s + t.delay_min * 60 + 60)
+    .slice(0, 40)
   // a diverted train is not on the closed section: hide the timetable dot while it would be
   const hiddenTrains = useMemo(() => {
     const s = new Set<string>()
+    for (const { t } of changing) s.add(t.train_id)
     for (const d of detours) {
       const f = detourProgress(d.r)
       if (f !== null && f >= -0.02 && f <= 1.02) s.add(d.r.train_id)
     }
     return s
-  }, [detours, clockS])   // eslint-disable-line
+  }, [detours, clockS, reroutes])   // eslint-disable-line
 
   // ---------------------------------------------------------------- the work site
   const workSite = (sec: NetworkData['sections'][number]) => {
@@ -343,7 +350,9 @@ export default function NetworkMap({
     if (!g) return null
     const info = blockInfo[sec.id]
     const lanes = laneList(sec.tracks)
-    const swap = reroutes.find(r => r.section_id === sec.id)?.track_swap ?? null
+    const wanted = info?.tracks?.length ? info.tracks : info?.track ? [info.track] : null      // null = the whole section
+    const rb = reroutes.find(r => r.section_id === sec.id && (!info?.track || r.track === info.track)) ?? reroutes.find(r => r.section_id === sec.id)
+    const swap = rb?.track_swap ?? null
     const mx = (g.x1 + g.x2) / 2, my = (g.y1 + g.y2) / 2
     const dx = g.x2 - g.x1, dy = g.y2 - g.y1
     const start = info?.startS ?? clockS, end = info?.endS ?? clockS + 3600
@@ -351,7 +360,8 @@ export default function NetworkMap({
     const pct = Math.min(1, Math.max(0, (clockS - start) / Math.max(60, end - start)))
     const col = DEPT_COLOR[info?.dept ?? ''] ?? '#f59e0b'
     const urgent = !!info?.urgent
-    const closedLanes = lanes.map((tr, k) => ({ tr, k })).filter(l => !swap || l.tr === swap.blocked_track)
+    const isClosed = (tr: string) => wanted ? wanted.includes(tr) : (!swap || tr === swap.blocked_track)
+    const closedLanes = lanes.map((tr, k) => ({ tr, k })).filter(l => isClosed(l.tr))
     const bundle = closedLanes.length * laneGap
     const at = (t: number, o: number) => [g.x1 + dx * t + g.nx * o, g.y1 + dy * t + g.ny * o] as const
     const mainLane = closedLanes[Math.floor(closedLanes.length / 2)] ?? { tr: lanes[0], k: 0 }
@@ -362,8 +372,8 @@ export default function NetworkMap({
       <g key={`bl-${sec.id}`} pointerEvents="none">
         {lanes.map((tr, k) => {
           const o = laneOffset(lanes.length, k)
-          const closed = !swap || tr === swap.blocked_track
-          const takingOver = !!swap && tr === swap.swap_to_track
+          const closed = isClosed(tr)
+          const takingOver = !!swap && tr === swap.swap_to_track && !closed
           if (!closed && !takingOver) return null
           const p = { x1: g.x1 + g.nx * o, y1: g.y1 + g.ny * o, x2: g.x2 + g.nx * o, y2: g.y2 + g.ny * o }
           const w = Math.max(4.4, laneGap * 0.85)
@@ -390,7 +400,7 @@ export default function NetworkMap({
         })}
 
         {/* single-line working: crossovers at each end let trains change over to the open track */}
-        {swap && detail && (() => {
+        {swap && detail && !isClosed(swap.swap_to_track) && (() => {
           const a = laneOffset(lanes.length, lanes.indexOf(swap.blocked_track))
           const b = laneOffset(lanes.length, lanes.indexOf(swap.swap_to_track))
           return [0.05, 0.95].map(t => {
@@ -780,6 +790,43 @@ export default function NetworkMap({
               <g key={t.id} transform={gt}>
                 <circle r={4.6 * grow} fill={TRAIN.intercity} stroke="#111827" strokeWidth={1.3} />
                 <circle r={1.5 * grow} fill="#111827" />
+              </g>
+            )
+          })}
+
+          {/* trains changing over: leave the closed line, run on the open one (single-line working), rejoin after */}
+          {changing.map(({ b, t }) => {
+            const g = secGeom[b.section_id]
+            const sec = secById[b.section_id]
+            if (!g || !sec || !b.track_swap) return null
+            const lanes = laneList(sec.tracks)
+            const ob = laneOffset(lanes.length, lanes.indexOf(b.track_swap.blocked_track))
+            const os = laneOffset(lanes.length, lanes.indexOf(t.to))
+            const start = t.enter_s + t.delay_min * 60
+            const dur = Math.max(60, t.exit_s - t.enter_s)
+            const waiting = clockS < start
+            const f = waiting ? 0 : Math.min(1, (clockS - start) / dur)
+            const k = waiting ? 0 : f < 0.12 ? f / 0.12 : f > 0.88 ? (1 - f) / 0.12 : 1
+            const u = t.fwd === false ? 1 - f : f
+            const x = g.x1 + (g.x2 - g.x1) * u + g.nx * (ob + (os - ob) * k)
+            const y = g.y1 + (g.y2 - g.y1) * u + g.ny * (ob + (os - ob) * k)
+            const grow = detail ? 1.5 : 1
+            const sel = selected === b.section_id
+            return (
+              <g key={`ch-${b.start_s}-${t.train_id}`} transform={`translate(${x},${y}) scale(${inv})`} pointerEvents="none">
+                {waiting && (
+                  <circle r={6 * grow} fill="none" stroke="#f59e0b" strokeWidth={1.6}>
+                    <animate attributeName="r" values={`${4 * grow};${10 * grow}`} dur="1s" repeatCount="indefinite" />
+                    <animate attributeName="opacity" values="1;0" dur="1s" repeatCount="indefinite" />
+                  </circle>
+                )}
+                <circle r={(t.cls === 'SUBURBAN_LOCAL' ? 2.9 : 4.8) * grow} fill={t.cls === 'SUBURBAN_LOCAL' ? '#22c55e' : TRAIN.intercity} stroke="#fff" strokeWidth={1.2} />
+                {(sel || detail) && (
+                  <g transform="translate(0,-13)">
+                    <rect x={-27} y={-8} width={54} height={13} rx={6.5} fill="#166534" stroke="#fff" strokeWidth={0.8} />
+                    <text y={1.6} fontSize={8} fill="#fff" textAnchor="middle" fontWeight={650}>{waiting ? 'waits' : '→'} +{Math.round(t.delay_min)} min</text>
+                  </g>
+                )}
               </g>
             )
           })}

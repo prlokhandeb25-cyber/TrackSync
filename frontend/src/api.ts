@@ -48,7 +48,7 @@ export interface PlanData {
   n_tasks: number; n_scheduled: number; n_unscheduled: number
   micro_gap_count: number; iwp_used: number; relaxations: string[]
   by_day: Record<string, number>; by_gap_type: Record<string, number>
-  assignments: { task_id: string; zone_ref: string; start_s: number; gap_type: string; day: number }[]
+  assignments: { task_id: string; zone_ref: string; start_s: number; end_s?: number; track?: string; gap_type: string; day: number }[]
 }
 
 export interface TrainDot { id: string; cls: string; section: string; track?: string; lat: number; lon: number }
@@ -136,7 +136,7 @@ export interface SimTickTask {
   duration_min: number; priority: number
 }
 export interface SimTickWindow {
-  id: string; section_id: string; zone_ref: string
+  id: string; section_id: string; zone_ref: string; track?: string
   start_s: number; end_s: number; gap_type: string
 }
 export interface SimTickPlacement {
@@ -156,6 +156,15 @@ export interface RerouteView {
   train_id: string; train_name: string; train_class: string
   sections: string[]; added_delay_min: number; within_limit: boolean
   enter_s?: number; exit_s?: number; track?: string
+  options?: { kind: string; to?: string; mode?: string; delay_min: number; sections?: string[] }[]; chosen?: string
+}
+export interface SwapTrain {
+  train_id: string; name: string; cls: string; enter_s: number; exit_s: number; delay_min: number; to: string; fwd?: boolean
+  options: { kind: string; to?: string; mode?: string; delay_min: number }[]; chosen: string
+}
+export interface TrackSwap {
+  blocked_track: string; swap_to_track: string; max_single_line_min: number
+  mode?: string; trains: SwapTrain[]; n_trains: number; mean_delay_min: number; max_delay_min: number
 }
 export interface TwinResponse {
   status: 'ready' | 'checking' | 'error'; divert: boolean; single_line: boolean
@@ -167,11 +176,12 @@ export interface TwinResponse {
 export interface RerouteBlock {
   section_id: string; start_s: number; end_s: number
   reroutes: RerouteView[]; no_path: string[]
-  track_swap: { blocked_track: string; swap_to_track: string; max_single_line_min: number } | null
+  track_swap: TrackSwap | null
+  track?: string | null
   locals_in_window: number
   response?: TwinResponse
   held?: RerouteView[]
-  swap_declined?: { blocked_track: string; swap_to_track: string; max_single_line_min: number } | null
+  swap_declined?: TrackSwap | null
 }
 export interface RerouteProofRow {
   section_id: string; block_start_s: number; block_end_s: number; train_id: string; train: string; class: string
@@ -336,14 +346,14 @@ export const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 export interface FormOptions {
   departments: { code: string; label: string }[]
   task_types: { code: string; label: string; department: string; min: number; max: number; power_block: boolean }[]
-  sections: { id: string; label: string; line: string; tracks: number }[]
+  sections: { id: string; label: string; line: string; tracks: number; track_names: string[] }[]
   stations: { code: string; name: string }[]
   allotments: Record<string, string[]>
 }
 
 export interface SubmitBody {
   description: string; department: string; zone_ref: string; task_type: string
-  duration_min: number; priority: number; allows_with: string[]; at_s: number
+  duration_min: number; priority: number; allows_with: string[]; at_s: number; track?: string | null
 }
 
 export interface CreationOptionView {
@@ -374,7 +384,7 @@ export interface ScheduleView {
 }
 export interface ScoredTask {
   id: string; source: string; department: string; label: string; description: string
-  zone: string; zone_kind: string; duration_min: number; priority: number
+  zone: string; zone_kind: string; duration_min: number; priority: number; track?: string | null
   allows_with: string[] | null
   score: ScoreView | null
   cluster: { id: number; label: string; size: number } | null

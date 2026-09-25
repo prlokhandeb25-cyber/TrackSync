@@ -984,3 +984,16 @@ tbody tr:nth-child(even) td { background: color-mix(in srgb, var(--panel-2) 55%,
 .risk-grid .rg-x { position: absolute; bottom: -14px; left: 0; font-size: 8.5px; color: var(--text-mute); }
 .risk-grid .rg-y { position: absolute; top: 0; left: -14px; font-size: 8.5px; color: var(--text-mute); writing-mode: vertical-rl; transform: rotate(180deg); }
 @media (max-width: 760px) { .risk-body { grid-template-columns: 1fr; } }
+
+.lr-box { margin: 0 0 14px; padding: 10px 12px; background: var(--panel-2); border-radius: 8px; border-left: 3px solid var(--accent); display: grid; gap: 8px; }
+.lr-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 12.5px; }
+.lr-head .action { margin-left: auto; padding: 3px 10px; font-size: 11px; }
+.lr-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.lr-chip { font-size: 10.5px; padding: 2px 8px; border-radius: 10px; background: var(--panel-3); color: var(--text); }
+.lr-chip.ok { background: rgba(34,197,94,.18); } .lr-chip.alt { background: rgba(8,145,178,.2); } .lr-chip.bad { background: rgba(239,68,68,.18); }
+.lr-chip.now { background: #f59e0b; color: #111827; font-weight: 700; }
+.lr-table { width: 100%; font-size: 11px; border-collapse: collapse; }
+.lr-table th { text-align: left; color: var(--text-mute); font-weight: 600; padding: 2px 6px 3px 0; }
+.lr-table td { padding: 3px 6px 3px 0; border-top: 1px solid var(--line-soft); }
+.lr-table tr.on td { background: rgba(245,158,11,.14); } .lr-table tr.done td { opacity: .5; }
+.lr-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 6px; }

@@ -91,6 +91,12 @@ def verify_plan(net: Network, tasks: list[Task], assignments: list, windows: lis
         if check_allotment(net, t) is not None:
             rep.violations.append(f"{t.id}: {t.department.value} is not allotted {t.zone.ref}")
 
+        # work named for one exact line stays on that line
+        if t.track is not None:
+            rep.count("line")
+            if a.track != t.track:
+                rep.violations.append(f"{t.id}: named for the {t.track} line but placed on {a.track}")
+
         # duration, release, deadline
         rep.count("window")
         if a.end_s - a.start_s != t.reserved_min * 60:

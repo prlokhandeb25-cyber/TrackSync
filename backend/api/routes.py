@@ -275,7 +275,7 @@ def sim_tick(at_s: int = 0) -> dict:
             "placed": placement.placed,
             "window": (None if placement.window is None else {
                 "id": placement.window.id, "section_id": placement.window.section_id,
-                "zone_ref": placement.window.zone_ref,
+                "zone_ref": placement.window.zone_ref, "track": placement.window.track,
                 "start_s": placement.start_s,
                 "end_s": placement.end_s,
                 "gap_type": placement.window.gap_type.value,
@@ -427,25 +427,25 @@ _REROUTE_SEEN: set = set()
 _WEEK_BY_ID: dict | None = None
 
 
-def _active_blocks(at_s: int) -> list[tuple[str, int, int]]:
-    """Section blocks in force at this instant: the weekly plan's and the live simulation's."""
+def _active_blocks(at_s: int) -> list[tuple[str, int, int, str | None]]:
+    """Section blocks in force at this instant: the weekly plan's and the live simulation's, each with its exact line."""
     w = ensure_world()
-    out: list[tuple[str, int, int]] = []
+    out: list[tuple[str, int, int, str | None]] = []
     if STATE.plan:
         for a in STATE.plan.assignments:
             if a.task_id in STATE.overrides:
                 continue   # pushed aside by a sudden task: its new slot is added below
             if a.zone_ref in w.net.sections and a.start_s <= at_s < a.end_s:
-                out.append((a.zone_ref, a.start_s, a.end_s))
+                out.append((a.zone_ref, a.start_s, a.end_s, a.track))
     for o in STATE.overrides.values():
         if o and o["zone_ref"] in w.net.sections and o["start_s"] <= at_s < o["end_s"]:
-            out.append((o["zone_ref"], o["start_s"], o["end_s"]))
+            out.append((o["zone_ref"], o["start_s"], o["end_s"], o.get("track")))
     for p in (list(STATE.live_sim.placed) + list(STATE.user_placements.values())
               + list(STATE.sudden_state.placed) + list(STATE.forecast_state.placed)
               + list(STATE.daily_state.placed)):
         if p.placed and p.window is not None and p.window.zone_ref in w.net.sections:
             if p.start_s is not None and p.start_s <= at_s < p.end_s:
-                out.append((p.window.zone_ref, p.start_s, p.end_s))
+                out.append((p.window.zone_ref, p.start_s, p.end_s, p.window.track))
     return list(dict.fromkeys(out))
 
 
@@ -465,12 +465,13 @@ def rerouting_active(at_s: int = 0) -> dict:
     if _WEEK_BY_ID is None:
         _WEEK_BY_ID = {t.id: t for t in w.week}
     blocks = []
-    for section_id, start, end in _active_blocks(at_s):
-        key = (section_id, start, end)
+    for section_id, start, end, track in _active_blocks(at_s):
+        key = (section_id, start, end, track)
         if key not in _REROUTE_CACHE:
             _REROUTE_CACHE[key] = plan_block_reroutes(
                 w.net, _WEEK_BY_ID, _occupancy_by_section().get(section_id, []),
-                w.net.sections[section_id], start, end).to_dict()
+                w.net.sections[section_id], start, end, track).to_dict()
+            _REROUTE_CACHE[key]["track"] = track
         b = dict(_REROUTE_CACHE[key])
         resp = response_for(w, reroute_cache(), section_id, start, end)
         b["response"] = resp
@@ -510,10 +511,11 @@ def rerouting_proof() -> dict:
         if a.zone_ref not in w.net.sections or (a.zone_ref, a.start_s, a.end_s) in seen_blocks:
             continue
         seen_blocks.add((a.zone_ref, a.start_s, a.end_s))
-        key = (a.zone_ref, a.start_s, a.end_s)
+        key = (a.zone_ref, a.start_s, a.end_s, a.track)        # the same key the live map uses: only the closed line is affected
         if key not in _REROUTE_CACHE:
             _REROUTE_CACHE[key] = plan_block_reroutes(w.net, _WEEK_BY_ID, occ.get(a.zone_ref, []),
-                                                      w.net.sections[a.zone_ref], a.start_s, a.end_s).to_dict()
+                                                      w.net.sections[a.zone_ref], a.start_s, a.end_s, a.track).to_dict()
+            _REROUTE_CACHE[key]["track"] = a.track
         b = _REROUTE_CACHE[key]
         n_blocks += 1
         locals_hit += b["locals_in_window"]
