@@ -3,7 +3,7 @@ import { api, DAYS, hhmm, type CreationSummary, type GapTrace } from '../api'
 
 /* What the gap engine did, shown rather than claimed: for one track and a few hours of one day,
    every gap between two trains, the arithmetic that turns it into working time, and whether it
-   was kept. Near misses show the small change to the trains that would have made them long enough
+   was kept. Gaps that are too short show the small change to the trains that would have made them long enough
    (gap creation). The bright bars are the windows the engine really produced for this track. */
 
 const W = 640
@@ -56,7 +56,7 @@ export default function GapProof() {
           Gap − <b>{d.buffer_min} min</b> safety − <b>{d.overhead_min} min</b> set-up = work time. Keep if ≥{' '}
           <b>{d.min_workable_min} min</b>. Checked <b>{d.rows.length}</b> gaps
           ({hhmm(d.hour_from * 3600)}–{hhmm(d.hour_to * 3600)}): <b style={{ color: 'var(--fit)' }}>{d.kept} kept</b>,{' '}
-          <b style={{ color: 'var(--sick)' }}>{d.near_misses} near misses</b>.
+          <b style={{ color: 'var(--sick)' }}>{d.near_misses} too short</b>.
         </p>
 
         <svg viewBox={`0 0 ${W} 74`} width="100%" role="img" aria-label="Trains and gaps on the track">
@@ -82,7 +82,7 @@ export default function GapProof() {
           })}
           <g fontSize={10} fill="var(--text-dim)">
             <rect x={8} y={62} width={10} height={8} rx={2} fill="var(--accent)" /><text x={22} y={69.5}>usable</text>
-            <rect x={70} y={62} width={10} height={8} rx={2} fill="none" stroke="var(--sick)" strokeDasharray="3 2" /><text x={84} y={69.5}>near miss (fixable)</text>
+            <rect x={70} y={62} width={10} height={8} rx={2} fill="none" stroke="var(--sick)" strokeDasharray="3 2" /><text x={84} y={69.5}>too short (fixable)</text>
             <line x1={200} x2={200} y1={61} y2={71} stroke="var(--text)" strokeOpacity={0.6} /><text x={206} y={69.5}>train</text>
           </g>
         </svg>
@@ -116,7 +116,7 @@ export default function GapProof() {
         <div className="panel-body">
           <div className="k muted" style={{ fontSize: 11, marginBottom: 8 }}>WHOLE WEEK · GAP CREATION</div>
           <div className="tiles mini">
-            <div className="tile"><div className="v">{cs.survey.near_gaps.toLocaleString()}</div><div className="k">near-miss gaps</div>
+            <div className="tile"><div className="v">{cs.survey.near_gaps.toLocaleString()}</div><div className="k">short gaps</div>
               <div className="note">just short of {cs.min_workable_min} min</div></div>
             <div className="tile"><div className="v" style={{ color: 'var(--fit)' }}>{cs.survey.created}</div><div className="k">opened</div>
               <div className="note">{cs.survey.RETIME} held · {cs.survey.REROUTE} rerouted</div></div>

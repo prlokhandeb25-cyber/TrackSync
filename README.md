@@ -62,11 +62,11 @@ reacting to an unplanned defect mid-week possible at all.
   matrix, before and after the controls the planner applies (kept at different times, joint permit, non-overlapping
   zones). Rules-based with assumed scales, not calibrated to incident data (A-060). RailMitra adds the same to
   "can X and Y work together?" answers.
-- **Scaling studio tab.** Runs the algorithm on random batches of 40, 100, 200 and 400 jobs with the exact solver
+- **Scaling studio tab.** The last finished run is saved (`artifacts/scale_results.json`) and shown at once; a first run starts by itself shortly after the app opens. Runs the algorithm on random batches of 40, 100, 200 and 400 jobs with the exact solver
   (timing the fast path on the same jobs), and shows timing curves, the gap to the best possible plan, and an independent
-  rule check of every plan. Measured: the exact solver's plans pass every rule at every size (0 of 2,248 checks failed)
-  and it always found a legal plan, but it proves optimality only on small batches (3.8% gap at 40 jobs, 41-89% at
-  100-400 in the time allowed); the fast path plans 400 jobs in about 2 s but breaks the gang and daily-block limits
+  rule check of every plan. Measured: the exact solver's plans pass every rule at every size (0 of 2,024 checks failed)
+  and it always found a legal plan, but it proves optimality only on small batches (20% gap at 40 jobs, 37-91% at
+  100-400 in the time allowed; run-to-run timings vary); the fast path plans 400 jobs in about 11 s in that run but breaks the gang and daily-block limits
   (72 failed checks at 400). Trade-off plans, machine limits,
   approvals and learning-from-execution exist as backend routes (`/api/studio/*`, `/api/approvals`, `/api/learning`)
   but are no longer shown in the UI.

@@ -93,6 +93,17 @@ def _startup() -> None:
             from backend.api.routes_tasks import ensure_dayfill
             ensure_plan()
             ensure_dayfill()
+            # the pages that used to compute these on first open (Before / after, AI dispatcher): do it now, once
+            from backend.api.routes import impact, algorithms_proof
+            from backend.api.routes_efficiency import efficiency
+            from backend.api.routes_tasks import scorecard, explain_gaps
+            from backend.api.routes_sudden import pax_experiment
+            from backend.api.routes_quality import plan_robustness
+            for fn in (algorithms_proof, impact, efficiency, scorecard, explain_gaps, pax_experiment, plan_robustness):
+                try:
+                    fn()
+                except Exception:
+                    pass
         except Exception:
             pass
     import threading

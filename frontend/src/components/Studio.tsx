@@ -114,7 +114,7 @@ export default function Studio() {
     <div style={{ display: 'grid', gap: 16 }}>
       <div className="ba-hero">
         <h1>Scaling studio</h1>
-        <div className="sub">The same algorithm on random batches of 40, 100, 200 and 400 jobs: how fast, how close to the best possible plan, and whether every rule still holds.</div>
+        <div className="sub">{d?.measured_at ? `Last measured ${new Date(d.measured_at * 1000).toLocaleString()}. ` : ''}The same algorithm on random batches of 40, 100, 200 and 400 jobs: how fast, how close to the best possible plan, and whether every rule still holds.</div>
         <div style={{ marginTop: 14 }}>
           <button className="action primary" disabled={running} onClick={run}>
             {running ? `Running… step ${job!.progress[0]} of ${job!.progress[1]}` : d ? 'Run the scale test again' : 'Run the scale test'}

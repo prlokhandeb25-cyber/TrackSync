@@ -31,6 +31,9 @@ from backend.planner.verify import verify_plan
 
 SIZES = (40, 100, 200, 400)
 BUDGET_S = {40: 30.0, 100: 60.0, 200: 90.0, 400: 120.0}
+# All the configured search threads: capping them measurably worsened the proofs, and the result is saved, so the
+# test only has to run once (the app is slow for those minutes, not on every start).
+SOLVER_WORKERS = int(load_config()["planner"]["num_search_workers"])
 FAST_SIZES: tuple[int, ...] = ()   # fast-path-only sizes (800, 1600 were run once and removed from the test on request)
 
 
@@ -80,7 +83,7 @@ def run_size(world, pax, n: int, budget_s: float, seed: int = 0, occ=None) -> di
     progress: list[tuple[float, float, float]] = []
     t0 = time.time()
     res = build_and_solve(net, [t.model_copy(deep=True) for t in tasks], world.windows, budget_s, pax=pax,
-                          max_blocks_per_day=cap, progress=progress)
+                          max_blocks_per_day=cap, progress=progress, workers=SOLVER_WORKERS)
     wall = time.time() - t0
     # the fast heuristic on the same jobs
     idx = build_interval_index(world.windows)
@@ -107,4 +110,4 @@ def run_size(world, pax, n: int, budget_s: float, seed: int = 0, occ=None) -> di
             "within_1_s": _first_within(progress, 1.0), "windows": res.n_windows_considered, "block_cap_per_day": cap,
             "curve": [(round(t, 1), round(g, 2)) for t, g in curve],
             "heuristic": {"placed": placed_h, "wall_s": round(heur_s, 2), "referee": ref_heur},
-            "referee": ref_solver, "jobs_per_s_solver": round(len(res.assignments) / max(wall, 1e-6), 2)}
+            "referee": ref_solver, "solver_workers": SOLVER_WORKERS, "jobs_per_s_solver": round(len(res.assignments) / max(wall, 1e-6), 2)}

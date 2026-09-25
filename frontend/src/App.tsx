@@ -138,6 +138,15 @@ export default function App() {
       .catch(e => setErr(String(e)))
   }, [])
 
+  // The Scaling studio test takes minutes: start it in the background shortly after the app opens if there is no
+  // saved result, so the page has real numbers by the time it is visited (a saved run is shown at once).
+  useEffect(() => {
+    const t = setTimeout(() => {
+      api.studioScale().then(j => { if (j.status === 'idle') void api.studioScaleRun() }).catch(() => undefined)
+    }, 20000)
+    return () => clearTimeout(t)
+  }, [])
+
   const speedRef = useRef(speed)
   speedRef.current = speed
   useEffect(() => {

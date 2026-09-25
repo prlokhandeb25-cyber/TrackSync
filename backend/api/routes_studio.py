@@ -15,7 +15,10 @@ APPROVED proposal (planner/approvals.py). Only one heavy job runs at a time so t
 
 from __future__ import annotations
 
+import json
 import threading
+import time
+from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -35,6 +38,19 @@ _PARETO_ASSIGN: dict[str, list] = {}
 _RES_ASSIGN: dict = {}
 
 
+SCALE_FILE = Path(__file__).resolve().parents[2] / "artifacts" / "scale_results.json"
+
+
+def _load_saved_scale() -> None:
+    """The last finished scale test, so the Scaling studio shows real measured results at once after a restart."""
+    try:
+        d = json.loads(SCALE_FILE.read_text(encoding="utf-8"))
+        if d.get("rows") and not d.get("partial"):
+            _S["scale"].update(status="done", progress=[1, 1], data=d)
+    except Exception:
+        pass                                    # no saved run yet: the page starts one
+
+
 def _start(name: str, fn) -> dict:
     with _LOCK:
         if _JOB["running"]:
@@ -47,6 +63,12 @@ def _start(name: str, fn) -> dict:
             data = fn(lambda i, n: _S[name].update(progress=[i, n]))
             with _LOCK:
                 _S[name].update(status="done", data=data)
+            if name == "scale":
+                try:
+                    SCALE_FILE.parent.mkdir(parents=True, exist_ok=True)
+                    SCALE_FILE.write_text(json.dumps(data), encoding="utf-8")
+                except Exception:
+                    pass
         except Exception as e:                                        # shown on the page, not swallowed
             with _LOCK:
                 _S[name].update(status="error", error=repr(e))
@@ -84,11 +106,14 @@ def _scale(progress):
         with _LOCK:
             _S["scale"]["data"] = {"rows": list(rows), "fast": list(fast), "partial": True}
         progress(len(SC.SIZES) + j + 1, total)
-    return {"rows": rows, "fast": fast, "partial": False,
-            "how": "Random jobs on the live network and timetable, solved by the exact solver with a fixed time budget per size; the solver's own progress "
+    return {"rows": rows, "fast": fast, "partial": False, "measured_at": time.time(),
+            "how": f"Random jobs on the live network and timetable, solved by the exact solver ({SC.SOLVER_WORKERS} search threads) with a fixed time budget per size; the solver's own progress "
                    "is logged. 'Proven optimal' only if the gap closed to zero inside the budget. The per-day block cap grows with the workload. The fast "
                    "heuristic ignores the gang and daily-block limits, so its count is an upper bound on what it could place legally.",
             "caveat": "One seeded job mix per size; the jobs are synthetic like the rest of the project's jobs (A-016)."}
+
+
+_load_saved_scale()
 
 
 @router.post("/api/studio/scale/run")

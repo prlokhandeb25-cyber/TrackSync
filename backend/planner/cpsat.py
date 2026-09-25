@@ -155,6 +155,7 @@ def build_and_solve(
     extra=None,
     max_blocks_per_day: int | None = None,
     progress: list | None = None,
+    workers: int | None = None,       # search threads; None = the configured number
 ) -> PlanResult:
     cfg = load_config()
     w = {**cfg["planner"]["weights"], **(weights or {})}
@@ -415,7 +416,7 @@ def build_and_solve(
     solver = cp_model.CpSolver()
     solver.parameters.max_time_in_seconds = float(
         time_limit_s if time_limit_s is not None else cfg["planner"]["solve_time_s_demo"])
-    solver.parameters.num_search_workers = int(cfg["planner"]["num_search_workers"])
+    solver.parameters.num_search_workers = int(workers if workers else cfg["planner"]["num_search_workers"])
     solver.parameters.random_seed = int(cfg["seed"]) % (2**31 - 1)
     solver.parameters.log_search_progress = bool(log)
     if progress is not None:

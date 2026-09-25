@@ -606,7 +606,7 @@ export interface ScaleRow {
   windows: number; block_cap_per_day: number; curve: [number, number][]
   heuristic: { placed: number; wall_s: number; referee: RefereeCount | null }; referee: RefereeCount | null; jobs_per_s_solver: number
 }
-export interface ScaleData { rows: ScaleRow[]; fast: FastRow[]; partial: boolean; how?: string; caveat?: string }
+export interface ScaleData { rows: ScaleRow[]; fast: FastRow[]; partial: boolean; measured_at?: number; how?: string; caveat?: string }
 export interface DiffRow { task_id: string; label: string; department?: string; zone?: string; from?: [number, number]; to?: [number, number] }
 export interface ParetoPoint {
   id: string; title: string; why: string; status: string; gap_pct: number; wall_s: number; placed: number; passengers: number; robust: number
