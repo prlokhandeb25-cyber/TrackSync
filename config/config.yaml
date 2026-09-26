@@ -84,7 +84,7 @@ departments:
 
 planner:                           # SPEC §10
   max_blocks_per_day: 8            # blocks the division can protect and supervise in a day
-  solve_time_s_demo: 10
+  solve_time_s_demo: 60
   solve_time_s_instance: 10
   num_search_workers: 8
   weights:
