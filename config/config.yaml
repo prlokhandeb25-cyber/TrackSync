@@ -83,7 +83,7 @@ departments:
   iwp_quota_per_day: 2             # Integrated Work Permission daily quota (SPEC §7.2 R1)
 
 planner:                           # SPEC §10
-  max_blocks_per_day: 8            # blocks the division can protect and supervise in a day
+  max_blocks_per_day: 8             # blocks the division can protect and supervise in a day
   solve_time_s_demo: 5
   solve_time_s_instance: 3
   num_search_workers: 4
