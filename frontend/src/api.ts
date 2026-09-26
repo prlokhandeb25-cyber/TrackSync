@@ -254,8 +254,10 @@ export interface ProofData {
   rerouting: { unplaced: number; with_lever: number; reroute_paths: number; track_swaps: number; executed: number }
 }
 
+const API_BASE = import.meta.env.VITE_API_BASE_URL || ''
+
 const j = async <T,>(url: string, init?: RequestInit): Promise<T> => {
-  const r = await fetch(url, init)
+  const r = await fetch(`${API_BASE}${url}`, init)
   if (!r.ok) throw new Error(`${url} -> ${r.status}`)
   return r.json() as Promise<T>
 }

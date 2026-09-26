@@ -1,30 +1,26 @@
 # P0/P1 — data pipeline, validation, API
-fastapi==0.115.6
-uvicorn[standard]==0.34.0
-pydantic==2.10.4
-pandas==2.2.3
-pyarrow==18.1.0
-numpy==2.2.1
-networkx==3.4.2
-pyyaml==6.0.2
-requests==2.32.3
-python-dateutil==2.9.0.post0
+fastapi>=0.115.0
+uvicorn[standard]>=0.34.0
+pydantic>=2.10.0
+pandas>=2.2.0
+pyarrow>=18.0.0
+numpy>=2.0.0
+networkx>=3.4.0
+pyyaml>=6.0.0
+requests>=2.32.0
+python-dateutil>=2.9.0
 
 # P4 — CP-SAT planner
-ortools==9.11.4210
+ortools>=9.8.0
 
 # A-Ops — augmented interval tree for gap/window lookups
-intervaltree==3.1.0
+intervaltree>=3.1.0
 
 # A-Ops — hierarchical clustering of jobs
-scipy==1.15.3
-
-# P7 — offline RL (CPU wheel; see CLAUDE.md "Environment")
-# torch installed separately at P7:
-#   .venv\Scripts\python.exe -m pip install torch --index-url https://download.pytorch.org/whl/cpu
+scipy>=1.13.0
 
 # P9 — charts
-matplotlib==3.10.0
+matplotlib>=3.8.0
 
 # tests
-pytest==8.3.4
+pytest>=8.0.0
