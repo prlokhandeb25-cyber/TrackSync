@@ -84,9 +84,9 @@ departments:
 
 planner:                           # SPEC §10
   max_blocks_per_day: 8            # blocks the division can protect and supervise in a day
-  solve_time_s_demo: 10
-  solve_time_s_instance: 10
-  num_search_workers: 8
+  solve_time_s_demo: 5
+  solve_time_s_instance: 3
+  num_search_workers: 4
   weights:
     w1_train_minutes_lost: 1.0     # primary operational cost
     w2_unscheduled_task: 100.0     # per priority-point, per task left unplanned.
@@ -174,7 +174,7 @@ weather:                           # backend/planner/crew_profile.py (ASSUMPTION
 
 twin:                              # backend/planner/twin.py (ASSUMPTIONS A-046)
   horizon_h: 12                    # how far ahead the ripple is followed
-  scenarios: 30                    # random days per response
+  scenarios: 10                    # random days per response
   recovery_s_per_hop: 30           # delay a train wins back at each section (timetable slack)
   cancel_after_min: 90             # a train later than this is cancelled or short-terminated: its delay stops counting
   lateness_scale: 0.3              # share of the configured random lateness applied, so the closure's own effect dominates
