@@ -116,16 +116,25 @@ def _task_row(t: Task, scores: dict, cluster_of: dict) -> dict:
     }
 
 
+_SCORED_CACHE: dict = {}
+
+
 def _scored_pool(include_sim: bool = False) -> tuple[list[Task], list, dict, dict]:
     w = ensure_world()
     pool = _pool(include_sim)
+    key = (len(pool), tuple(t.id for t in pool), include_sim, len(STATE.user_placements))
+    if _SCORED_CACHE.get("key") == key:
+        return _SCORED_CACHE["val"]
     clusters = cluster_tasks(w.net, pool)
     scores = score_tasks(w.net, pool, clusters)
     cluster_of = {}
     for c in clusters:
         for tid in c.task_ids:
             cluster_of[tid] = {"id": c.id, "label": c.label, "size": len(c.task_ids)}
-    return pool, clusters, scores, cluster_of
+    val = (pool, clusters, scores, cluster_of)
+    _SCORED_CACHE["key"] = key
+    _SCORED_CACHE["val"] = val
+    return val
 
 
 @router.post("/api/tasks/submit")

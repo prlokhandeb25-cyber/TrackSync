@@ -122,7 +122,7 @@ def ensure_plan() -> PlanResult:
         # Robust placement: slide each job to the start that is most likely to clear before the next
         # train. Only start times change, each move is re-checked by the referee, and it is measured.
         from backend.planner.robustness import centre_plan
-        centred, rep = centre_plan(world.net, world.tasks, res.assignments, world.windows, occ)
+        centred, rep = centre_plan(world.net, world.tasks, res.assignments, world.windows, occ, samples=30)
         by = {t.id: t for t in world.tasks}
         for a in centred:
             t = by.get(a.task_id)
